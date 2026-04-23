@@ -22,6 +22,11 @@ jobs:
           java-version: ${{ matrix.java }}
           cache: maven
 
+      - name: Install langfuse-java SNAPSHOT
+        run: |
+          git clone --depth 1 https://github.com/langfuse/langfuse-java.git /tmp/langfuse-java
+          mvn install -f /tmp/langfuse-java/pom.xml -q -DskipTests
+
       - name: Build & Unit Test
         run: mvn test --batch-mode --no-transfer-progress
 
@@ -38,6 +43,11 @@ jobs:
           distribution: temurin
           java-version: 17
           cache: maven
+
+      - name: Install langfuse-java SNAPSHOT
+        run: |
+          git clone --depth 1 https://github.com/langfuse/langfuse-java.git /tmp/langfuse-java
+          mvn install -f /tmp/langfuse-java/pom.xml -q -DskipTests
 
       - name: Integration Tests
         if: env.LANGFUSE_PUBLIC_KEY != ''

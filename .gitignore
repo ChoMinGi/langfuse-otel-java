@@ -21,3 +21,4 @@ dependency-reduced-pom.xml
 credentials*
 application-local.yml
 application-local.properties
+LangfuseE2ETest.java

@@ -1,11 +1,13 @@
 package io.github.chomingi.langfuse.otel;
 
+import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.SpanKind;
 import io.opentelemetry.api.trace.StatusCode;
 import io.opentelemetry.api.trace.Tracer;
 import io.opentelemetry.context.Scope;
 
+import java.util.Arrays;
 import java.util.function.Consumer;
 
 public class LangfuseTrace implements AutoCloseable {
@@ -52,7 +54,7 @@ public class LangfuseTrace implements AutoCloseable {
     }
 
     public LangfuseTrace tags(String... tags) {
-        span.setAttribute(LangfuseAttributes.TRACE_TAGS, String.join(",", tags));
+        span.setAttribute(AttributeKey.stringArrayKey(LangfuseAttributes.TRACE_TAGS), Arrays.asList(tags));
         return this;
     }
 

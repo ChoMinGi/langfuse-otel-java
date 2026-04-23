@@ -5,6 +5,7 @@ import io.opentelemetry.api.trace.Tracer;
 import io.opentelemetry.exporter.otlp.http.trace.OtlpHttpSpanExporter;
 import io.opentelemetry.sdk.OpenTelemetrySdk;
 import io.opentelemetry.sdk.resources.Resource;
+import io.opentelemetry.sdk.resources.ResourceBuilder;
 import io.opentelemetry.sdk.trace.SdkTracerProvider;
 import io.opentelemetry.sdk.trace.export.BatchSpanProcessor;
 import org.slf4j.Logger;
@@ -129,8 +130,15 @@ public class LangfuseOtel implements AutoCloseable {
                         .addHeader("x-langfuse-ingestion-version", "4")
                         .build();
 
-                Resource resource = Resource.getDefault()
-                        .merge(Resource.builder().put("service.name", serviceName).build());
+                ResourceBuilder resourceBuilder = Resource.builder()
+                        .put("service.name", serviceName);
+                if (environment != null && !environment.isEmpty()) {
+                    resourceBuilder.put(LangfuseAttributes.ENVIRONMENT, environment);
+                }
+                if (release != null && !release.isEmpty()) {
+                    resourceBuilder.put(LangfuseAttributes.RELEASE, release);
+                }
+                Resource resource = Resource.getDefault().merge(resourceBuilder.build());
 
                 SdkTracerProvider tracerProvider = SdkTracerProvider.builder()
                         .setResource(resource)

@@ -34,6 +34,9 @@ public class ObserveGenerationAspect {
 
             generation = new LangfuseGeneration(langfuseOtel.getTracer(), name);
 
+            if (!annotation.operation().isEmpty()) {
+                generation.operationName(annotation.operation());
+            }
             if (!annotation.model().isEmpty()) {
                 generation.model(annotation.model());
             }

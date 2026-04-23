@@ -15,7 +15,7 @@ import org.springframework.context.annotation.Bean;
 @ConditionalOnProperty(prefix = "langfuse", name = "enabled", havingValue = "true", matchIfMissing = true)
 public class LangfuseOtelAutoConfiguration {
 
-    @Bean
+    @Bean(destroyMethod = "close")
     @ConditionalOnMissingBean
     public LangfuseOtel langfuseOtel(LangfuseOtelProperties properties) {
         LangfuseOtel.Builder builder = LangfuseOtel.builder()

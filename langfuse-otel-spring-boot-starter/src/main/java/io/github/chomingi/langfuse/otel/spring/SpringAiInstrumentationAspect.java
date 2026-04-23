@@ -25,28 +25,36 @@ public class SpringAiInstrumentationAspect {
         this.langfuseOtel = langfuseOtel;
     }
 
-    @Around("execution(* org.springframework.ai.chat.model.ChatModel.call(org.springframework.ai.chat.prompt.Prompt))")
+    @Around("execution(* org.springframework.ai.chat.model.ChatModel.call(..))")
     public Object interceptChatModelCall(ProceedingJoinPoint joinPoint) throws Throwable {
         LangfuseGeneration gen = null;
         try {
-            Prompt prompt = (Prompt) joinPoint.getArgs()[0];
             String spanName = resolveSpanName(joinPoint);
             gen = new LangfuseGeneration(langfuseOtel.getTracer(), spanName);
-            setRequestAttributes(gen, prompt);
+            Object firstArg = joinPoint.getArgs().length > 0 ? joinPoint.getArgs()[0] : null;
+            if (firstArg instanceof Prompt) {
+                setRequestAttributes(gen, (Prompt) firstArg);
+            } else if (firstArg instanceof String) {
+                gen.input(firstArg);
+            }
         } catch (Exception e) {
             log.debug("Langfuse instrumentation setup failed, proceeding without tracing", e);
         }
 
         try {
-            ChatResponse response = (ChatResponse) joinPoint.proceed();
+            Object result = joinPoint.proceed();
 
             try {
-                setResponseAttributes(gen, response);
+                if (result instanceof ChatResponse) {
+                    setResponseAttributes(gen, (ChatResponse) result);
+                } else if (result instanceof String && gen != null) {
+                    gen.output(result);
+                }
             } catch (Exception e) {
                 log.debug("Failed to record response attributes", e);
             }
 
-            return response;
+            return result;
         } catch (Throwable t) {
             if (gen != null) {
                 try { gen.recordException(t); } catch (Exception ignored) {}

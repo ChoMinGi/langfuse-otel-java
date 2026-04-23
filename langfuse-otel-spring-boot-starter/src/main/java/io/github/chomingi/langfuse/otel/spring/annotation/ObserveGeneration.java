@@ -14,4 +14,6 @@ public @interface ObserveGeneration {
     String model() default "";
 
     String system() default "";
+
+    String operation() default "chat";
 }

@@ -24,6 +24,11 @@ public class LangfuseGeneration implements AutoCloseable {
         this.cleanable = SpanGuard.register(this, span, scope, name);
     }
 
+    public LangfuseGeneration operationName(String operationName) {
+        span.setAttribute(LangfuseAttributes.GEN_AI_OPERATION_NAME, operationName);
+        return this;
+    }
+
     public LangfuseGeneration model(String model) {
         span.setAttribute(LangfuseAttributes.GEN_AI_REQUEST_MODEL, model);
         return this;

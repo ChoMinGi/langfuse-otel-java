@@ -10,7 +10,6 @@ import org.springframework.core.annotation.Order;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
-import java.security.Principal;
 
 @Order(Ordered.HIGHEST_PRECEDENCE + 10)
 public class LangfuseContextFilter extends OncePerRequestFilter {
@@ -26,16 +25,6 @@ public class LangfuseContextFilter extends OncePerRequestFilter {
                                     HttpServletResponse response,
                                     FilterChain filterChain) throws ServletException, IOException {
         try {
-            Principal principal = request.getUserPrincipal();
-            if (principal != null) {
-                LangfuseContext.setUserId(principal.getName());
-            }
-
-            jakarta.servlet.http.HttpSession session = request.getSession(false);
-            if (session != null) {
-                LangfuseContext.setSessionId(session.getId());
-            }
-
             if (properties.getEnvironment() != null) {
                 LangfuseContext.setEnvironment(properties.getEnvironment());
             }

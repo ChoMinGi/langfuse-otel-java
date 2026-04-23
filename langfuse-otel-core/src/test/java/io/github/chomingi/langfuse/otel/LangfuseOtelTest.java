@@ -8,21 +8,35 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class LangfuseOtelTest {
 
     @Test
-    void builder_requiresPublicKey() {
+    void builder_requiresPublicKey_failSafeOff() {
         assertThatThrownBy(() -> LangfuseOtel.builder()
                 .secretKey("sk-test")
+                .failSafe(false)
                 .build())
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("publicKey");
     }
 
     @Test
-    void builder_requiresSecretKey() {
+    void builder_requiresSecretKey_failSafeOff() {
         assertThatThrownBy(() -> LangfuseOtel.builder()
                 .publicKey("pk-test")
+                .failSafe(false)
                 .build())
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("secretKey");
+    }
+
+    @Test
+    void builder_noopWhenKeysAbsent() {
+        try (LangfuseOtel langfuse = LangfuseOtel.builder().build()) {
+            assertThat(langfuse.isNoop()).isTrue();
+            assertThat(langfuse.getTracer()).isNotNull();
+            // should work without throwing
+            langfuse.trace("noop-test", trace -> {
+                trace.generation("gen", gen -> gen.model("test"));
+            });
+        }
     }
 
     @Test
@@ -103,6 +117,67 @@ class LangfuseOtelTest {
                 }
             }
         }
+    }
+
+    @Test
+    void concurrentTraces() throws Exception {
+        try (LangfuseOtel langfuse = LangfuseOtel.builder()
+                .publicKey("pk-test")
+                .secretKey("sk-test")
+                .build()) {
+
+            int threadCount = 10;
+            java.util.concurrent.CountDownLatch latch = new java.util.concurrent.CountDownLatch(threadCount);
+            java.util.concurrent.atomic.AtomicInteger errors = new java.util.concurrent.atomic.AtomicInteger(0);
+
+            for (int i = 0; i < threadCount; i++) {
+                final int idx = i;
+                new Thread(() -> {
+                    try {
+                        langfuse.trace("concurrent-trace-" + idx, trace -> {
+                            trace.userId("user-" + idx);
+                            trace.generation("gen-" + idx, gen -> {
+                                gen.model("gpt-4o").input("input-" + idx).output("output-" + idx);
+                            });
+                        });
+                    } catch (Exception e) {
+                        errors.incrementAndGet();
+                    } finally {
+                        latch.countDown();
+                    }
+                }).start();
+            }
+
+            latch.await(10, java.util.concurrent.TimeUnit.SECONDS);
+            assertThat(errors.get()).isZero();
+        }
+    }
+
+    @Test
+    void contextIsolationBetweenThreads() throws Exception {
+        java.util.concurrent.CountDownLatch latch = new java.util.concurrent.CountDownLatch(2);
+        java.util.concurrent.atomic.AtomicReference<String> thread1UserId = new java.util.concurrent.atomic.AtomicReference<>();
+        java.util.concurrent.atomic.AtomicReference<String> thread2UserId = new java.util.concurrent.atomic.AtomicReference<>();
+
+        new Thread(() -> {
+            LangfuseContext.setUserId("user-A");
+            try { Thread.sleep(50); } catch (InterruptedException ignored) {}
+            thread1UserId.set(LangfuseContext.getUserId());
+            LangfuseContext.clear();
+            latch.countDown();
+        }).start();
+
+        new Thread(() -> {
+            LangfuseContext.setUserId("user-B");
+            try { Thread.sleep(50); } catch (InterruptedException ignored) {}
+            thread2UserId.set(LangfuseContext.getUserId());
+            LangfuseContext.clear();
+            latch.countDown();
+        }).start();
+
+        latch.await(5, java.util.concurrent.TimeUnit.SECONDS);
+        assertThat(thread1UserId.get()).isEqualTo("user-A");
+        assertThat(thread2UserId.get()).isEqualTo("user-B");
     }
 
     @Test

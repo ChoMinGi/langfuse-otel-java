@@ -6,6 +6,7 @@
 
 Trace every LLM call to [Langfuse](https://langfuse.com) via [OpenTelemetry](https://opentelemetry.io/) — with one dependency.
 
+[![CI](https://github.com/ChoMinGi/langfuse-otel-java-private/actions/workflows/ci.yml/badge.svg)](https://github.com/ChoMinGi/langfuse-otel-java-private/actions)
 [![Java 11+](https://img.shields.io/badge/Java-11%2B-blue)](https://openjdk.org/)
 [![Spring Boot 3.x](https://img.shields.io/badge/Spring%20Boot-3.x-green)](https://spring.io/projects/spring-boot)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)

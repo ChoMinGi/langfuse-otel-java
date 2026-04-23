@@ -13,6 +13,8 @@ public class LangfuseSpan implements AutoCloseable {
     private final Tracer tracer;
     private final Span span;
     private final Scope scope;
+    private final java.lang.ref.Cleaner.Cleanable cleanable;
+    private volatile boolean closed;
 
     LangfuseSpan(Tracer tracer, String name) {
         this.tracer = tracer;
@@ -20,6 +22,7 @@ public class LangfuseSpan implements AutoCloseable {
                 .setSpanKind(SpanKind.INTERNAL)
                 .startSpan();
         this.scope = span.makeCurrent();
+        this.cleanable = SpanGuard.register(this, span, scope, name);
     }
 
     public LangfuseSpan input(Object input) {
@@ -94,7 +97,11 @@ public class LangfuseSpan implements AutoCloseable {
 
     @Override
     public void close() {
-        scope.close();
-        span.end();
+        if (!closed) {
+            closed = true;
+            cleanable.clean();
+            scope.close();
+            span.end();
+        }
     }
 }

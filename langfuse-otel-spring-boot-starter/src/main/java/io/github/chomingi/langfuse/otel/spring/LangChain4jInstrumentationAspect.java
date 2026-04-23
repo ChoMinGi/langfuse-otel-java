@@ -27,25 +27,36 @@ public class LangChain4jInstrumentationAspect {
 
     @Around("execution(* dev.langchain4j.model.chat.ChatModel.chat(dev.langchain4j.model.chat.request.ChatRequest))")
     public Object interceptChatModelChat(ProceedingJoinPoint joinPoint) throws Throwable {
-        ChatRequest request = (ChatRequest) joinPoint.getArgs()[0];
-        String spanName = resolveSpanName(joinPoint);
-
-        LangfuseGeneration gen = new LangfuseGeneration(langfuseOtel.getTracer(), spanName);
-
+        LangfuseGeneration gen = null;
         try {
+            ChatRequest request = (ChatRequest) joinPoint.getArgs()[0];
+            String spanName = resolveSpanName(joinPoint);
+            gen = new LangfuseGeneration(langfuseOtel.getTracer(), spanName);
             gen.system("langchain4j");
             setRequestAttributes(gen, request);
+        } catch (Exception e) {
+            log.debug("Langfuse instrumentation setup failed, proceeding without tracing", e);
+        }
 
+        try {
             ChatResponse response = (ChatResponse) joinPoint.proceed();
 
-            setResponseAttributes(gen, response);
-            return response;
+            try {
+                setResponseAttributes(gen, response);
+            } catch (Exception e) {
+                log.debug("Failed to record response attributes", e);
+            }
 
+            return response;
         } catch (Throwable t) {
-            gen.recordException(t);
+            if (gen != null) {
+                try { gen.recordException(t); } catch (Exception ignored) {}
+            }
             throw t;
         } finally {
-            gen.end();
+            if (gen != null) {
+                try { gen.end(); } catch (Exception ignored) {}
+            }
         }
     }
 

@@ -10,6 +10,8 @@ public class LangfuseGeneration implements AutoCloseable {
 
     private final Span span;
     private final Scope scope;
+    private final java.lang.ref.Cleaner.Cleanable cleanable;
+    private volatile boolean closed;
 
     public LangfuseGeneration(Tracer tracer, String name) {
         this.span = tracer.spanBuilder(name)
@@ -17,6 +19,7 @@ public class LangfuseGeneration implements AutoCloseable {
                 .setAttribute(LangfuseAttributes.GEN_AI_OPERATION_NAME, "chat")
                 .startSpan();
         this.scope = span.makeCurrent();
+        this.cleanable = SpanGuard.register(this, span, scope, name);
     }
 
     public LangfuseGeneration model(String model) {
@@ -123,7 +126,11 @@ public class LangfuseGeneration implements AutoCloseable {
 
     @Override
     public void close() {
-        scope.close();
-        span.end();
+        if (!closed) {
+            closed = true;
+            cleanable.clean();
+            scope.close();
+            span.end();
+        }
     }
 }

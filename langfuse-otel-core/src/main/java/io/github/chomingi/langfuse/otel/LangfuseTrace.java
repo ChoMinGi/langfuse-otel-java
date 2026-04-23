@@ -13,6 +13,8 @@ public class LangfuseTrace implements AutoCloseable {
     private final Tracer tracer;
     private final Span span;
     private final Scope scope;
+    private final java.lang.ref.Cleaner.Cleanable cleanable;
+    private volatile boolean closed;
 
     LangfuseTrace(Tracer tracer, String name) {
         this.tracer = tracer;
@@ -21,6 +23,7 @@ public class LangfuseTrace implements AutoCloseable {
                 .setAttribute(LangfuseAttributes.TRACE_NAME, name)
                 .startSpan();
         this.scope = span.makeCurrent();
+        this.cleanable = SpanGuard.register(this, span, scope, name);
         applyContext();
     }
 
@@ -115,7 +118,11 @@ public class LangfuseTrace implements AutoCloseable {
 
     @Override
     public void close() {
-        scope.close();
-        span.end();
+        if (!closed) {
+            closed = true;
+            cleanable.clean();
+            scope.close();
+            span.end();
+        }
     }
 }

@@ -30,8 +30,8 @@ public class LangfuseOtel implements AutoCloseable {
     private final Object langfuseClient;
     private final boolean noop;
 
-    private LangfuseOtel(SdkTracerProvider tracerProvider, OpenTelemetry openTelemetry,
-                         Object langfuseClient, boolean noop) {
+    LangfuseOtel(SdkTracerProvider tracerProvider, OpenTelemetry openTelemetry,
+                 Object langfuseClient, boolean noop) {
         this.tracerProvider = tracerProvider;
         this.tracer = openTelemetry.getTracer(TRACER_NAME, LIB_VERSION);
         this.langfuseClient = langfuseClient;

@@ -1,0 +1,15 @@
+langfuse:
+  public-key: ${LANGFUSE_PUBLIC_KEY:}
+  secret-key: ${LANGFUSE_SECRET_KEY:}
+  host: ${LANGFUSE_HOST:https://cloud.langfuse.com}
+  service-name: spring-ai-example
+  environment: test
+
+spring:
+  ai:
+    openai:
+      api-key: ${OPENAI_API_KEY:}
+      chat:
+        options:
+          model: gpt-4o-mini
+          temperature: 0.7

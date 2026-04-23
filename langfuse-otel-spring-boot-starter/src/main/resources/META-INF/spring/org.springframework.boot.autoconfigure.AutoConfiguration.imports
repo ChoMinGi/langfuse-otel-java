@@ -1,0 +1,3 @@
+io.github.chomingi.langfuse.otel.spring.LangfuseOtelAutoConfiguration
+io.github.chomingi.langfuse.otel.spring.SpringAiAutoConfiguration
+io.github.chomingi.langfuse.otel.spring.LangChain4jAutoConfiguration

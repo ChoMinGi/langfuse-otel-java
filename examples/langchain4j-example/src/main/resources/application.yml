@@ -1,0 +1,9 @@
+langfuse:
+  public-key: ${LANGFUSE_PUBLIC_KEY:}
+  secret-key: ${LANGFUSE_SECRET_KEY:}
+  host: ${LANGFUSE_HOST:https://cloud.langfuse.com}
+  service-name: langchain4j-example
+  environment: test
+
+openai:
+  api-key: ${OPENAI_API_KEY:}

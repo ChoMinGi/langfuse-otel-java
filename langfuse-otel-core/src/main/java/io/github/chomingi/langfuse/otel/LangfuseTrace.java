@@ -1,31 +1,23 @@
 package io.github.chomingi.langfuse.otel;
 
 import io.opentelemetry.api.common.AttributeKey;
-import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.SpanKind;
-import io.opentelemetry.api.trace.StatusCode;
 import io.opentelemetry.api.trace.Tracer;
-import io.opentelemetry.context.Scope;
 
 import java.util.Arrays;
+import java.util.List;
 import java.util.function.Consumer;
 
-public class LangfuseTrace implements AutoCloseable {
+public class LangfuseTrace extends AbstractLangfuseSpan {
 
     private final Tracer tracer;
-    private final Span span;
-    private final Scope scope;
-    private final java.lang.ref.Cleaner.Cleanable cleanable;
-    private final java.util.concurrent.atomic.AtomicBoolean closed = new java.util.concurrent.atomic.AtomicBoolean(false);
 
     LangfuseTrace(Tracer tracer, String name) {
-        this.tracer = tracer;
-        this.span = tracer.spanBuilder(name)
+        super(tracer.spanBuilder(name)
                 .setSpanKind(SpanKind.INTERNAL)
                 .setAttribute(LangfuseAttributes.TRACE_NAME, name)
-                .startSpan();
-        this.scope = span.makeCurrent();
-        this.cleanable = SpanGuard.register(this, span, scope, name);
+                .startSpan(), name);
+        this.tracer = tracer;
         applyContext();
     }
 
@@ -36,8 +28,8 @@ public class LangfuseTrace implements AutoCloseable {
         String sessionId = LangfuseContext.getSessionId();
         if (sessionId != null) span.setAttribute(LangfuseAttributes.TRACE_SESSION_ID, sessionId);
 
-        java.util.List<String> tags = LangfuseContext.getTags();
-        if (!tags.isEmpty()) span.setAttribute(LangfuseAttributes.TRACE_TAGS, String.join(",", tags));
+        List<String> tags = LangfuseContext.getTags();
+        if (!tags.isEmpty()) span.setAttribute(AttributeKey.stringArrayKey(LangfuseAttributes.TRACE_TAGS), tags);
 
         String environment = LangfuseContext.getEnvironment();
         if (environment != null) span.setAttribute(LangfuseAttributes.ENVIRONMENT, environment);
@@ -100,29 +92,6 @@ public class LangfuseTrace implements AutoCloseable {
                 s.recordException(e);
                 throw e;
             }
-        }
-    }
-
-    public void recordException(Throwable t) {
-        String message = t.getMessage() != null ? t.getMessage() : t.getClass().getName();
-        span.setStatus(StatusCode.ERROR, message);
-        span.recordException(t);
-        span.setAttribute(LangfuseAttributes.OBSERVATION_LEVEL, "ERROR");
-        span.setAttribute(LangfuseAttributes.OBSERVATION_STATUS_MESSAGE, message);
-    }
-
-    public Span getSpan() {
-        return span;
-    }
-
-    public void end() {
-        close();
-    }
-
-    @Override
-    public void close() {
-        if (closed.compareAndSet(false, true)) {
-            cleanable.clean();
         }
     }
 }

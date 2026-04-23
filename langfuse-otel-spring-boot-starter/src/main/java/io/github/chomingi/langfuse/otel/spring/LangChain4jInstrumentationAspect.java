@@ -4,6 +4,7 @@ import dev.langchain4j.data.message.ChatMessage;
 import dev.langchain4j.model.chat.request.ChatRequest;
 import dev.langchain4j.model.chat.response.ChatResponse;
 import dev.langchain4j.model.output.TokenUsage;
+import io.github.chomingi.langfuse.otel.JsonUtils;
 import io.github.chomingi.langfuse.otel.LangfuseGeneration;
 import io.github.chomingi.langfuse.otel.LangfuseOtel;
 import org.aspectj.lang.ProceedingJoinPoint;
@@ -90,7 +91,7 @@ public class LangChain4jInstrumentationAspect {
                     inputBuilder.append("{\"role\":\"")
                             .append(msg.type().name().toLowerCase())
                             .append("\",\"content\":\"")
-                            .append(escapeJson(msg.toString()))
+                            .append(JsonUtils.escapeJson(msg.toString()))
                             .append("\"}");
                 }
                 inputBuilder.append("]");
@@ -125,12 +126,4 @@ public class LangChain4jInstrumentationAspect {
         }
     }
 
-    private static String escapeJson(String text) {
-        if (text == null) return "";
-        return text.replace("\\", "\\\\")
-                   .replace("\"", "\\\"")
-                   .replace("\n", "\\n")
-                   .replace("\r", "\\r")
-                   .replace("\t", "\\t");
-    }
 }

@@ -1,5 +1,6 @@
 package io.github.chomingi.langfuse.otel.spring;
 
+import io.github.chomingi.langfuse.otel.JsonUtils;
 import io.github.chomingi.langfuse.otel.LangfuseGeneration;
 import io.github.chomingi.langfuse.otel.LangfuseOtel;
 import org.aspectj.lang.ProceedingJoinPoint;
@@ -94,7 +95,7 @@ public class SpringAiInstrumentationAspect {
                 inputBuilder.append("{\"role\":\"")
                         .append(msg.getMessageType().getValue())
                         .append("\",\"content\":\"")
-                        .append(escapeJson(msg.getText()))
+                        .append(JsonUtils.escapeJson(msg.getText()))
                         .append("\"}");
             }
             inputBuilder.append("]");
@@ -132,12 +133,4 @@ public class SpringAiInstrumentationAspect {
         }
     }
 
-    private static String escapeJson(String text) {
-        if (text == null) return "";
-        return text.replace("\\", "\\\\")
-                   .replace("\"", "\\\"")
-                   .replace("\n", "\\n")
-                   .replace("\r", "\\r")
-                   .replace("\t", "\\t");
-    }
 }

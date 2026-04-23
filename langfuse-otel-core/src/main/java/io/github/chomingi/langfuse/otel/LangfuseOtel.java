@@ -109,6 +109,7 @@ public class LangfuseOtel implements AutoCloseable {
         public Builder failSafe(boolean failSafe) { this.failSafe = failSafe; return this; }
 
         public LangfuseOtel build() {
+            // failSafe=true: never crash the host app on misconfiguration (DESIGN.md #3)
             if (publicKey == null || publicKey.isEmpty() || secretKey == null || secretKey.isEmpty()) {
                 if (failSafe) {
                     log.warn("Langfuse API keys not configured. Running in no-op mode — traces will not be sent.");

@@ -5,6 +5,7 @@ import io.opentelemetry.api.trace.Tracer;
 
 public class LangfuseGeneration extends AbstractLangfuseSpan {
 
+    // Public: Spring AOP aspects in starter module need direct instantiation (DESIGN.md #11)
     public LangfuseGeneration(Tracer tracer, String name) {
         super(tracer.spanBuilder(name)
                 .setSpanKind(SpanKind.CLIENT)
@@ -97,6 +98,7 @@ public class LangfuseGeneration extends AbstractLangfuseSpan {
         return this;
     }
 
+    // Object type to avoid NoClassDefFoundError when langfuse-java is absent (DESIGN.md #12)
     public LangfusePromptHelper prompt(Object langfuseClient, String promptName) {
         try {
             Class.forName("com.langfuse.client.LangfuseClient");

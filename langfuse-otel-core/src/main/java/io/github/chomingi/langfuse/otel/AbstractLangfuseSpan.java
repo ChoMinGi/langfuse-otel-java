@@ -35,6 +35,7 @@ abstract class AbstractLangfuseSpan implements AutoCloseable {
         close();
     }
 
+    // Delegates entirely to cleanable.clean() — see DESIGN.md #6 for why we don't call scope.close()/span.end() here
     @Override
     public void close() {
         if (closed.compareAndSet(false, true)) {

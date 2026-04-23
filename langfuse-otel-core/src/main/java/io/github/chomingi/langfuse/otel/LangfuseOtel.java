@@ -10,6 +10,7 @@ import io.opentelemetry.sdk.trace.export.BatchSpanProcessor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
@@ -80,7 +81,6 @@ public class LangfuseOtel implements AutoCloseable {
     @Override
     public void close() {
         if (tracerProvider != null) {
-            tracerProvider.forceFlush().join(10, TimeUnit.SECONDS);
             tracerProvider.shutdown().join(10, TimeUnit.SECONDS);
         }
     }
@@ -118,7 +118,7 @@ public class LangfuseOtel implements AutoCloseable {
 
             try {
                 String authHeader = "Basic " + Base64.getEncoder()
-                        .encodeToString((publicKey + ":" + secretKey).getBytes());
+                        .encodeToString((publicKey + ":" + secretKey).getBytes(StandardCharsets.UTF_8));
 
                 String endpoint = host.endsWith("/") ? host.substring(0, host.length() - 1) : host;
                 endpoint += OTEL_PATH;

@@ -1,7 +1,9 @@
 package io.github.chomingi.langfuse.otel.spring;
 
 import io.github.chomingi.langfuse.otel.LangfuseOtel;
+import io.github.chomingi.langfuse.otel.spring.annotation.ObserveGenerationAspect;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -30,6 +32,13 @@ public class LangfuseOtelAutoConfiguration {
         }
 
         return builder.build();
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    @ConditionalOnBean(LangfuseOtel.class)
+    public ObserveGenerationAspect observeGenerationAspect(LangfuseOtel langfuseOtel) {
+        return new ObserveGenerationAspect(langfuseOtel);
     }
 
     @Bean

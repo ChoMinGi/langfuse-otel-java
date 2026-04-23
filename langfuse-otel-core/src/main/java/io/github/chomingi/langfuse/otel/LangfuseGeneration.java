@@ -6,12 +6,14 @@ import io.opentelemetry.api.trace.StatusCode;
 import io.opentelemetry.api.trace.Tracer;
 import io.opentelemetry.context.Scope;
 
+import java.util.concurrent.atomic.AtomicBoolean;
+
 public class LangfuseGeneration implements AutoCloseable {
 
     private final Span span;
     private final Scope scope;
     private final java.lang.ref.Cleaner.Cleanable cleanable;
-    private volatile boolean closed;
+    private final AtomicBoolean closed = new AtomicBoolean(false);
 
     public LangfuseGeneration(Tracer tracer, String name) {
         this.span = tracer.spanBuilder(name)
@@ -103,17 +105,22 @@ public class LangfuseGeneration implements AutoCloseable {
     }
 
     public LangfusePromptHelper prompt(Object langfuseClient, String promptName) {
-        return new LangfusePromptHelper(
-                (com.langfuse.client.LangfuseClient) langfuseClient,
-                promptName,
-                this);
+        try {
+            Class.forName("com.langfuse.client.LangfuseClient");
+        } catch (ClassNotFoundException e) {
+            throw new IllegalStateException(
+                    "langfuse-java dependency is required for prompt compilation. "
+                    + "Add com.langfuse:langfuse-java to your classpath.");
+        }
+        return new LangfusePromptHelper(langfuseClient, promptName, this);
     }
 
     public void recordException(Throwable t) {
-        span.setStatus(StatusCode.ERROR, t.getMessage());
+        String message = t.getMessage() != null ? t.getMessage() : t.getClass().getName();
+        span.setStatus(StatusCode.ERROR, message);
         span.recordException(t);
         span.setAttribute(LangfuseAttributes.OBSERVATION_LEVEL, "ERROR");
-        span.setAttribute(LangfuseAttributes.OBSERVATION_STATUS_MESSAGE, t.getMessage());
+        span.setAttribute(LangfuseAttributes.OBSERVATION_STATUS_MESSAGE, message);
     }
 
     public Span getSpan() {
@@ -126,11 +133,8 @@ public class LangfuseGeneration implements AutoCloseable {
 
     @Override
     public void close() {
-        if (!closed) {
-            closed = true;
+        if (closed.compareAndSet(false, true)) {
             cleanable.clean();
-            scope.close();
-            span.end();
         }
     }
 }

@@ -31,11 +31,9 @@ public class LangfuseContextFilter extends OncePerRequestFilter {
                 LangfuseContext.setUserId(principal.getName());
             }
 
-            String sessionId = request.getSession(false) != null
-                    ? request.getSession(false).getId()
-                    : null;
-            if (sessionId != null) {
-                LangfuseContext.setSessionId(sessionId);
+            jakarta.servlet.http.HttpSession session = request.getSession(false);
+            if (session != null) {
+                LangfuseContext.setSessionId(session.getId());
             }
 
             if (properties.getEnvironment() != null) {

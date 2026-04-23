@@ -11,3 +11,13 @@ build/
 *.class
 .DS_Store
 dependency-reduced-pom.xml
+*.key
+*.pem
+*.p12
+*.jks
+*.keystore
+*.secret
+.env.*
+credentials*
+application-local.yml
+application-local.properties

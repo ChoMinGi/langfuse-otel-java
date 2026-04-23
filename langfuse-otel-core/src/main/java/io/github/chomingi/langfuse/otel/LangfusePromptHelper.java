@@ -15,8 +15,8 @@ public class LangfusePromptHelper {
     private final LangfuseGeneration generation;
     private final Map<String, String> variables = new LinkedHashMap<>();
 
-    LangfusePromptHelper(LangfuseClient client, String promptName, LangfuseGeneration generation) {
-        this.client = client;
+    LangfusePromptHelper(Object client, String promptName, LangfuseGeneration generation) {
+        this.client = (LangfuseClient) client;
         this.promptName = promptName;
         this.generation = generation;
     }

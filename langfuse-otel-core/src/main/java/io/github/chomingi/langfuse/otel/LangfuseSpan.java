@@ -14,7 +14,7 @@ public class LangfuseSpan implements AutoCloseable {
     private final Span span;
     private final Scope scope;
     private final java.lang.ref.Cleaner.Cleanable cleanable;
-    private volatile boolean closed;
+    private final java.util.concurrent.atomic.AtomicBoolean closed = new java.util.concurrent.atomic.AtomicBoolean(false);
 
     LangfuseSpan(Tracer tracer, String name) {
         this.tracer = tracer;
@@ -81,10 +81,11 @@ public class LangfuseSpan implements AutoCloseable {
     }
 
     public void recordException(Throwable t) {
-        span.setStatus(StatusCode.ERROR, t.getMessage());
+        String message = t.getMessage() != null ? t.getMessage() : t.getClass().getName();
+        span.setStatus(StatusCode.ERROR, message);
         span.recordException(t);
         span.setAttribute(LangfuseAttributes.OBSERVATION_LEVEL, "ERROR");
-        span.setAttribute(LangfuseAttributes.OBSERVATION_STATUS_MESSAGE, t.getMessage());
+        span.setAttribute(LangfuseAttributes.OBSERVATION_STATUS_MESSAGE, message);
     }
 
     public Span getSpan() {
@@ -97,11 +98,8 @@ public class LangfuseSpan implements AutoCloseable {
 
     @Override
     public void close() {
-        if (!closed) {
-            closed = true;
+        if (closed.compareAndSet(false, true)) {
             cleanable.clean();
-            scope.close();
-            span.end();
         }
     }
 }

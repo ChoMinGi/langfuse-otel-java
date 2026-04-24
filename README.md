@@ -7,7 +7,7 @@
 Trace every LLM call to [Langfuse](https://langfuse.com) via [OpenTelemetry](https://opentelemetry.io/) — with one dependency.
 
 [![CI](https://github.com/ChoMinGi/langfuse-otel-java-private/actions/workflows/ci.yml/badge.svg)](https://github.com/ChoMinGi/langfuse-otel-java-private/actions)
-[![Java 11+](https://img.shields.io/badge/Java-11%2B-blue)](https://openjdk.org/)
+[![Java Core 11%2B / Starter 17%2B](https://img.shields.io/badge/Java-core%2011%2B%20%7C%20starter%2017%2B-blue)](https://openjdk.org/)
 [![Spring Boot 3.x](https://img.shields.io/badge/Spring%20Boot-3.x-green)](https://spring.io/projects/spring-boot)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![OpenTelemetry](https://img.shields.io/badge/OpenTelemetry-enabled-blueviolet)](https://opentelemetry.io/)
@@ -34,7 +34,7 @@ Trace every LLM call to [Langfuse](https://langfuse.com) via [OpenTelemetry](htt
 │  ┌──────────────────────────────────────────┐    │
 │  │        langfuse-otel-java                │    │
 │  │                                          │    │
-│  │  • Auto-instrumentation (AOP)            │    │
+│  │  • Auto-instrumentation (wrappers + AOP) │    │
 │  │  • gen_ai.* semantic conventions         │    │
 │  │  • Langfuse auth & endpoint config       │    │
 │  │  • Error capture, context propagation    │    │
@@ -85,7 +85,7 @@ langfuse.trace("my-flow", trace -> {
 });
 ```
 
-Or with Spring Boot — **zero lines of code**. Just add the dependency + `application.yml`.
+Or with Spring Boot — **zero lines of code**. Just add the starter + `application.yml`.
 
 ---
 
@@ -111,6 +111,8 @@ langfuse:
 ```
 
 That's it. If you're using Spring AI or LangChain4j, all LLM calls are **automatically traced**.
+
+The starter brings in Spring AOP transitively. You do not need a separate `spring-boot-starter-aop` dependency.
 
 ### Standalone (No Spring)
 
@@ -270,7 +272,9 @@ langfuse.trace("flow", trace -> {
     trace.generation("llm", gen -> { ... });
 });
 
-// Spring Boot: LangfuseContextFilter auto-extracts from request principal + session
+// Spring Boot: LangfuseContextFilter also auto-extracts
+// request principal -> userId
+// HTTP session id -> sessionId
 ```
 
 ### Prompt Management Integration
@@ -346,6 +350,25 @@ All attributes follow [OTel GenAI Semantic Conventions](https://opentelemetry.io
 | langfuse-java | 0.2.x | Prompt integration (optional) |
 | Langfuse Cloud | v3+ | OTLP ingestion endpoint |
 | Langfuse Self-hosted | v3.22.0+ | OTLP support required |
+
+## Testing
+
+```bash
+# Unit tests only
+mvn test
+
+# Integration tests that call Langfuse
+mvn test -pl langfuse-otel-core -am -DexcludedGroups= -Dgroups=integration
+
+# Explicit end-to-end suite
+mvn test -pl langfuse-otel-core -am -DexcludedGroups= -Dgroups=e2e
+```
+
+Network tests use these environment variables:
+- `LANGFUSE_PUBLIC_KEY`
+- `LANGFUSE_SECRET_KEY`
+- `LANGFUSE_HOST` (optional, defaults to `https://cloud.langfuse.com`)
+- `LANGFUSE_TEST_PROMPT_NAME` (optional, only needed for prompt compilation coverage)
 
 ## Examples
 

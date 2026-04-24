@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 @Tag("integration")
 class LangfuseOtelIntegrationTest {
@@ -11,9 +12,11 @@ class LangfuseOtelIntegrationTest {
     static final String PUBLIC_KEY = System.getenv("LANGFUSE_PUBLIC_KEY");
     static final String SECRET_KEY = System.getenv("LANGFUSE_SECRET_KEY");
     static final String HOST = System.getenv().getOrDefault("LANGFUSE_HOST", "https://cloud.langfuse.com");
+    static final String PROMPT_NAME = System.getenv("LANGFUSE_TEST_PROMPT_NAME");
 
     @Test
     void sendFullTraceToLangfuse() throws Exception {
+        requireCredentials();
         try (LangfuseOtel langfuse = LangfuseOtel.builder()
                 .publicKey(PUBLIC_KEY)
                 .secretKey(SECRET_KEY)
@@ -60,14 +63,11 @@ class LangfuseOtelIntegrationTest {
 
             langfuse.flush();
         }
-
-        Thread.sleep(2000);
-        System.out.println("=== Trace 전송 완료! Langfuse 대시보드에서 확인하세요 ===");
-        System.out.println(HOST);
     }
 
     @Test
     void sendTraceWithCallbackApi() throws Exception {
+        requireCredentials();
         try (LangfuseOtel langfuse = LangfuseOtel.builder()
                 .publicKey(PUBLIC_KEY)
                 .secretKey(SECRET_KEY)
@@ -100,13 +100,11 @@ class LangfuseOtelIntegrationTest {
 
             langfuse.flush();
         }
-
-        Thread.sleep(2000);
-        System.out.println("=== 콜백 API Trace 전송 완료! ===");
     }
 
     @Test
     void errorAutoCapture() throws Exception {
+        requireCredentials();
         try (LangfuseOtel langfuse = LangfuseOtel.builder()
                 .publicKey(PUBLIC_KEY)
                 .secretKey(SECRET_KEY)
@@ -133,13 +131,11 @@ class LangfuseOtelIntegrationTest {
 
             langfuse.flush();
         }
-
-        Thread.sleep(2000);
-        System.out.println("=== 에러 캡처 Trace 전송 완료! ===");
     }
 
     @Test
     void threadLocalContext() throws Exception {
+        requireCredentials();
         try (LangfuseOtel langfuse = LangfuseOtel.builder()
                 .publicKey(PUBLIC_KEY)
                 .secretKey(SECRET_KEY)
@@ -172,13 +168,13 @@ class LangfuseOtelIntegrationTest {
 
             langfuse.flush();
         }
-
-        Thread.sleep(2000);
-        System.out.println("=== ThreadLocal 컨텍스트 Trace 전송 완료! ===");
     }
 
     @Test
     void promptIntegration() throws Exception {
+        requireCredentials();
+        assumeTrue(PROMPT_NAME != null && !PROMPT_NAME.isBlank(),
+                "LANGFUSE_TEST_PROMPT_NAME is required for prompt integration tests");
         com.langfuse.client.LangfuseClient langfuseClient = com.langfuse.client.LangfuseClient.builder()
                 .url(HOST)
                 .credentials(PUBLIC_KEY, SECRET_KEY)
@@ -197,7 +193,7 @@ class LangfuseOtelIntegrationTest {
                      .sessionId("prompt-test-session");
 
                 trace.generation("prompt-compiled-gen", gen -> {
-                    String compiled = gen.prompt(langfuseClient, "otel-test-prompt")
+                    String compiled = gen.prompt(langfuseClient, PROMPT_NAME)
                             .variable("domain", "인사평가")
                             .variable("question", "역량 평가 항목을 알려줘")
                             .compile();
@@ -216,8 +212,11 @@ class LangfuseOtelIntegrationTest {
 
             langfuse.flush();
         }
+    }
 
-        Thread.sleep(2000);
-        System.out.println("=== 프롬프트 연동 Trace 전송 완료! ===");
+    private static void requireCredentials() {
+        assumeTrue(PUBLIC_KEY != null && !PUBLIC_KEY.isBlank()
+                        && SECRET_KEY != null && !SECRET_KEY.isBlank(),
+                "LANGFUSE_PUBLIC_KEY and LANGFUSE_SECRET_KEY are required for integration tests");
     }
 }

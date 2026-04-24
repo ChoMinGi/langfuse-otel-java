@@ -6,14 +6,19 @@ import io.github.chomingi.langfuse.otel.LangfuseOtel;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
+import org.aspectj.lang.reflect.MethodSignature;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.chat.metadata.ChatResponseMetadata;
 import org.springframework.ai.chat.metadata.Usage;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.prompt.ChatOptions;
+
+import java.util.Arrays;
+import java.util.List;
 
 @Aspect
 public class SpringAiInstrumentationAspect {
@@ -28,15 +33,24 @@ public class SpringAiInstrumentationAspect {
 
     @Around("execution(* org.springframework.ai.chat.model.ChatModel.call(..))")
     public Object interceptChatModelCall(ProceedingJoinPoint joinPoint) throws Throwable {
+        Object firstArg = joinPoint.getArgs().length > 0 ? joinPoint.getArgs()[0] : null;
+        if (shouldDeferToPromptCall(joinPoint, firstArg)) {
+            return joinPoint.proceed();
+        }
+
         LangfuseGeneration gen = null;
         try {
             String spanName = resolveSpanName(joinPoint);
             gen = new LangfuseGeneration(langfuseOtel.getTracer(), spanName);
-            Object firstArg = joinPoint.getArgs().length > 0 ? joinPoint.getArgs()[0] : null;
+            gen.system("spring-ai");
             if (firstArg instanceof Prompt) {
-                setRequestAttributes(gen, (Prompt) firstArg);
+                setRequestAttributes(gen, joinPoint, (Prompt) firstArg);
             } else if (firstArg instanceof String) {
-                gen.input(firstArg);
+                applyDefaultOptions(gen, joinPoint);
+                gen.input(toJsonMessages(List.of(new org.springframework.ai.chat.messages.UserMessage((String) firstArg))));
+            } else if (firstArg instanceof Message[]) {
+                applyDefaultOptions(gen, joinPoint);
+                gen.input(toJsonMessages(Arrays.asList((Message[]) firstArg)));
             }
         } catch (Exception e) {
             log.debug("Langfuse instrumentation setup failed, proceeding without tracing", e);
@@ -68,41 +82,68 @@ public class SpringAiInstrumentationAspect {
         }
     }
 
+    private boolean shouldDeferToPromptCall(ProceedingJoinPoint joinPoint, Object firstArg) {
+        if (firstArg instanceof Prompt) {
+            return false;
+        }
+        return ((MethodSignature) joinPoint.getSignature()).getMethod().isDefault();
+    }
+
     private String resolveSpanName(ProceedingJoinPoint joinPoint) {
         String className = joinPoint.getTarget().getClass().getSimpleName();
         return className.replace("ChatModel", "").replace("ChatClient", "").toLowerCase() + ".chat";
     }
 
-    private void setRequestAttributes(LangfuseGeneration gen, Prompt prompt) {
+    private void setRequestAttributes(LangfuseGeneration gen, ProceedingJoinPoint joinPoint, Prompt prompt) {
         if (gen == null) return;
 
-        gen.system("spring-ai");
-
         ChatOptions options = prompt.getOptions();
+        if (options == null) {
+            options = resolveDefaultOptions(joinPoint);
+        }
+        applyChatOptions(gen, options);
+
+        try {
+            gen.input(toJsonMessages(prompt.getInstructions()));
+        } catch (Exception e) {
+            log.debug("Failed to extract input messages", e);
+        }
+    }
+
+    private void applyDefaultOptions(LangfuseGeneration gen, ProceedingJoinPoint joinPoint) {
+        applyChatOptions(gen, resolveDefaultOptions(joinPoint));
+    }
+
+    private ChatOptions resolveDefaultOptions(ProceedingJoinPoint joinPoint) {
+        Object target = joinPoint.getTarget();
+        if (target instanceof ChatModel) {
+            return ((ChatModel) target).getDefaultOptions();
+        }
+        return null;
+    }
+
+    private void applyChatOptions(LangfuseGeneration gen, ChatOptions options) {
         if (options != null) {
             if (options.getModel() != null) gen.model(options.getModel());
             if (options.getTemperature() != null) gen.temperature(options.getTemperature());
             if (options.getMaxTokens() != null) gen.maxTokens(options.getMaxTokens());
             if (options.getTopP() != null) gen.topP(options.getTopP());
         }
+    }
 
-        try {
-            StringBuilder inputBuilder = new StringBuilder("[");
-            var messages = prompt.getInstructions();
-            for (int i = 0; i < messages.size(); i++) {
-                var msg = messages.get(i);
-                if (i > 0) inputBuilder.append(",");
-                inputBuilder.append("{\"role\":\"")
-                        .append(msg.getMessageType().getValue())
-                        .append("\",\"content\":\"")
-                        .append(JsonUtils.escapeJson(msg.getText()))
-                        .append("\"}");
-            }
-            inputBuilder.append("]");
-            gen.input(inputBuilder.toString());
-        } catch (Exception e) {
-            log.debug("Failed to extract input messages", e);
+    private String toJsonMessages(List<Message> messages) {
+        StringBuilder inputBuilder = new StringBuilder("[");
+        for (int i = 0; i < messages.size(); i++) {
+            Message msg = messages.get(i);
+            if (i > 0) inputBuilder.append(",");
+            inputBuilder.append("{\"role\":\"")
+                    .append(msg.getMessageType().getValue())
+                    .append("\",\"content\":\"")
+                    .append(JsonUtils.escapeJson(msg.getText()))
+                    .append("\"}");
         }
+        inputBuilder.append("]");
+        return inputBuilder.toString();
     }
 
     private void setResponseAttributes(LangfuseGeneration gen, ChatResponse response) {

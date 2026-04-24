@@ -16,7 +16,7 @@ abstract class AbstractLangfuseSpan implements AutoCloseable {
     protected AbstractLangfuseSpan(Span span, String name) {
         this.span = span;
         this.scope = span.makeCurrent();
-        this.cleanable = SpanGuard.register(this, span, scope, name);
+        this.cleanable = SpanGuard.register(this, span, scope, name, closed);
     }
 
     public void recordException(Throwable t) {

@@ -1,11 +1,16 @@
 package io.github.chomingi.langfuse.otel;
 
+import io.opentelemetry.sdk.testing.junit5.OpenTelemetryExtension;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.RegisterExtension;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class LangfuseOtelTest {
+
+    @RegisterExtension
+    static final OpenTelemetryExtension otel = OpenTelemetryExtension.create();
 
     @Test
     void builder_requiresPublicKey_failSafeOff() {
@@ -64,10 +69,7 @@ class LangfuseOtelTest {
 
     @Test
     void trace_createsAndCloses() {
-        try (LangfuseOtel langfuse = LangfuseOtel.builder()
-                .publicKey("pk-test")
-                .secretKey("sk-test")
-                .build()) {
+        try (LangfuseOtel langfuse = testLangfuse()) {
 
             try (LangfuseTrace trace = langfuse.trace("test-trace")) {
                 assertThat(trace).isNotNull();
@@ -78,10 +80,7 @@ class LangfuseOtelTest {
 
     @Test
     void trace_fluent_api() {
-        try (LangfuseOtel langfuse = LangfuseOtel.builder()
-                .publicKey("pk-test")
-                .secretKey("sk-test")
-                .build()) {
+        try (LangfuseOtel langfuse = testLangfuse()) {
 
             try (LangfuseTrace trace = langfuse.trace("test-trace")
                     .userId("user-1")
@@ -96,10 +95,7 @@ class LangfuseOtelTest {
 
     @Test
     void generation_setsAttributes() {
-        try (LangfuseOtel langfuse = LangfuseOtel.builder()
-                .publicKey("pk-test")
-                .secretKey("sk-test")
-                .build()) {
+        try (LangfuseOtel langfuse = testLangfuse()) {
 
             try (LangfuseTrace trace = langfuse.trace("test-trace")) {
                 try (LangfuseGeneration gen = trace.generation("llm-call")
@@ -121,10 +117,7 @@ class LangfuseOtelTest {
 
     @Test
     void concurrentTraces() throws Exception {
-        try (LangfuseOtel langfuse = LangfuseOtel.builder()
-                .publicKey("pk-test")
-                .secretKey("sk-test")
-                .build()) {
+        try (LangfuseOtel langfuse = testLangfuse()) {
 
             int threadCount = 10;
             java.util.concurrent.CountDownLatch latch = new java.util.concurrent.CountDownLatch(threadCount);
@@ -182,10 +175,7 @@ class LangfuseOtelTest {
 
     @Test
     void span_nestedHierarchy() {
-        try (LangfuseOtel langfuse = LangfuseOtel.builder()
-                .publicKey("pk-test")
-                .secretKey("sk-test")
-                .build()) {
+        try (LangfuseOtel langfuse = testLangfuse()) {
 
             try (LangfuseTrace trace = langfuse.trace("parent")) {
                 try (LangfuseSpan span = trace.span("child-1")
@@ -198,5 +188,9 @@ class LangfuseOtelTest {
                 }
             }
         }
+    }
+
+    private LangfuseOtel testLangfuse() {
+        return new LangfuseOtel(null, otel.getOpenTelemetry(), null, true);
     }
 }

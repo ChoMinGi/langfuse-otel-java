@@ -23,7 +23,7 @@ public class LangfuseOtel implements AutoCloseable {
     private static final String DEFAULT_HOST = "https://cloud.langfuse.com";
     private static final String OTEL_PATH = "/api/public/otel/v1/traces";
     private static final String TRACER_NAME = "langfuse-otel-java";
-    private static final String LIB_VERSION = "0.1.0";
+    private static final String LIB_VERSION = resolveLibraryVersion();
 
     private final SdkTracerProvider tracerProvider;
     private final Tracer tracer;
@@ -48,6 +48,11 @@ public class LangfuseOtel implements AutoCloseable {
 
     public static Builder builder() {
         return new Builder();
+    }
+
+    private static String resolveLibraryVersion() {
+        String version = LangfuseOtel.class.getPackage().getImplementationVersion();
+        return version != null ? version : "dev";
     }
 
     public Tracer getTracer() {

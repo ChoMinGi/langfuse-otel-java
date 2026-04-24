@@ -7,7 +7,7 @@ on:
     branches: [main]
 
 jobs:
-  build:
+  core:
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -22,18 +22,31 @@ jobs:
           java-version: ${{ matrix.java }}
           cache: maven
 
-      - name: Install langfuse-java SNAPSHOT
-        run: |
-          git clone --depth 1 https://github.com/langfuse/langfuse-java.git /tmp/langfuse-java
-          mvn install -f /tmp/langfuse-java/pom.xml -q -DskipTests
+      - name: Core Unit Test
+        run: mvn test --batch-mode --no-transfer-progress -pl langfuse-otel-core -am
 
-      - name: Build & Unit Test
-        run: mvn test --batch-mode --no-transfer-progress
+  starter:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        java: [17, 21]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Java ${{ matrix.java }}
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ matrix.java }}
+          cache: maven
+
+      - name: Starter Unit Test
+        run: mvn test --batch-mode --no-transfer-progress -pl langfuse-otel-spring-boot-starter -am
 
   integration-test:
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: build
+    needs: [core, starter]
     steps:
       - uses: actions/checkout@v4
 
@@ -44,15 +57,11 @@ jobs:
           java-version: 17
           cache: maven
 
-      - name: Install langfuse-java SNAPSHOT
-        run: |
-          git clone --depth 1 https://github.com/langfuse/langfuse-java.git /tmp/langfuse-java
-          mvn install -f /tmp/langfuse-java/pom.xml -q -DskipTests
-
       - name: Integration Tests
         if: env.LANGFUSE_PUBLIC_KEY != ''
         env:
           LANGFUSE_PUBLIC_KEY: ${{ secrets.LANGFUSE_PUBLIC_KEY }}
           LANGFUSE_SECRET_KEY: ${{ secrets.LANGFUSE_SECRET_KEY }}
           LANGFUSE_HOST: ${{ secrets.LANGFUSE_HOST }}
-        run: mvn test --batch-mode --no-transfer-progress -Dgroups=integration -pl langfuse-otel-core
+          LANGFUSE_TEST_PROMPT_NAME: ${{ secrets.LANGFUSE_TEST_PROMPT_NAME }}
+        run: mvn test --batch-mode --no-transfer-progress -pl langfuse-otel-core -am -DexcludedGroups= -Dgroups=integration

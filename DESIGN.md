@@ -118,19 +118,17 @@ span.setAttribute(AttributeKey.stringArrayKey("langfuse.trace.tags"), Arrays.asL
 
 ---
 
-## 10. Spring AI pointcut: call(..) not call(Prompt)
+## 10. Decorator wraps all ChatModel overloads via interface delegation
 
-```java
-@Around("execution(* org.springframework.ai.chat.model.ChatModel.call(..))")
-```
+`TracingSpringAiChatModel` implements `ChatModel`, which means `call(String)` and `call(Message...)` (default methods that delegate to `call(Prompt)`) are automatically covered. The tracing wrapper only needs to override `call(Prompt)` and `stream(Prompt)` — the default methods route through them.
 
-**Why:** Spring AI's `ChatModel` has overloads: `call(Prompt)`, `call(String)`, `call(Message...)`. Targeting only `call(Prompt)` misses the simpler overloads that many tutorials and examples use. Using `call(..)` catches all variants. The aspect checks `instanceof` on the argument to extract attributes appropriately.
+**Why:** Earlier AOP-based approaches required explicit pointcut matching for each overload. The Decorator pattern avoids this entirely — implementing the interface guarantees all entry points are covered.
 
 ---
 
 ## 11. LangfuseGeneration constructor is public
 
-Normally, `LangfuseGeneration` should only be created via `trace.generation("name")`. The constructor is public because Spring AOP aspects (in the separate `spring-boot-starter` module) need to create instances directly: `new LangfuseGeneration(tracer, name)`.
+Normally, `LangfuseGeneration` should only be created via `trace.generation("name")`. The constructor is public because tracing wrappers (in the separate `spring-boot-starter` module) need to create instances directly: `new LangfuseGeneration(tracer, name)`.
 
 ---
 

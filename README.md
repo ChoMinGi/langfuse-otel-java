@@ -2,25 +2,46 @@
 
 # langfuse-otel-java
 
-**Zero-config LLM observability for Java applications**
+**LLM observability for Java — zero config, one dependency.**
 
-Trace every LLM call to [Langfuse](https://langfuse.com) via [OpenTelemetry](https://opentelemetry.io/) — with one dependency.
-
-[![CI](https://github.com/ChoMinGi/langfuse-otel-java-private/actions/workflows/ci.yml/badge.svg)](https://github.com/ChoMinGi/langfuse-otel-java-private/actions)
+[![CI](https://github.com/ChoMinGi/langfuse-otel-java/actions/workflows/ci.yml/badge.svg)](https://github.com/ChoMinGi/langfuse-otel-java/actions)
 [![Java Core 11%2B / Starter 17%2B](https://img.shields.io/badge/Java-core%2011%2B%20%7C%20starter%2017%2B-blue)](https://openjdk.org/)
 [![Spring Boot 3.x](https://img.shields.io/badge/Spring%20Boot-3.x-green)](https://spring.io/projects/spring-boot)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![OpenTelemetry](https://img.shields.io/badge/OpenTelemetry-enabled-blueviolet)](https://opentelemetry.io/)
-[![Spring AI](https://img.shields.io/badge/Spring%20AI-auto--instrumented-brightgreen)](https://spring.io/projects/spring-ai)
-[![LangChain4j](https://img.shields.io/badge/LangChain4j-auto--instrumented-brightgreen)](https://github.com/langchain4j/langchain4j)
 
-[Quick Start](#quick-start) · [Spring AI](#spring-ai--zero-code-tracing) · [LangChain4j](#langchain4j--zero-code-tracing) · [Features](#features) · [Compatibility](#compatibility)
+[Why this exists](#the-problem) · [Quick Start](#quick-start) · [What gets traced](#what-gets-traced) · [Features](#features) · [Compatibility](#compatibility)
 
 </div>
 
 ---
 
-## Architecture
+## The Problem
+
+[Langfuse](https://langfuse.com) is an open-source LLM observability platform — traces, costs, prompt management, and evaluations in one place. Python and TypeScript have first-class SDKs that make integration trivial.
+
+Java doesn't.
+
+If you're building LLM applications in Java with [Spring AI](https://spring.io/projects/spring-ai) or [LangChain4j](https://github.com/langchain4j/langchain4j), your options for Langfuse integration look like this:
+
+```java
+// Raw OpenTelemetry — 40+ lines of boilerplate for every project
+String authHeader = "Basic " + Base64.getEncoder().encodeToString((pk + ":" + sk).getBytes());
+OtlpHttpSpanExporter exporter = OtlpHttpSpanExporter.builder()
+    .setEndpoint(host + "/api/public/otel/v1/traces")
+    .addHeader("Authorization", authHeader)
+    .addHeader("x-langfuse-ingestion-version", "4").build();
+SdkTracerProvider provider = SdkTracerProvider.builder()
+    .setResource(Resource.builder().put("service.name", name).build())
+    .addSpanProcessor(BatchSpanProcessor.builder(exporter).build()).build();
+// ... and 20 more lines for spans, attributes, gen_ai conventions, cleanup
+```
+
+This library eliminates all of it.
+
+---
+
+## The Solution
 
 ```
 ┌─────────────────────────────────────────────────┐
@@ -32,12 +53,10 @@ Trace every LLM call to [Langfuse](https://langfuse.com) via [OpenTelemetry](htt
 │        │              │               │          │
 │        ▼              ▼               ▼          │
 │  ┌──────────────────────────────────────────┐    │
-│  │        langfuse-otel-java                │    │
+│  │         langfuse-otel-java               │    │
 │  │                                          │    │
-│  │  • Auto-instrumentation (BeanPostProcessor)│    │
-│  │  • gen_ai.* semantic conventions         │    │
-│  │  • Langfuse auth & endpoint config       │    │
-│  │  • Error capture, context propagation    │    │
+│  │  Chat · Streaming · Embeddings · Images  │    │
+│  │  Auto-instrumented · Zero config         │    │
 │  └─────────────────┬────────────────────────┘    │
 │                    │                             │
 └────────────────────┼─────────────────────────────┘
@@ -45,47 +64,12 @@ Trace every LLM call to [Langfuse](https://langfuse.com) via [OpenTelemetry](htt
                      ▼
             ┌─────────────────┐
             │    Langfuse      │
-            │                  │
-            │  Traces, Costs,  │
-            │  Prompts, Evals  │
+            │  Traces · Costs  │
+            │  Prompts · Evals │
             └─────────────────┘
 ```
 
-<!-- TODO: Replace with actual Langfuse dashboard screenshot -->
-<!-- ![Langfuse Dashboard](docs/images/langfuse-trace-screenshot.png) -->
-
----
-
-## Why?
-
-Java LLM frameworks (Spring AI, LangChain4j) lack a simple way to send traces to Langfuse. Without this library:
-
-```java
-// 😩 Raw OpenTelemetry — 40+ lines of boilerplate
-String authHeader = "Basic " + Base64.getEncoder().encodeToString((pk + ":" + sk).getBytes());
-OtlpHttpSpanExporter exporter = OtlpHttpSpanExporter.builder()
-    .setEndpoint(host + "/api/public/otel/v1/traces")
-    .addHeader("Authorization", authHeader)
-    .addHeader("x-langfuse-ingestion-version", "4").build();
-SdkTracerProvider provider = SdkTracerProvider.builder()
-    .setResource(Resource.builder().put("service.name", name).build())
-    .addSpanProcessor(BatchSpanProcessor.builder(exporter).build()).build();
-// ... 20 more lines for spans, attributes, cleanup
-```
-
-With this library:
-
-```java
-// ✅ 5 lines
-langfuse.trace("my-flow", trace -> {
-    trace.generation("llm-call", gen -> {
-        gen.model("gpt-4o").input(prompt);
-        gen.output(callLLM(prompt)).inputTokens(52).outputTokens(85);
-    });
-});
-```
-
-Or with Spring Boot — **zero lines of code**. Just add the starter + `application.yml`.
+Add one dependency, set three properties. Every LLM call — sync, streaming, embeddings, image generation — automatically appears in your Langfuse dashboard.
 
 ---
 
@@ -106,11 +90,10 @@ Or with Spring Boot — **zero lines of code**. Just add the starter + `applicat
 langfuse:
   public-key: ${LANGFUSE_PUBLIC_KEY}
   secret-key: ${LANGFUSE_SECRET_KEY}
-  host: https://cloud.langfuse.com
-  service-name: my-app
+  host: https://cloud.langfuse.com   # or your self-hosted URL
 ```
 
-That's it. If you're using Spring AI or LangChain4j, all LLM calls are **automatically traced** — including streaming, embeddings, and image generation.
+Done. Your Spring AI and LangChain4j calls are now traced.
 
 ### Standalone (No Spring)
 
@@ -130,30 +113,28 @@ try (LangfuseOtel langfuse = LangfuseOtel.builder()
 
     langfuse.trace("my-flow", trace -> {
         trace.userId("user-123").sessionId("session-456");
-
         trace.generation("llm-call", gen -> {
-            gen.model("gpt-4o").system("openai").temperature(0.7);
-            gen.input(prompt);
-            String result = callLLM(prompt);
-            gen.output(result).inputTokens(52).outputTokens(85);
+            gen.model("gpt-4o").input(prompt);
+            gen.output(callLLM(prompt)).inputTokens(52).outputTokens(85);
         });
     });
-
-    langfuse.flush();
 }
 ```
 
 ---
 
-## Spring AI — Zero Code Tracing
+## What Gets Traced
 
-If `spring-ai` is on the classpath, the following are **automatically traced** with zero code changes:
+With the Spring Boot starter, the following models are **automatically instrumented** — no code changes required.
 
-| Model Type | Methods Traced |
-|-----------|----------------|
-| `ChatModel` | `call(Prompt)`, `stream(Prompt)` |
-| `EmbeddingModel` | `call(EmbeddingRequest)` |
-| `ImageModel` | `call(ImagePrompt)` |
+### Spring AI
+
+| Model | Methods | Operation |
+|-------|---------|-----------|
+| `ChatModel` | `call(Prompt)` | `chat` |
+| `ChatModel` | `stream(Prompt)` | `chat` (with TTFT) |
+| `EmbeddingModel` | `call(EmbeddingRequest)` | `embeddings` |
+| `ImageModel` | `call(ImagePrompt)` | `image_generation` |
 
 ```java
 // Your existing code — completely unchanged
@@ -161,17 +142,13 @@ If `spring-ai` is on the classpath, the following are **automatically traced** w
 public class MyAiService {
     private final ChatModel chatModel;
 
-    public MyAiService(ChatModel chatModel) {
-        this.chatModel = chatModel;
-    }
-
-    // Sync — automatically traced
+    // Sync — traced automatically
     public String ask(String question) {
         return chatModel.call(new Prompt(question))
                 .getResult().getOutput().getText();
     }
 
-    // Streaming — also automatically traced (with TTFT measurement)
+    // Streaming — traced automatically, with time-to-first-token
     public Flux<String> askStream(String question) {
         return chatModel.stream(new Prompt(question))
                 .map(r -> r.getResult().getOutput().getText());
@@ -179,87 +156,51 @@ public class MyAiService {
 }
 ```
 
-**Auto-captured attributes:**
+### LangChain4j
 
-| Attribute | Source |
-|-----------|--------|
-| Model name | `ChatResponse.getMetadata().getModel()` |
-| Input messages | `Prompt.getInstructions()` |
-| Output text | `Generation.getOutput().getText()` (accumulated for streaming) |
-| Input/Output tokens | `Usage.getPromptTokens()` / `getCompletionTokens()` |
-| Temperature, max tokens | `ChatOptions` |
-| TTFT | `completion_start_time` (streaming only) |
-| Errors | Exception auto-capture with stack trace |
-
----
-
-## LangChain4j — Zero Code Tracing
-
-Same zero-config experience for LangChain4j:
-
-| Model Type | Methods Traced |
-|-----------|----------------|
-| `ChatModel` | `chat(ChatRequest)` |
-| `StreamingChatModel` | `chat(ChatRequest, StreamingChatResponseHandler)` |
-| `EmbeddingModel` | `embedAll(List<TextSegment>)`, `embed(String)` |
-| `ImageModel` | `generate(String)`, `generate(String, int)` |
+| Model | Methods | Operation |
+|-------|---------|-----------|
+| `ChatModel` | `chat(ChatRequest)` | `chat` |
+| `StreamingChatModel` | `chat(ChatRequest, Handler)` | `chat` (with TTFT) |
+| `EmbeddingModel` | `embedAll(...)`, `embed(...)` | `embeddings` |
+| `ImageModel` | `generate(...)` | `image_generation` |
 
 ```java
-// Sync chat — automatically traced
-@Service
-public class MyLangChain4jService {
-    private final ChatModel chatModel;
+// Sync — traced automatically
+chatModel.chat(ChatRequest.builder()
+        .messages(UserMessage.from("Hello")).build());
 
-    public String ask(String question) {
-        ChatRequest request = ChatRequest.builder()
-                .messages(UserMessage.from(question)).build();
-        return chatModel.chat(request).aiMessage().text();
-    }
-}
-
-// Streaming chat — also automatically traced
-@Service
-public class MyStreamingService {
-    private final StreamingChatModel streamingModel;
-
-    public void askStream(String question, StreamingChatResponseHandler handler) {
-        streamingModel.chat(question, handler);
-    }
-}
+// Streaming — traced automatically
+streamingModel.chat("Hello", new StreamingChatResponseHandler() {
+    @Override public void onPartialResponse(String token) { /* ... */ }
+    @Override public void onCompleteResponse(ChatResponse response) { /* ... */ }
+    @Override public void onError(Throwable error) { /* ... */ }
+});
 ```
+
+### Auto-captured attributes
+
+| Attribute | Description |
+|-----------|-------------|
+| Model name | Request & response model |
+| Input | Messages (chat), text (embeddings), prompt (image) |
+| Output | Response text, accumulated stream, embedding/image count |
+| Token usage | Input, output, and total tokens |
+| Temperature, top_p, max_tokens | Model parameters |
+| TTFT | Time to first token (streaming only) |
+| Errors | Exception message + stack trace |
 
 ---
 
 ## Features
 
-### 3 Ways to Trace
-
-```java
-// 1. Callback (cleanest — recommended)
-langfuse.trace("flow", trace -> {
-    trace.generation("llm", gen -> {
-        gen.model("gpt-4o").output(callLLM());
-    });
-});
-
-// 2. Try-with-resources (Java convention)
-try (LangfuseTrace trace = langfuse.trace("flow")) {
-    try (LangfuseGeneration gen = trace.generation("llm")) {
-        gen.model("gpt-4o").output(callLLM());
-    }
-}
-
-// 3. Manual end() (async / complex flows)
-LangfuseGeneration gen = trace.generation("llm").model("gpt-4o");
-gen.output(result).end();
-```
-
 ### @ObserveGeneration Annotation
+
+Trace any method as an LLM generation — useful for custom LLM integrations:
 
 ```java
 @Service
 public class LLMService {
-
     @ObserveGeneration(name = "summarize", model = "gpt-4o", system = "openai")
     public String summarize(String text) {
         return callLLM(text);
@@ -267,58 +208,57 @@ public class LLMService {
 }
 ```
 
-### Automatic Error Capture
-
-```java
-langfuse.trace("flow", trace -> {
-    trace.generation("llm", gen -> {
-        gen.model("gpt-4o");
-        throw new RuntimeException("API timeout");
-        // → Span automatically marked as ERROR
-        // → Exception message + stack trace recorded
-        // → Exception re-thrown (not swallowed)
-    });
-});
-```
-
 ### ThreadLocal Context Propagation
 
 ```java
-// Set once in a filter/interceptor
+// Set once in a filter or interceptor
 LangfuseContext.setUserId("user-123");
 LangfuseContext.setSessionId("session-456");
 LangfuseContext.setTags("prod", "v2");
 
-// All traces in this thread automatically inherit userId, sessionId, tags
-langfuse.trace("flow", trace -> {
-    // trace.userId is already "user-123" — no need to set it again
-    trace.generation("llm", gen -> { ... });
-});
+// All traces on this thread automatically inherit these values
+langfuse.trace("flow", trace -> { ... });
 
-// Spring Boot: LangfuseContextFilter also auto-extracts
-// request principal -> userId
-// HTTP session id -> sessionId
+// Spring Boot: LangfuseContextFilter auto-extracts from HTTP requests
+// Principal → userId, HttpSession → sessionId
 ```
 
-### Prompt Management Integration
+### Prompt Management
 
-Works with [langfuse-java](https://github.com/langfuse/langfuse-java) SDK:
+Integrates with [langfuse-java](https://github.com/langfuse/langfuse-java) for prompt versioning:
 
 ```java
-langfuse.trace("flow", trace -> {
-    trace.generation("llm", gen -> {
-        // Fetch prompt → compile variables → auto-link to generation span
-        String compiled = gen.prompt(langfuseClient, "my-prompt")
-                .variable("domain", "HR")
-                .variable("question", "What is MBO?")
-                .compile();
-        // → promptName, promptVersion automatically set on span
-        // → compiled prompt set as input
-
-        gen.output(callLLM(compiled));
-    });
+trace.generation("llm", gen -> {
+    String compiled = gen.prompt(langfuseClient, "my-prompt")
+            .variable("domain", "HR")
+            .variable("question", "What is MBO?")
+            .compile();
+    // promptName & promptVersion auto-linked to the span
+    gen.output(callLLM(compiled));
 });
 ```
+
+### 3 Tracing Styles
+
+```java
+// Callback (recommended)
+langfuse.trace("flow", trace -> {
+    trace.generation("llm", gen -> { gen.model("gpt-4o").output(callLLM()); });
+});
+
+// Try-with-resources
+try (var trace = langfuse.trace("flow")) {
+    try (var gen = trace.generation("llm")) { gen.model("gpt-4o").output(callLLM()); }
+}
+
+// Manual end()
+var gen = trace.generation("llm").model("gpt-4o");
+gen.output(result).end();
+```
+
+### Fail-safe by Default
+
+Missing API keys? Misconfigured endpoint? The library switches to no-op mode silently. Your application never crashes because of observability.
 
 ---
 
@@ -326,30 +266,10 @@ langfuse.trace("flow", trace -> {
 
 | Module | Java | Description |
 |--------|------|-------------|
-| `langfuse-otel-core` | 11+ | Core library — no framework dependency |
-| `langfuse-otel-spring-boot-starter` | 17+ | Auto-config, Spring AI / LangChain4j instrumentation, `@ObserveGeneration` |
+| `langfuse-otel-core` | 11+ | Core tracing library — no framework dependency |
+| `langfuse-otel-spring-boot-starter` | 17+ | Auto-config for Spring AI & LangChain4j |
 
-## Langfuse Attributes
-
-All attributes follow [OTel GenAI Semantic Conventions](https://opentelemetry.io/docs/specs/semconv/gen-ai/) and are recognized by Langfuse:
-
-| Attribute | Set by | Langfuse mapping |
-|-----------|--------|-----------------|
-| `gen_ai.operation.name` | Auto (`"chat"`, `"embeddings"`, `"image_generation"`) | Observation type |
-| `gen_ai.request.model` | `.model()` | Model name |
-| `gen_ai.system` | `.system()` | Provider |
-| `gen_ai.usage.input_tokens` | `.inputTokens()` | Token usage |
-| `gen_ai.usage.output_tokens` | `.outputTokens()` | Token usage |
-| `langfuse.observation.input` | `.input()` | Input |
-| `langfuse.observation.output` | `.output()` | Output |
-| `langfuse.observation.prompt.name` | `.promptName()` | Prompt link |
-| `user.id` | `.userId()` | User |
-| `session.id` | `.sessionId()` | Session |
-| `langfuse.trace.tags` | `.tags()` | Tags |
-| `langfuse.environment` | `.environment()` | Environment |
-| `langfuse.observation.completion_start_time` | Auto (streaming) | Time to First Token |
-
-## Configuration Properties (Spring Boot)
+## Configuration (Spring Boot)
 
 | Property | Default | Description |
 |----------|---------|-------------|
@@ -359,7 +279,7 @@ All attributes follow [OTel GenAI Semantic Conventions](https://opentelemetry.io
 | `langfuse.service-name` | `langfuse-app` | Service name in traces |
 | `langfuse.environment` | — | Environment (e.g., `production`) |
 | `langfuse.release` | — | Release version |
-| `langfuse.enabled` | `true` | Enable/disable tracing |
+| `langfuse.enabled` | `true` | Enable/disable all tracing |
 
 ## Compatibility
 
@@ -369,40 +289,19 @@ All attributes follow [OTel GenAI Semantic Conventions](https://opentelemetry.io
 | Java | 17+ | Spring Boot starter |
 | OpenTelemetry SDK | 1.44.1 | Via BOM |
 | Spring Boot | 3.4.x | Auto-configuration |
-| Spring AI | 1.0.0 | Auto-instrumentation |
-| LangChain4j | 1.0.0 | Auto-instrumentation |
-| langfuse-java | 0.2.x | Prompt integration (optional) |
-| Langfuse Cloud | v3+ | OTLP ingestion endpoint |
-| Langfuse Self-hosted | v3.22.0+ | OTLP support required |
-
-## Testing
-
-```bash
-# Unit tests only
-mvn test
-
-# Integration tests that call Langfuse
-mvn test -pl langfuse-otel-core -am -DexcludedGroups= -Dgroups=integration
-
-# Explicit end-to-end suite
-mvn test -pl langfuse-otel-core -am -DexcludedGroups= -Dgroups=e2e
-```
-
-Network tests use these environment variables:
-- `LANGFUSE_PUBLIC_KEY`
-- `LANGFUSE_SECRET_KEY`
-- `LANGFUSE_HOST` (optional, defaults to `https://cloud.langfuse.com`)
-- `LANGFUSE_TEST_PROMPT_NAME` (optional, only needed for prompt compilation coverage)
+| Spring AI | 1.0.0 | Chat, streaming, embeddings, images |
+| LangChain4j | 1.0.0 | Chat, streaming, embeddings, images |
+| langfuse-java | 0.2.x | Prompt management (optional) |
+| Langfuse Cloud | v3+ | OTLP ingestion |
+| Langfuse Self-hosted | v3.22.0+ | Requires OTLP support |
 
 ## Examples
 
 See the [examples](./examples) directory:
-- [Spring AI Example](./examples/spring-ai-example) — Spring AI + OpenAI with zero-code tracing
-- [LangChain4j Example](./examples/langchain4j-example) — LangChain4j + OpenAI with zero-code tracing
+- [Spring AI + OpenAI](./examples/spring-ai-example) — zero-code tracing
+- [LangChain4j + OpenAI](./examples/langchain4j-example) — zero-code tracing
 
 ## Contributing
-
-Contributions are welcome! Please open an issue first to discuss what you'd like to change.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and guidelines.
 

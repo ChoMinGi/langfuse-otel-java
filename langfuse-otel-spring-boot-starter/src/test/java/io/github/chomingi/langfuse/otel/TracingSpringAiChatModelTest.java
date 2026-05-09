@@ -20,7 +20,7 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-class SpringAiInstrumentationAspectTest {
+class TracingSpringAiChatModelTest {
 
     @RegisterExtension
     static final OpenTelemetryExtension otel = OpenTelemetryExtension.create();

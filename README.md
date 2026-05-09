@@ -34,7 +34,7 @@ Trace every LLM call to [Langfuse](https://langfuse.com) via [OpenTelemetry](htt
 │  ┌──────────────────────────────────────────┐    │
 │  │        langfuse-otel-java                │    │
 │  │                                          │    │
-│  │  • Auto-instrumentation (wrappers + AOP) │    │
+│  │  • Auto-instrumentation (BeanPostProcessor)│    │
 │  │  • gen_ai.* semantic conventions         │    │
 │  │  • Langfuse auth & endpoint config       │    │
 │  │  • Error capture, context propagation    │    │
@@ -110,9 +110,7 @@ langfuse:
   service-name: my-app
 ```
 
-That's it. If you're using Spring AI or LangChain4j, all LLM calls are **automatically traced**.
-
-The starter brings in Spring AOP transitively. You do not need a separate `spring-boot-starter-aop` dependency.
+That's it. If you're using Spring AI or LangChain4j, all LLM calls are **automatically traced** — including streaming, embeddings, and image generation.
 
 ### Standalone (No Spring)
 
@@ -149,7 +147,13 @@ try (LangfuseOtel langfuse = LangfuseOtel.builder()
 
 ## Spring AI — Zero Code Tracing
 
-If `spring-ai` is on the classpath, **every `ChatModel.call()` is automatically traced**. No code changes needed.
+If `spring-ai` is on the classpath, the following are **automatically traced** with zero code changes:
+
+| Model Type | Methods Traced |
+|-----------|----------------|
+| `ChatModel` | `call(Prompt)`, `stream(Prompt)` |
+| `EmbeddingModel` | `call(EmbeddingRequest)` |
+| `ImageModel` | `call(ImagePrompt)` |
 
 ```java
 // Your existing code — completely unchanged
@@ -161,12 +165,18 @@ public class MyAiService {
         this.chatModel = chatModel;
     }
 
+    // Sync — automatically traced
     public String ask(String question) {
         return chatModel.call(new Prompt(question))
                 .getResult().getOutput().getText();
     }
+
+    // Streaming — also automatically traced (with TTFT measurement)
+    public Flux<String> askStream(String question) {
+        return chatModel.stream(new Prompt(question))
+                .map(r -> r.getResult().getOutput().getText());
+    }
 }
-// → Automatically appears in Langfuse as a Generation with model, tokens, latency
 ```
 
 **Auto-captured attributes:**
@@ -175,9 +185,10 @@ public class MyAiService {
 |-----------|--------|
 | Model name | `ChatResponse.getMetadata().getModel()` |
 | Input messages | `Prompt.getInstructions()` |
-| Output text | `Generation.getOutput().getText()` |
+| Output text | `Generation.getOutput().getText()` (accumulated for streaming) |
 | Input/Output tokens | `Usage.getPromptTokens()` / `getCompletionTokens()` |
 | Temperature, max tokens | `ChatOptions` |
+| TTFT | `completion_start_time` (streaming only) |
 | Errors | Exception auto-capture with stack trace |
 
 ---
@@ -186,15 +197,18 @@ public class MyAiService {
 
 Same zero-config experience for LangChain4j:
 
+| Model Type | Methods Traced |
+|-----------|----------------|
+| `ChatModel` | `chat(ChatRequest)` |
+| `StreamingChatModel` | `chat(ChatRequest, StreamingChatResponseHandler)` |
+| `EmbeddingModel` | `embedAll(List<TextSegment>)`, `embed(String)` |
+| `ImageModel` | `generate(String)`, `generate(String, int)` |
+
 ```java
-// Your existing code — completely unchanged
+// Sync chat — automatically traced
 @Service
 public class MyLangChain4jService {
     private final ChatModel chatModel;
-
-    public MyLangChain4jService(ChatModel chatModel) {
-        this.chatModel = chatModel;
-    }
 
     public String ask(String question) {
         ChatRequest request = ChatRequest.builder()
@@ -202,7 +216,16 @@ public class MyLangChain4jService {
         return chatModel.chat(request).aiMessage().text();
     }
 }
-// → Automatically appears in Langfuse as a Generation
+
+// Streaming chat — also automatically traced
+@Service
+public class MyStreamingService {
+    private final StreamingChatModel streamingModel;
+
+    public void askStream(String question, StreamingChatResponseHandler handler) {
+        streamingModel.chat(question, handler);
+    }
+}
 ```
 
 ---
@@ -312,7 +335,7 @@ All attributes follow [OTel GenAI Semantic Conventions](https://opentelemetry.io
 
 | Attribute | Set by | Langfuse mapping |
 |-----------|--------|-----------------|
-| `gen_ai.operation.name` | Auto (`"chat"`) | Observation type → Generation |
+| `gen_ai.operation.name` | Auto (`"chat"`, `"embeddings"`, `"image_generation"`) | Observation type |
 | `gen_ai.request.model` | `.model()` | Model name |
 | `gen_ai.system` | `.system()` | Provider |
 | `gen_ai.usage.input_tokens` | `.inputTokens()` | Token usage |
@@ -324,6 +347,7 @@ All attributes follow [OTel GenAI Semantic Conventions](https://opentelemetry.io
 | `session.id` | `.sessionId()` | Session |
 | `langfuse.trace.tags` | `.tags()` | Tags |
 | `langfuse.environment` | `.environment()` | Environment |
+| `langfuse.observation.completion_start_time` | Auto (streaming) | Time to First Token |
 
 ## Configuration Properties (Spring Boot)
 

@@ -144,3 +144,44 @@ public LangfusePromptHelper prompt(Object langfuseClient, String promptName) { .
 **Why:** `com.langfuse:langfuse-java` is an optional dependency. Using the concrete type `LangfuseClient` in the public API would cause `NoClassDefFoundError` for users who don't have it on their classpath — even if they never call `prompt()`. Using `Object` defers the class loading to the point of use, where we guard it with `Class.forName()` check.
 
 **Trade-off:** No compile-time type safety. Users can pass any object and get a `ClassCastException`. This is acceptable because the prompt API is an advanced feature, and the error message is clear.
+
+---
+
+## 13. Raw OTel Span for streaming (no makeCurrent)
+
+Streaming tracing wrappers (`TracingSpringAiChatModel.stream()`, `TracingStreamingLangChain4jChatModel`) use the raw OTel `Span` API instead of `LangfuseGeneration`.
+
+```java
+Span span = tracer.spanBuilder(name)
+    .setParent(Context.current())  // capture parent on calling thread
+    .setSpanKind(SpanKind.CLIENT)
+    .startSpan();
+// NO span.makeCurrent() — no Scope created
+```
+
+**Why:** `AbstractLangfuseSpan` calls `span.makeCurrent()` in its constructor, pushing the span onto the thread-local OTel context stack. This is correct for synchronous flows where the span opens and closes on the same thread. For streaming, responses arrive on different threads (Reactor schedulers for Spring AI's `Flux`, callback threads for LangChain4j's `StreamingChatResponseHandler`). Calling `makeCurrent()` on the originating thread and `scope.close()` on a callback thread corrupts the context stack.
+
+**How it works:** The span is created with `setParent(Context.current())` to preserve the parent-child relationship from the calling thread. Attributes are set directly via `span.setAttribute(...)`. The span is ended in terminal signals (`doOnComplete`/`doOnError`/`doOnCancel` for Flux, `onCompleteResponse`/`onError` for callbacks). An `AtomicBoolean` guard prevents double-end from concurrent terminal signals.
+
+**Trade-off:** Some code duplication — the attribute-setting logic from `LangfuseGeneration` is replicated as helper methods in the streaming wrappers, since `LangfuseGeneration` cannot be used without `makeCurrent()`. This is acceptable because extracting a shared utility would require modifying the core module for a starter-only concern.
+
+---
+
+## 14. BeanPostProcessor over AOP for auto-instrumentation
+
+The starter uses `BeanPostProcessor` (Decorator pattern) instead of AOP aspects to wrap model beans.
+
+```java
+class SpringAiChatModelBeanPostProcessor implements BeanPostProcessor {
+    public Object postProcessAfterInitialization(Object bean, String beanName) {
+        if (bean instanceof ChatModel) {
+            return new TracingSpringAiChatModel((ChatModel) bean, langfuseOtel);
+        }
+        return bean;
+    }
+}
+```
+
+**Why:** Earlier versions used `@Aspect` classes with `@Around` pointcuts on `ChatModel.call()`. This had two problems: (1) aspects must be registered as Spring beans to be active, but the auto-configurations never registered them — making them dead code; (2) if both the BeanPostProcessor wrapper and an AOP aspect were active simultaneously, double tracing would occur because the aspect would intercept calls on the wrapper too.
+
+**Alternative considered:** Removing the BeanPostProcessor and using only AOP. Rejected because AOP requires Spring AOP proxying to be active, and pointcut matching on interface methods can be unreliable with CGLIB proxies. The BeanPostProcessor approach is simpler, more predictable, and works with any bean regardless of proxy type.

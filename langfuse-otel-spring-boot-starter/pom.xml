@@ -6,7 +6,7 @@
     <parent>
         <groupId>io.github.chomingi</groupId>
         <artifactId>langfuse-otel-java</artifactId>
-        <version>0.1.0-SNAPSHOT</version>
+        <version>0.1.0</version>
     </parent>
 
     <artifactId>langfuse-otel-spring-boot-starter</artifactId>
@@ -77,6 +77,12 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
             <version>${spring-boot.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.projectreactor</groupId>
+            <artifactId>reactor-test</artifactId>
+            <version>3.7.5</version>
             <scope>test</scope>
         </dependency>
         <dependency>

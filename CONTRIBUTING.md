@@ -52,10 +52,15 @@ langfuse-otel-java/
 │   └── io.github.chomingi.langfuse.otel.spring
 │       ├── LangfuseOtelAutoConfiguration
 │       ├── LangfuseOtelProperties
-│       ├── SpringAiAutoConfiguration    # Spring AI auto-instrumentation
-│       ├── SpringAiInstrumentationAspect
-│       ├── LangChain4jAutoConfiguration # LangChain4j auto-instrumentation
-│       ├── LangChain4jInstrumentationAspect
+│       ├── SpringAiAutoConfiguration    # Registers Spring AI BeanPostProcessors
+│       ├── LangChain4jAutoConfiguration # Registers LangChain4j BeanPostProcessors
+│       ├── TracingSpringAiChatModel     # ChatModel wrapper (sync + streaming)
+│       ├── TracingSpringAiEmbeddingModel
+│       ├── TracingSpringAiImageModel
+│       ├── TracingLangChain4jChatModel
+│       ├── TracingStreamingLangChain4jChatModel
+│       ├── TracingLangChain4jEmbeddingModel
+│       ├── TracingLangChain4jImageModel
 │       ├── LangfuseContextFilter        # HTTP context propagation
 │       └── annotation/
 │           ├── ObserveGeneration         # @ObserveGeneration
@@ -77,10 +82,12 @@ langfuse-otel-java/
 
 ## Adding a New Auto-Instrumentation
 
-To add support for a new LLM framework:
+To add support for a new model type or framework:
 
-1. Create an `*InstrumentationAspect.java` in the spring starter module
-2. Create an `*AutoConfiguration.java` with `@ConditionalOnClass` for the framework's main class
-3. Add the framework as an `<optional>` dependency in `pom.xml`
-4. Register the auto-configuration in `META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports`
-5. Add an example in `examples/`
+1. Create a `Tracing*Model.java` wrapper implementing the model interface (Decorator pattern)
+2. Create a `*BeanPostProcessor.java` to wrap beans at initialization
+3. Register the BeanPostProcessor in the appropriate `*AutoConfiguration.java`
+4. Add the framework as an `<optional>` dependency in `pom.xml` if not already present
+5. Add unit tests with stub models and `OpenTelemetryExtension`
+
+For streaming models, use raw OTel `Span` (without `makeCurrent()`) to avoid ThreadLocal corruption across async callbacks. See DESIGN.md #13.

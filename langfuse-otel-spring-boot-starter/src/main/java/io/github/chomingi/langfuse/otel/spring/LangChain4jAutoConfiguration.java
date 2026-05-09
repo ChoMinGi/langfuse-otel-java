@@ -19,4 +19,16 @@ public class LangChain4jAutoConfiguration {
     public static LangChain4jChatModelBeanPostProcessor langChain4jChatModelBeanPostProcessor(ObjectProvider<LangfuseOtel> langfuseOtelProvider) {
         return new LangChain4jChatModelBeanPostProcessor(langfuseOtelProvider);
     }
+
+    @Bean
+    @Role(BeanDefinition.ROLE_INFRASTRUCTURE)
+    public static LangChain4jEmbeddingModelBeanPostProcessor langChain4jEmbeddingModelBeanPostProcessor(ObjectProvider<LangfuseOtel> langfuseOtelProvider) {
+        return new LangChain4jEmbeddingModelBeanPostProcessor(langfuseOtelProvider);
+    }
+
+    @Bean
+    @Role(BeanDefinition.ROLE_INFRASTRUCTURE)
+    public static LangChain4jImageModelBeanPostProcessor langChain4jImageModelBeanPostProcessor(ObjectProvider<LangfuseOtel> langfuseOtelProvider) {
+        return new LangChain4jImageModelBeanPostProcessor(langfuseOtelProvider);
+    }
 }

@@ -15,8 +15,15 @@ class LangChain4jChatModelBeanPostProcessor implements BeanPostProcessor {
 
     @Override
     public Object postProcessAfterInitialization(Object bean, String beanName) throws BeansException {
+        if (bean instanceof TracingStreamingLangChain4jChatModel) {
+            return bean;
+        }
         if (bean instanceof TracingLangChain4jChatModel) {
             return bean;
+        }
+        if (bean instanceof dev.langchain4j.model.chat.StreamingChatModel) {
+            LangfuseOtel langfuseOtel = langfuseOtelProvider.getIfAvailable();
+            return langfuseOtel != null ? new TracingStreamingLangChain4jChatModel(bean, langfuseOtel) : bean;
         }
         if (bean instanceof dev.langchain4j.model.chat.ChatModel) {
             LangfuseOtel langfuseOtel = langfuseOtelProvider.getIfAvailable();

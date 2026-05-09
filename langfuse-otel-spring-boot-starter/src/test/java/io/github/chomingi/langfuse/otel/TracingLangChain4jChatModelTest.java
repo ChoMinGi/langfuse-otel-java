@@ -19,7 +19,7 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-class LangChain4jInstrumentationAspectTest {
+class TracingLangChain4jChatModelTest {
 
     @RegisterExtension
     static final OpenTelemetryExtension otel = OpenTelemetryExtension.create();

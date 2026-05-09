@@ -31,7 +31,7 @@ export LANGFUSE_PUBLIC_KEY=pk-lf-...
 export LANGFUSE_SECRET_KEY=sk-lf-...
 export LANGFUSE_HOST=https://cloud.langfuse.com
 
-mvn test -Dgroups=integration
+mvn test -pl langfuse-otel-core -am -DexcludedGroups= -Dgroups=integration
 ```
 
 ### Project Structure

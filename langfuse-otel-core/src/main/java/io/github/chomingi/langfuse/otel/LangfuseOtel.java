@@ -148,6 +148,7 @@ public class LangfuseOtel implements AutoCloseable {
 
                 SdkTracerProvider tracerProvider = SdkTracerProvider.builder()
                         .setResource(resource)
+                        .addSpanProcessor(new LangfuseContextSpanProcessor())
                         .addSpanProcessor(BatchSpanProcessor.builder(exporter).build())
                         .build();
 

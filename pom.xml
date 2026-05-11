@@ -45,6 +45,8 @@
         <spring-boot.version>3.4.0</spring-boot.version>
         <junit.version>5.10.2</junit.version>
         <assertj.version>3.27.7</assertj.version>
+        <spring-ai.version>1.0.0</spring-ai.version>
+        <langchain4j.version>1.0.0</langchain4j.version>
         <test.excludedGroups>integration,e2e</test.excludedGroups>
     </properties>
 

@@ -69,13 +69,13 @@
         <dependency>
             <groupId>org.springframework.ai</groupId>
             <artifactId>spring-ai-model</artifactId>
-            <version>1.0.0</version>
+            <version>${spring-ai.version}</version>
             <optional>true</optional>
         </dependency>
         <dependency>
             <groupId>dev.langchain4j</groupId>
             <artifactId>langchain4j-core</artifactId>
-            <version>1.0.0</version>
+            <version>${langchain4j.version}</version>
             <optional>true</optional>
         </dependency>
 

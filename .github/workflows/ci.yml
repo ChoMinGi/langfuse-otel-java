@@ -28,8 +28,34 @@ jobs:
   starter:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
-        java: [17, 21]
+        include:
+          # Baseline: minimum supported versions
+          - java: 17
+            spring-ai-version: '1.0.0'
+            langchain4j-version: '1.0.0'
+          - java: 21
+            spring-ai-version: '1.0.0'
+            langchain4j-version: '1.0.0'
+          # Latest stable
+          - java: 17
+            spring-ai-version: '1.1.6'
+            langchain4j-version: '1.14.1'
+          - java: 21
+            spring-ai-version: '1.1.6'
+            langchain4j-version: '1.14.1'
+          # Experimental: Spring AI 2.0 milestone
+          - java: 17
+            spring-ai-version: '2.0.0-M6'
+            langchain4j-version: '1.14.1'
+            experimental: true
+          - java: 21
+            spring-ai-version: '2.0.0-M6'
+            langchain4j-version: '1.14.1'
+            experimental: true
+    name: starter (java-${{ matrix.java }}, spring-ai-${{ matrix.spring-ai-version }}, lc4j-${{ matrix.langchain4j-version }})
+    continue-on-error: ${{ matrix.experimental || false }}
     steps:
       - uses: actions/checkout@v4
 
@@ -41,7 +67,11 @@ jobs:
           cache: maven
 
       - name: Starter Unit Test
-        run: mvn test --batch-mode --no-transfer-progress -pl langfuse-otel-spring-boot-starter -am
+        run: >-
+          mvn test --batch-mode --no-transfer-progress
+          -pl langfuse-otel-spring-boot-starter -am
+          -Dspring-ai.version=${{ matrix.spring-ai-version }}
+          -Dlangchain4j.version=${{ matrix.langchain4j-version }}
 
   integration-test:
     runs-on: ubuntu-latest

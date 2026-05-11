@@ -70,7 +70,7 @@ public class TracingStreamingLangChain4jChatModel implements StreamingChatModel,
                 try {
                     if (firstChunk.compareAndSet(true, false)) {
                         span.setAttribute(LangfuseAttributes.OBSERVATION_COMPLETION_START_TIME,
-                                String.valueOf(System.currentTimeMillis()));
+                                java.time.Instant.now().toString());
                     }
                     accumulated.append(partialResponse);
                 } catch (Exception ignored) {}

@@ -97,7 +97,7 @@ class TracingStreamingSpringAiChatModelTest {
         String startTime = span.getAttributes().get(
                 AttributeKey.stringKey("langfuse.observation.completion_start_time"));
         assertThat(startTime).isNotNull();
-        assertThat(Long.parseLong(startTime)).isGreaterThan(0);
+        assertThat(java.time.Instant.parse(startTime)).isBefore(java.time.Instant.now());
     }
 
     @Test

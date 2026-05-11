@@ -90,7 +90,7 @@ public class TracingSpringAiChatModel implements ChatModel {
                     try {
                         if (firstChunk.compareAndSet(true, false)) {
                             span.setAttribute(LangfuseAttributes.OBSERVATION_COMPLETION_START_TIME,
-                                    String.valueOf(System.currentTimeMillis()));
+                                    java.time.Instant.now().toString());
                         }
                         if (chunk.getResult() != null && chunk.getResult().getOutput() != null) {
                             String text = chunk.getResult().getOutput().getText();

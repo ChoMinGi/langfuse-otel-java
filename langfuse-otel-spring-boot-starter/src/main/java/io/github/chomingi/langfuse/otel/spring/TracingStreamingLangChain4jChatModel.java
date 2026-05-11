@@ -61,7 +61,7 @@ public class TracingStreamingLangChain4jChatModel implements StreamingChatModel,
         }
 
         AtomicBoolean spanEnded = new AtomicBoolean(false);
-        StringBuilder accumulated = new StringBuilder();
+        StringBuffer accumulated = new StringBuffer();
         AtomicBoolean firstChunk = new AtomicBoolean(true);
 
         StreamingChatResponseHandler tracingHandler = new StreamingChatResponseHandler() {
@@ -238,7 +238,7 @@ public class TracingStreamingLangChain4jChatModel implements StreamingChatModel,
         }
     }
 
-    private void setResponseAttributesOnSpan(Span span, ChatResponse response, StringBuilder accumulated) {
+    private void setResponseAttributesOnSpan(Span span, ChatResponse response, CharSequence accumulated) {
         if (response == null) return;
 
         if (response.modelName() != null) {

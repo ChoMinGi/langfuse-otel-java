@@ -5,6 +5,10 @@ import io.opentelemetry.api.trace.Tracer;
 
 import java.util.function.Consumer;
 
+/**
+ * A generic span within a trace. Use for non-LLM steps (preprocessing, postprocessing, tool calls).
+ * Can contain nested spans and generations.
+ */
 public class LangfuseSpan extends AbstractLangfuseSpan {
 
     private final Tracer tracer;

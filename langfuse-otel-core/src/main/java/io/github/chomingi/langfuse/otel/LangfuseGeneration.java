@@ -3,6 +3,10 @@ package io.github.chomingi.langfuse.otel;
 import io.opentelemetry.api.trace.SpanKind;
 import io.opentelemetry.api.trace.Tracer;
 
+/**
+ * Represents an LLM generation (model invocation). Tracks model, input/output, tokens, and metadata.
+ * Created via {@code trace.generation("name")} or directly with a Tracer for AOP use cases.
+ */
 public class LangfuseGeneration extends AbstractLangfuseSpan {
 
     // Public: Spring AOP aspects in starter module need direct instantiation (DESIGN.md #11)

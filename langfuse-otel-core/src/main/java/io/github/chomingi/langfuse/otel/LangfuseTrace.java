@@ -8,6 +8,10 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.function.Consumer;
 
+/**
+ * Root span of a Langfuse trace. Contains child spans and generations.
+ * Automatically inherits userId, sessionId, tags from {@link LangfuseContext}.
+ */
 public class LangfuseTrace extends AbstractLangfuseSpan {
 
     private final Tracer tracer;

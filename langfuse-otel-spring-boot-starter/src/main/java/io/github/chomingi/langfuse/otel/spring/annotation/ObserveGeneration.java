@@ -5,6 +5,15 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
+/**
+ * Marks a method as an LLM generation to be traced in Langfuse.
+ * The method return value is recorded as output; exceptions are captured as errors.
+ *
+ * <pre>{@code
+ * @ObserveGeneration(name = "summarize", model = "gpt-4o", system = "openai")
+ * public String summarize(String text) { return callLLM(text); }
+ * }</pre>
+ */
 @Target(ElementType.METHOD)
 @Retention(RetentionPolicy.RUNTIME)
 public @interface ObserveGeneration {

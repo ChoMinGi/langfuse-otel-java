@@ -16,6 +16,22 @@ import java.util.Base64;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
+/**
+ * Entry point for Langfuse tracing via OpenTelemetry. Use {@link #builder()} to configure and create an instance.
+ *
+ * <pre>{@code
+ * try (LangfuseOtel langfuse = LangfuseOtel.builder()
+ *         .publicKey("pk-lf-...")
+ *         .secretKey("sk-lf-...")
+ *         .build()) {
+ *     langfuse.trace("my-flow", trace -> {
+ *         trace.generation("llm-call", gen -> {
+ *             gen.model("gpt-4o").input(prompt).output(response);
+ *         });
+ *     });
+ * }
+ * }</pre>
+ */
 public class LangfuseOtel implements AutoCloseable {
 
     private static final Logger log = LoggerFactory.getLogger(LangfuseOtel.class);
@@ -46,6 +62,7 @@ public class LangfuseOtel implements AutoCloseable {
         return langfuseClient;
     }
 
+    /** Creates a new builder for configuring the Langfuse OTel integration. */
     public static Builder builder() {
         return new Builder();
     }
@@ -63,10 +80,12 @@ public class LangfuseOtel implements AutoCloseable {
         return noop;
     }
 
+    /** Creates a new trace. Caller must close the returned trace (try-with-resources or {@code end()}). */
     public LangfuseTrace trace(String name) {
         return new LangfuseTrace(tracer, name);
     }
 
+    /** Creates a trace, executes the action, and automatically closes it. Exceptions propagate after recording. */
     public void trace(String name, Consumer<LangfuseTrace> action) {
         try (LangfuseTrace trace = new LangfuseTrace(tracer, name)) {
             try {

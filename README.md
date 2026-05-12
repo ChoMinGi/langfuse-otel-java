@@ -219,8 +219,9 @@ LangfuseContext.setTags("prod", "v2");
 // All traces on this thread automatically inherit these values
 langfuse.trace("flow", trace -> { ... });
 
-// Spring Boot: LangfuseContextFilter auto-extracts from HTTP requests
-// Principal → userId, HttpSession → sessionId
+// Spring Boot: auto-extracts from HTTP requests
+// Servlet: LangfuseContextFilter (Principal → userId, HttpSession → sessionId)
+// WebFlux: LangfuseReactiveContextFilter (same, reactive)
 ```
 
 ### Prompt Management
@@ -289,8 +290,9 @@ Missing API keys? Misconfigured endpoint? The library switches to no-op mode sil
 | Java | 17+ | Spring Boot starter |
 | OpenTelemetry SDK | 1.44.1 | Via BOM |
 | Spring Boot | 3.4.x | Auto-configuration |
-| Spring AI | 1.0.0 | Chat, streaming, embeddings, images |
-| LangChain4j | 1.0.0 | Chat, streaming, embeddings, images |
+| Spring AI | 1.0.0 — 1.1.6 | Chat, streaming, embeddings, images |
+| Spring AI | 2.0.0-M6 | Experimental (CI tested) |
+| LangChain4j | 1.0.0 — 1.14.1 | Chat, streaming, embeddings, images |
 | langfuse-java | 0.2.x | Prompt management (optional) |
 | Langfuse Cloud | v3+ | OTLP ingestion |
 | Langfuse Self-hosted | v3.22.0+ | Requires OTLP support |

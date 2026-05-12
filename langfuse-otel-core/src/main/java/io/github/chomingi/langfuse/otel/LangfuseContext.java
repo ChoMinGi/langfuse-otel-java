@@ -8,7 +8,7 @@ import java.util.List;
  * ThreadLocal-based context for propagating userId, sessionId, tags, and environment to all traces and spans.
  * Set values in a filter/interceptor; they are automatically applied to spans via {@code LangfuseContextSpanProcessor}.
  * Call {@link #clear()} in a finally block to avoid leaking across requests.
- * Use {@link #wrap(Runnable)} or {@link #wrap(java.util.concurrent.Callable)} for async propagation.
+ * For async propagation, copy values to the target thread manually or use a framework-specific context propagator.
  */
 public final class LangfuseContext {
 

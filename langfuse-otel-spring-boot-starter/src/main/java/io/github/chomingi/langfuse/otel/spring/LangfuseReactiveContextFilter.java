@@ -21,22 +21,27 @@ public class LangfuseReactiveContextFilter implements WebFilter {
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, WebFilterChain chain) {
-        return exchange.getPrincipal()
-                .defaultIfEmpty(new AnonymousPrincipal())
-                .flatMap(principal -> {
+        Mono<Principal> principalMono = exchange.getPrincipal()
+                .defaultIfEmpty(new AnonymousPrincipal());
+        Mono<String> sessionIdMono = exchange.getSession()
+                .map(session -> session.getId() != null ? session.getId() : "")
+                .defaultIfEmpty("");
+
+        return Mono.zip(principalMono, sessionIdMono)
+                .flatMap(tuple -> {
                     try {
                         if (properties.getEnvironment() != null) {
                             LangfuseContext.setEnvironment(properties.getEnvironment());
                         }
-                        if (principal != null && !(principal instanceof AnonymousPrincipal)
+                        Principal principal = tuple.getT1();
+                        if (!(principal instanceof AnonymousPrincipal)
                                 && principal.getName() != null && !principal.getName().isBlank()) {
                             LangfuseContext.setUserId(principal.getName());
                         }
-                        exchange.getSession().subscribe(session -> {
-                            if (session != null && session.getId() != null) {
-                                LangfuseContext.setSessionId(session.getId());
-                            }
-                        });
+                        String sessionId = tuple.getT2();
+                        if (!sessionId.isEmpty()) {
+                            LangfuseContext.setSessionId(sessionId);
+                        }
                     } catch (Exception ignored) {
                     }
 

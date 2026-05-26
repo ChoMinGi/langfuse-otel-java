@@ -160,6 +160,63 @@ class TracingStreamingSpringAiChatModelTest {
         }
     }
 
+    @Test
+    void streamWithNullMetadataInChunks() {
+        ChatModel proxy = proxy(new NullMetadataStreamingChatModel());
+
+        List<ChatResponse> chunks = proxy.stream(new Prompt("test")).collectList().block();
+
+        assertThat(chunks).hasSize(2);
+        assertThat(otel.getSpans()).hasSize(1);
+        SpanData span = otel.getSpans().get(0);
+        assertThat(span.getAttributes().get(AttributeKey.stringKey("langfuse.observation.output")))
+                .isEqualTo("AB");
+    }
+
+    @Test
+    void streamWithNullOutputInChunks() {
+        ChatModel proxy = proxy(new NullOutputStreamingChatModel());
+
+        List<ChatResponse> chunks = proxy.stream(new Prompt("test")).collectList().block();
+
+        assertThat(chunks).hasSize(3);
+        assertThat(otel.getSpans()).hasSize(1);
+        SpanData span = otel.getSpans().get(0);
+        assertThat(span.getAttributes().get(AttributeKey.stringKey("langfuse.observation.output")))
+                .isEqualTo("X");
+    }
+
+    static class NullMetadataStreamingChatModel implements ChatModel {
+        @Override
+        public ChatResponse call(Prompt prompt) { throw new UnsupportedOperationException(); }
+
+        @Override
+        public Flux<ChatResponse> stream(Prompt prompt) {
+            return Flux.just(
+                    new ChatResponse(List.of(new Generation(new AssistantMessage("A")))),
+                    new ChatResponse(List.of(new Generation(new AssistantMessage("B")))));
+        }
+
+        @Override
+        public ChatOptions getDefaultOptions() { return ChatOptions.builder().model("m").build(); }
+    }
+
+    static class NullOutputStreamingChatModel implements ChatModel {
+        @Override
+        public ChatResponse call(Prompt prompt) { throw new UnsupportedOperationException(); }
+
+        @Override
+        public Flux<ChatResponse> stream(Prompt prompt) {
+            return Flux.just(
+                    new ChatResponse(List.of(new Generation(new AssistantMessage((String) null)))),
+                    new ChatResponse(List.of(new Generation(new AssistantMessage("X")))),
+                    new ChatResponse(List.of(new Generation(new AssistantMessage((String) null)))));
+        }
+
+        @Override
+        public ChatOptions getDefaultOptions() { return ChatOptions.builder().model("m").build(); }
+    }
+
     static class ErrorStreamingSpringAiChatModel implements ChatModel {
 
         @Override

@@ -82,7 +82,7 @@ public class TracingSpringAiChatModel implements ChatModel {
         }
 
         AtomicBoolean spanEnded = new AtomicBoolean(false);
-        StringBuilder accumulated = new StringBuilder();
+        StringBuffer accumulated = new StringBuffer();
         AtomicBoolean firstChunk = new AtomicBoolean(true);
 
         return delegate.stream(prompt)

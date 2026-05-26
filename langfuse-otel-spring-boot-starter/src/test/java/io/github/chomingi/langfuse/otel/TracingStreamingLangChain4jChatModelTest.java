@@ -225,6 +225,66 @@ class TracingStreamingLangChain4jChatModelTest {
         }
     }
 
+    @Test
+    void streamingDoesNotFailWhenDelegateThrows() {
+        io.github.chomingi.langfuse.otel.spring.TracingStreamingLangChain4jChatModel proxy =
+                new io.github.chomingi.langfuse.otel.spring.TracingStreamingLangChain4jChatModel(
+                        new ThrowingStreamingLangChain4jChatModel(),
+                        new LangfuseOtel(null, otel.getOpenTelemetry(), null, true));
+
+        org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class, () ->
+                ((StreamingChatModel) proxy).chat(ChatRequest.builder()
+                        .messages(UserMessage.from("test"))
+                        .build(), new StreamingChatResponseHandler() {
+                    @Override public void onPartialResponse(String p) {}
+                    @Override public void onCompleteResponse(ChatResponse r) {}
+                    @Override public void onError(Throwable e) {}
+                }));
+
+        assertThat(otel.getSpans()).hasSize(1);
+        SpanData span = otel.getSpans().get(0);
+        assertThat(span.getStatus().getStatusCode().name()).isEqualTo("ERROR");
+    }
+
+    @Test
+    void syncChatOnStreamingOnlyDelegateThrowsUnsupported() {
+        io.github.chomingi.langfuse.otel.spring.TracingStreamingLangChain4jChatModel proxy =
+                new io.github.chomingi.langfuse.otel.spring.TracingStreamingLangChain4jChatModel(
+                        new StreamingOnlyLangChain4jChatModel(),
+                        new LangfuseOtel(null, otel.getOpenTelemetry(), null, true));
+
+        org.junit.jupiter.api.Assertions.assertThrows(UnsupportedOperationException.class, () ->
+                ((dev.langchain4j.model.chat.ChatModel) proxy).chat(ChatRequest.builder()
+                        .messages(UserMessage.from("test"))
+                        .build()));
+    }
+
+    static class ThrowingStreamingLangChain4jChatModel implements StreamingChatModel {
+        @Override
+        public void doChat(ChatRequest chatRequest, StreamingChatResponseHandler handler) {
+            throw new RuntimeException("delegate exploded");
+        }
+
+        @Override
+        public ChatRequestParameters defaultRequestParameters() {
+            return DefaultChatRequestParameters.builder().modelName("gpt-4o-mini").build();
+        }
+    }
+
+    static class StreamingOnlyLangChain4jChatModel implements StreamingChatModel {
+        @Override
+        public void doChat(ChatRequest chatRequest, StreamingChatResponseHandler handler) {
+            handler.onPartialResponse("token");
+            handler.onCompleteResponse(ChatResponse.builder()
+                    .aiMessage(AiMessage.from("token")).build());
+        }
+
+        @Override
+        public ChatRequestParameters defaultRequestParameters() {
+            return DefaultChatRequestParameters.builder().modelName("gpt-4o-mini").build();
+        }
+    }
+
     static class ErrorStreamingLangChain4jChatModel implements StreamingChatModel {
 
         @Override

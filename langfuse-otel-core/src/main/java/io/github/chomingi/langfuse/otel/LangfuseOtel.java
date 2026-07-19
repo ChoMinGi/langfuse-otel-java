@@ -1,6 +1,7 @@
 package io.github.chomingi.langfuse.otel;
 
 import io.opentelemetry.api.OpenTelemetry;
+import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.Tracer;
 import io.opentelemetry.exporter.otlp.http.trace.OtlpHttpSpanExporter;
 import io.opentelemetry.sdk.OpenTelemetrySdk;
@@ -11,8 +12,11 @@ import io.opentelemetry.sdk.trace.export.BatchSpanProcessor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
+import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
@@ -41,21 +45,52 @@ public class LangfuseOtel implements AutoCloseable {
     private static final String TRACER_NAME = "langfuse-otel-java";
     private static final String LIB_VERSION = resolveLibraryVersion();
 
-    private final SdkTracerProvider tracerProvider;
+    /** Describes who is responsible for the OpenTelemetry lifecycle used by this instance. */
+    public enum OpenTelemetryOwnership {
+        /** LangfuseOtel created the SDK and will flush and shut it down. */
+        OWNED,
+        /** The application supplied OpenTelemetry and retains its complete lifecycle. */
+        EXTERNAL,
+        /** No active SDK is associated with this no-op instance. */
+        NONE
+    }
+
+    private final SdkTracerProvider ownedTracerProvider;
     private final Tracer tracer;
     private final Object langfuseClient;
     private final boolean noop;
+    private final OpenTelemetryOwnership openTelemetryOwnership;
+    private final ContentCapturePolicy contentCapturePolicy;
+    private final ExceptionCapturePolicy exceptionCapturePolicy;
 
     LangfuseOtel(SdkTracerProvider tracerProvider, OpenTelemetry openTelemetry,
                  Object langfuseClient, boolean noop) {
-        this.tracerProvider = tracerProvider;
+        this(tracerProvider, openTelemetry, langfuseClient, noop,
+                tracerProvider != null
+                        ? OpenTelemetryOwnership.OWNED
+                        : (noop ? OpenTelemetryOwnership.NONE : OpenTelemetryOwnership.EXTERNAL),
+                ContentCapturePolicy.captureAll(),
+                ExceptionCapturePolicy.typeOnly());
+    }
+
+    private LangfuseOtel(SdkTracerProvider ownedTracerProvider, OpenTelemetry openTelemetry,
+                         Object langfuseClient, boolean noop,
+                         OpenTelemetryOwnership openTelemetryOwnership,
+                         ContentCapturePolicy contentCapturePolicy,
+                         ExceptionCapturePolicy exceptionCapturePolicy) {
+        this.ownedTracerProvider = ownedTracerProvider;
         this.tracer = openTelemetry.getTracer(TRACER_NAME, LIB_VERSION);
         this.langfuseClient = langfuseClient;
         this.noop = noop;
+        this.openTelemetryOwnership = openTelemetryOwnership;
+        this.contentCapturePolicy = Objects.requireNonNull(contentCapturePolicy, "contentCapturePolicy");
+        this.exceptionCapturePolicy = Objects.requireNonNull(exceptionCapturePolicy, "exceptionCapturePolicy");
     }
 
-    private static LangfuseOtel createNoop() {
-        return new LangfuseOtel(null, OpenTelemetry.noop(), null, true);
+    private static LangfuseOtel createNoop(ContentCapturePolicy contentCapturePolicy,
+                                            ExceptionCapturePolicy exceptionCapturePolicy) {
+        return new LangfuseOtel(null, OpenTelemetry.noop(), null, true,
+                OpenTelemetryOwnership.NONE, contentCapturePolicy, exceptionCapturePolicy);
     }
 
     public Object getLangfuseClient() {
@@ -65,6 +100,20 @@ public class LangfuseOtel implements AutoCloseable {
     /** Creates a new builder for configuring the Langfuse OTel integration. */
     public static Builder builder() {
         return new Builder();
+    }
+
+    /**
+     * Creates a builder that uses an application-provided OpenTelemetry instance.
+     * This mode does not create an SDK or exporter and never flushes or shuts down the
+     * supplied OpenTelemetry instance. The application remains its lifecycle owner.
+     * Standalone transport settings such as API keys, host, and service name are ignored.
+     *
+     * @param openTelemetry the application-owned OpenTelemetry instance
+     */
+    public static Builder externalBuilder(OpenTelemetry openTelemetry) {
+        Builder builder = new Builder();
+        builder.externalOpenTelemetry = Objects.requireNonNull(openTelemetry, "openTelemetry");
+        return builder;
     }
 
     private static String resolveLibraryVersion() {
@@ -78,6 +127,76 @@ public class LangfuseOtel implements AutoCloseable {
 
     public boolean isNoop() {
         return noop;
+    }
+
+    /** Returns the lifecycle ownership mode for the OpenTelemetry instance in use. */
+    public OpenTelemetryOwnership getOpenTelemetryOwnership() {
+        return openTelemetryOwnership;
+    }
+
+    /** Returns whether this instance created and owns its OpenTelemetry SDK. */
+    public boolean ownsOpenTelemetry() {
+        return openTelemetryOwnership == OpenTelemetryOwnership.OWNED;
+    }
+
+    /** Returns the policy applied only to content recorded by automatic instrumentation. */
+    public ContentCapturePolicy getContentCapturePolicy() {
+        return contentCapturePolicy;
+    }
+
+    /** Returns the policy applied to exceptions recorded by automatic instrumentation. */
+    public ExceptionCapturePolicy getExceptionCapturePolicy() {
+        return exceptionCapturePolicy;
+    }
+
+    /** Safely records automatic-instrumentation input according to the configured policy. */
+    public void recordInput(Span span, Object input) {
+        recordContent(span, ContentCaptureType.INPUT, LangfuseAttributes.OBSERVATION_INPUT, input);
+    }
+
+    /** Safely records automatic-instrumentation output according to the configured policy. */
+    public void recordOutput(Span span, Object output) {
+        recordContent(span, ContentCaptureType.OUTPUT, LangfuseAttributes.OBSERVATION_OUTPUT, output);
+    }
+
+    /** Safely records generation input according to the automatic content policy. */
+    public void recordInput(LangfuseGeneration generation, Object input) {
+        if (generation != null) {
+            recordInput(generation.getSpan(), input);
+        }
+    }
+
+    /** Safely records generation output according to the automatic content policy. */
+    public void recordOutput(LangfuseGeneration generation, Object output) {
+        if (generation != null) {
+            recordOutput(generation.getSpan(), output);
+        }
+    }
+
+    /** Safely records an automatic-instrumentation exception according to the configured policy. */
+    public void recordException(Span span, Throwable throwable) {
+        ExceptionRecorder.record(span, throwable, exceptionCapturePolicy);
+    }
+
+    /** Safely records a generation exception according to the automatic exception policy. */
+    public void recordException(LangfuseGeneration generation, Throwable throwable) {
+        if (generation != null) {
+            recordException(generation.getSpan(), throwable);
+        }
+    }
+
+    private void recordContent(Span span, ContentCaptureType type, String attributeName, Object value) {
+        if (span == null) {
+            return;
+        }
+        try {
+            String captured = contentCapturePolicy.capture(type, value);
+            if (captured != null) {
+                span.setAttribute(attributeName, captured);
+            }
+        } catch (Throwable ignored) {
+            // Automatic instrumentation must never affect host application behavior.
+        }
     }
 
     /** Creates a new trace. Caller must close the returned trace (try-with-resources or {@code end()}). */
@@ -97,16 +216,18 @@ public class LangfuseOtel implements AutoCloseable {
         }
     }
 
+    /** Flushes only the internally owned SDK; external and no-op modes intentionally do nothing. */
     public void flush() {
-        if (tracerProvider != null) {
-            tracerProvider.forceFlush().join(10, TimeUnit.SECONDS);
+        if (openTelemetryOwnership == OpenTelemetryOwnership.OWNED && ownedTracerProvider != null) {
+            ownedTracerProvider.forceFlush().join(10, TimeUnit.SECONDS);
         }
     }
 
+    /** Shuts down only the internally owned SDK; the application retains external lifecycle control. */
     @Override
     public void close() {
-        if (tracerProvider != null) {
-            tracerProvider.shutdown().join(10, TimeUnit.SECONDS);
+        if (openTelemetryOwnership == OpenTelemetryOwnership.OWNED && ownedTracerProvider != null) {
+            ownedTracerProvider.shutdown().join(10, TimeUnit.SECONDS);
         }
     }
 
@@ -120,6 +241,10 @@ public class LangfuseOtel implements AutoCloseable {
         private String release;
         private Object langfuseClient;
         private boolean failSafe = true;
+        private boolean allowInsecureHttpForDevelopment;
+        private OpenTelemetry externalOpenTelemetry;
+        private ContentCapturePolicy contentCapturePolicy = ContentCapturePolicy.metadataOnly();
+        private ExceptionCapturePolicy exceptionCapturePolicy = ExceptionCapturePolicy.typeOnly();
 
         private Builder() {}
 
@@ -131,23 +256,52 @@ public class LangfuseOtel implements AutoCloseable {
         public Builder release(String release) { this.release = release; return this; }
         public Builder langfuseClient(Object langfuseClient) { this.langfuseClient = langfuseClient; return this; }
         public Builder failSafe(boolean failSafe) { this.failSafe = failSafe; return this; }
+        /**
+         * Allows a plaintext HTTP standalone endpoint on {@code localhost} or a literal loopback
+         * address for local development only.
+         * Production endpoints should always use HTTPS because API credentials are sent using
+         * the HTTP {@code Authorization} header.
+         */
+        public Builder allowInsecureHttpForDevelopment(boolean allow) {
+            this.allowInsecureHttpForDevelopment = allow;
+            return this;
+        }
+        public Builder contentCapturePolicy(ContentCapturePolicy contentCapturePolicy) {
+            this.contentCapturePolicy = Objects.requireNonNull(contentCapturePolicy, "contentCapturePolicy");
+            return this;
+        }
+        public Builder exceptionCapturePolicy(ExceptionCapturePolicy exceptionCapturePolicy) {
+            this.exceptionCapturePolicy = Objects.requireNonNull(exceptionCapturePolicy, "exceptionCapturePolicy");
+            return this;
+        }
 
         public LangfuseOtel build() {
+            if (externalOpenTelemetry != null) {
+                try {
+                    return new LangfuseOtel(null, externalOpenTelemetry, langfuseClient, false,
+                            OpenTelemetryOwnership.EXTERNAL, contentCapturePolicy, exceptionCapturePolicy);
+                } catch (RuntimeException e) {
+                    if (failSafe) {
+                        log.warn("Failed to initialize Langfuse with external OpenTelemetry. Running in no-op mode.", e);
+                        return LangfuseOtel.createNoop(contentCapturePolicy, exceptionCapturePolicy);
+                    }
+                    throw e;
+                }
+            }
+
             // failSafe=true: never crash the host app on misconfiguration (DESIGN.md #3)
             if (publicKey == null || publicKey.isEmpty() || secretKey == null || secretKey.isEmpty()) {
                 if (failSafe) {
                     log.warn("Langfuse API keys not configured. Running in no-op mode — traces will not be sent.");
-                    return LangfuseOtel.createNoop();
+                    return LangfuseOtel.createNoop(contentCapturePolicy, exceptionCapturePolicy);
                 }
                 throw new IllegalArgumentException("publicKey and secretKey are required");
             }
 
             try {
+                String endpoint = buildOtlpEndpoint(host, allowInsecureHttpForDevelopment);
                 String authHeader = "Basic " + Base64.getEncoder()
                         .encodeToString((publicKey + ":" + secretKey).getBytes(StandardCharsets.UTF_8));
-
-                String endpoint = host.endsWith("/") ? host.substring(0, host.length() - 1) : host;
-                endpoint += OTEL_PATH;
 
                 OtlpHttpSpanExporter exporter = OtlpHttpSpanExporter.builder()
                         .setEndpoint(endpoint)
@@ -175,14 +329,95 @@ public class LangfuseOtel implements AutoCloseable {
                         .setTracerProvider(tracerProvider)
                         .build();
 
-                return new LangfuseOtel(tracerProvider, otel, langfuseClient, false);
+                return new LangfuseOtel(tracerProvider, otel, langfuseClient, false,
+                        OpenTelemetryOwnership.OWNED, contentCapturePolicy, exceptionCapturePolicy);
             } catch (Exception e) {
                 if (failSafe) {
                     log.warn("Failed to initialize Langfuse OTel. Running in no-op mode.", e);
-                    return LangfuseOtel.createNoop();
+                    return LangfuseOtel.createNoop(contentCapturePolicy, exceptionCapturePolicy);
                 }
                 throw e;
             }
+        }
+
+        private static String buildOtlpEndpoint(String configuredHost, boolean allowInsecureHttp) {
+            if (configuredHost == null || configuredHost.isEmpty()) {
+                throw new IllegalArgumentException("host must be a non-empty absolute HTTP(S) URI");
+            }
+
+            final URI baseUri;
+            try {
+                baseUri = new URI(configuredHost);
+            } catch (URISyntaxException e) {
+                throw new IllegalArgumentException("host must be a valid absolute HTTP(S) URI", e);
+            }
+
+            String scheme = baseUri.getScheme();
+            if (scheme == null || !(scheme.equalsIgnoreCase("https") || scheme.equalsIgnoreCase("http"))) {
+                throw new IllegalArgumentException("host scheme must be http or https");
+            }
+            if (baseUri.isOpaque() || baseUri.getHost() == null || baseUri.getHost().isEmpty()) {
+                throw new IllegalArgumentException("host URI must include a network host");
+            }
+            if (baseUri.getRawUserInfo() != null) {
+                throw new IllegalArgumentException("host URI must not include user-info");
+            }
+            if (baseUri.getRawQuery() != null) {
+                throw new IllegalArgumentException("host URI must not include a query");
+            }
+            if (baseUri.getRawFragment() != null) {
+                throw new IllegalArgumentException("host URI must not include a fragment");
+            }
+            if (baseUri.getPort() == 0 || baseUri.getPort() > 65_535) {
+                throw new IllegalArgumentException("host URI port must be between 1 and 65535");
+            }
+            if (scheme.equalsIgnoreCase("http")) {
+                if (!allowInsecureHttp) {
+                    throw new IllegalArgumentException("HTTP host is disabled by default; use HTTPS or explicitly call "
+                            + "allowInsecureHttpForDevelopment(true) for local development only");
+                }
+                if (!isLiteralLoopbackHost(baseUri.getHost())) {
+                    throw new IllegalArgumentException("Development HTTP is restricted to localhost or a literal "
+                            + "loopback address; remote hosts require HTTPS");
+                }
+            }
+
+            String base = baseUri.toASCIIString();
+            while (base.endsWith("/")) {
+                base = base.substring(0, base.length() - 1);
+            }
+            return base + OTEL_PATH;
+        }
+
+        private static boolean isLiteralLoopbackHost(String host) {
+            if (host.equalsIgnoreCase("localhost")) {
+                return true;
+            }
+
+            String unwrappedHost = host;
+            if (host.startsWith("[") && host.endsWith("]")) {
+                unwrappedHost = host.substring(1, host.length() - 1);
+            }
+            if (unwrappedHost.equals("::1") || unwrappedHost.equals("0:0:0:0:0:0:0:1")) {
+                return true;
+            }
+
+            String[] octets = unwrappedHost.split("\\.", -1);
+            if (octets.length != 4 || !octets[0].equals("127")) {
+                return false;
+            }
+            for (String octet : octets) {
+                if (octet.isEmpty()) return false;
+                for (int i = 0; i < octet.length(); i++) {
+                    if (!Character.isDigit(octet.charAt(i))) return false;
+                }
+                try {
+                    if (Integer.parseInt(octet) > 255) return false;
+                } catch (NumberFormatException ignored) {
+                    return false;
+                }
+            }
+            return true;
         }
     }
 }

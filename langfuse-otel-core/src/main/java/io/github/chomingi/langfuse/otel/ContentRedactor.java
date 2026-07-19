@@ -1,0 +1,15 @@
+package io.github.chomingi.langfuse.otel;
+
+/**
+ * Redacts automatically captured model content before it is attached to a span.
+ * Implementations may be invoked concurrently and should therefore be thread-safe.
+ */
+@FunctionalInterface
+public interface ContentRedactor {
+
+    /**
+     * Returns redacted content, or {@code null} to discard it.
+     * Exceptions are contained by the capture policy and never reach the host application.
+     */
+    String redact(ContentCaptureType type, String content) throws Exception;
+}

@@ -41,7 +41,8 @@ class ObserveGenerationAspectTest {
 
         SpanData span = otel.getSpans().get(otel.getSpans().size() - 1);
         assertThat(span.getAttributes().get(AttributeKey.stringKey("langfuse.observation.level"))).isEqualTo("ERROR");
-        assertThat(span.getAttributes().get(AttributeKey.stringKey("langfuse.observation.status_message"))).isEqualTo("boom");
+        assertThat(span.getAttributes().get(AttributeKey.stringKey("langfuse.observation.status_message")))
+                .isEqualTo(IllegalStateException.class.getName());
     }
 
     private TestService proxy(TestService target) {

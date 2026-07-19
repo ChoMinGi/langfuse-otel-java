@@ -1,7 +1,6 @@
 package io.github.chomingi.langfuse.otel;
 
 import io.opentelemetry.api.trace.Span;
-import io.opentelemetry.api.trace.StatusCode;
 import io.opentelemetry.context.Scope;
 
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -20,11 +19,7 @@ abstract class AbstractLangfuseSpan implements AutoCloseable {
     }
 
     public void recordException(Throwable t) {
-        String message = t.getMessage() != null ? t.getMessage() : t.getClass().getName();
-        span.setStatus(StatusCode.ERROR, message);
-        span.recordException(t);
-        span.setAttribute(LangfuseAttributes.OBSERVATION_LEVEL, "ERROR");
-        span.setAttribute(LangfuseAttributes.OBSERVATION_STATUS_MESSAGE, message);
+        ExceptionRecorder.recordTypeOnly(span, t);
     }
 
     public Span getSpan() {

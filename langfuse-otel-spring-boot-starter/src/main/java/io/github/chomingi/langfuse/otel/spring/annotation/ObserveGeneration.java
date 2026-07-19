@@ -7,7 +7,8 @@ import java.lang.annotation.Target;
 
 /**
  * Marks a method as an LLM generation to be traced in Langfuse.
- * The method return value is recorded as output; exceptions are captured as errors.
+ * Synchronous values, {@code CompletionStage} completion, and Reactor terminal signals are
+ * observed without retaining a thread-affine OpenTelemetry scope across asynchronous work.
  *
  * <pre>{@code
  * @ObserveGeneration(name = "summarize", model = "gpt-4o", system = "openai")

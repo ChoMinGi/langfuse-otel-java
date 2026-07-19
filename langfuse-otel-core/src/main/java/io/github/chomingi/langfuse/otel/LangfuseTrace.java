@@ -5,7 +5,6 @@ import io.opentelemetry.api.trace.SpanKind;
 import io.opentelemetry.api.trace.Tracer;
 
 import java.util.Arrays;
-import java.util.List;
 import java.util.function.Consumer;
 
 /**
@@ -22,21 +21,6 @@ public class LangfuseTrace extends AbstractLangfuseSpan {
                 .setAttribute(LangfuseAttributes.TRACE_NAME, name)
                 .startSpan(), name);
         this.tracer = tracer;
-        applyContext();
-    }
-
-    private void applyContext() {
-        String userId = LangfuseContext.getUserId();
-        if (userId != null) span.setAttribute(LangfuseAttributes.TRACE_USER_ID, userId);
-
-        String sessionId = LangfuseContext.getSessionId();
-        if (sessionId != null) span.setAttribute(LangfuseAttributes.TRACE_SESSION_ID, sessionId);
-
-        List<String> tags = LangfuseContext.getTags();
-        if (!tags.isEmpty()) span.setAttribute(AttributeKey.stringArrayKey(LangfuseAttributes.TRACE_TAGS), tags);
-
-        String environment = LangfuseContext.getEnvironment();
-        if (environment != null) span.setAttribute(LangfuseAttributes.ENVIRONMENT, environment);
     }
 
     public LangfuseTrace userId(String userId) {

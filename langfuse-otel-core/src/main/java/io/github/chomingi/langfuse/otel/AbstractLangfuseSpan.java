@@ -14,8 +14,32 @@ abstract class AbstractLangfuseSpan implements AutoCloseable {
 
     protected AbstractLangfuseSpan(Span span, String name) {
         this.span = span;
-        this.scope = span.makeCurrent();
-        this.cleanable = SpanGuard.register(this, span, scope, name, closed);
+        Scope openedScope = null;
+        java.lang.ref.Cleaner.Cleanable registeredCleanable;
+        try {
+            // External OpenTelemetry SDKs do not install our SpanProcessor, so library-created spans
+            // also apply the current immutable metadata directly.
+            LangfuseContext.applyTo(span, LangfuseContext.current());
+            openedScope = span.makeCurrent();
+            registeredCleanable = SpanGuard.register(this, span, openedScope, name, closed);
+        } catch (Throwable setupFailure) {
+            try {
+                if (openedScope != null) {
+                    openedScope.close();
+                }
+            } catch (Throwable ignored) {
+                // Preserve the original setup failure.
+            } finally {
+                try {
+                    span.end();
+                } catch (Throwable ignored) {
+                    // Preserve the original setup failure.
+                }
+            }
+            throw setupFailure;
+        }
+        this.scope = openedScope;
+        this.cleanable = registeredCleanable;
     }
 
     public void recordException(Throwable t) {

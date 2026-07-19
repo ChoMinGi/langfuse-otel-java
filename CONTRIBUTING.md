@@ -7,13 +7,14 @@ Thanks for your interest in contributing to langfuse-otel-java!
 ### Prerequisites
 
 - Java 17+
-- Maven 3.8+
 - A Langfuse account (cloud or self-hosted) for integration tests
+
+The repository Maven Wrapper pins the Maven distribution used by CI, so a system Maven installation is not required. On Windows, replace `./mvnw` with `mvnw.cmd`.
 
 ### Build
 
 ```bash
-mvn compile
+./mvnw -B -ntp compile
 ```
 
 ### Run Tests
@@ -21,7 +22,7 @@ mvn compile
 Unit tests (no external dependencies):
 
 ```bash
-mvn test
+./mvnw -B -ntp test
 ```
 
 Integration tests (requires Langfuse API keys):
@@ -31,8 +32,10 @@ export LANGFUSE_PUBLIC_KEY=pk-lf-...
 export LANGFUSE_SECRET_KEY=sk-lf-...
 export LANGFUSE_HOST=https://cloud.langfuse.com
 
-mvn test -pl langfuse-otel-core -am -DexcludedGroups= -Dgroups=integration
+./mvnw -B -ntp test -pl langfuse-otel-core -am -DexcludedGroups= -Dgroups=integration
 ```
+
+CI only runs these live tests when the repository variable `LANGFUSE_INTEGRATION_ENABLED` is explicitly set to `true`. When enabled, missing public/secret keys fail the integration status job instead of silently reporting a successful test run.
 
 ### Project Structure
 
@@ -44,7 +47,8 @@ langfuse-otel-java/
 │       ├── LangfuseTrace                # Trace wrapper
 │       ├── LangfuseGeneration           # LLM generation wrapper
 │       ├── LangfuseSpan                 # General span wrapper
-│       ├── LangfuseContext              # ThreadLocal context
+│       ├── LangfuseContext              # OTel/legacy synchronous context bridge
+│       ├── LangfuseTraceContext         # immutable async request metadata
 │       ├── LangfuseAttributes           # OTel attribute constants
 │       └── LangfusePromptHelper         # Prompt integration
 │
@@ -90,4 +94,8 @@ To add support for a new model type or framework:
 4. Add the framework as an `<optional>` dependency in `pom.xml` if not already present
 5. Add unit tests with stub models and `OpenTelemetryExtension`
 
-For streaming models, use raw OTel `Span` (without `makeCurrent()`) to avoid ThreadLocal corruption across async callbacks. See DESIGN.md #13.
+For streaming models, create state per subscription and use raw OTel `Span` (without `makeCurrent()`) to avoid thread-context corruption across async callbacks. Propagate request metadata with Reactor/OTel Context. See DESIGN.md #13 and #17.
+
+## Releasing
+
+Maintainers must follow [RELEASING.md](RELEASING.md). In particular, a Maven Central `VALIDATED` candidate is not public, and a Central upload job must never be rerun without first checking the Publisher Portal.

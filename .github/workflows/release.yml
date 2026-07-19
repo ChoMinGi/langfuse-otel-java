@@ -3,18 +3,396 @@ name: Release to Maven Central
 on:
   push:
     tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Existing v<version> tag to validate and release
+        required: true
+        type: string
+      confirm_no_existing_deployment:
+        description: I checked Central Portal and confirm that retrying cannot duplicate a deployment
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ inputs.release_tag || github.ref_name }}
+  cancel-in-progress: false
 
 jobs:
-  release:
+  preflight:
+    name: release preflight
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-
+    outputs:
+      release_tag: ${{ steps.version.outputs.release_tag }}
+      release_sha: ${{ steps.version.outputs.release_sha }}
+      version: ${{ steps.version.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ inputs.release_tag || github.ref }}
+          fetch-depth: 0
+          persist-credentials: false
 
       - name: Set up Java 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9 # v4.8.0
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: maven
+
+      - name: Validate tag, versions, docs, and release uniqueness
+        id: version
+        shell: bash
+        env:
+          REQUESTED_TAG: ${{ inputs.release_tag || github.ref_name }}
+          MANUAL_RETRY_CONFIRMED: ${{ inputs.confirm_no_existing_deployment || false }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          release_tag="$REQUESTED_TAG"
+          tag_version="${release_tag#v}"
+
+          if [[ -z "$tag_version" || "$tag_version" == "$release_tag" ]]; then
+            echo "::error::Release tag must use the v<version> format."
+            exit 1
+          fi
+
+          if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" && "$MANUAL_RETRY_CONFIRMED" != "true" ]]; then
+            echo "::error::A manual retry requires confirmation that Central Portal has no deployment for this tag."
+            exit 1
+          fi
+
+          release_sha="$(git rev-parse --verify "refs/tags/${release_tag}^{commit}")"
+          if [[ "$release_sha" != "$(git rev-parse HEAD)" ]]; then
+            echo "::error::Checked-out commit does not match ${release_tag}."
+            exit 1
+          fi
+
+          tag_object_type="$(git cat-file -t "refs/tags/${release_tag}")"
+          if [[ "$tag_object_type" != "tag" ]]; then
+            echo "::error::Release tag ${release_tag} must be an annotated, signed tag; lightweight tags are not accepted."
+            exit 1
+          fi
+
+          tag_object_sha="$(git rev-parse "refs/tags/${release_tag}")"
+          tag_lookup="$(curl --silent --show-error \
+            --header "Authorization: Bearer ${GH_TOKEN}" \
+            --header "Accept: application/vnd.github+json" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            --write-out $'\n%{http_code}' \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/git/tags/${tag_object_sha}")"
+          tag_http_status="${tag_lookup##*$'\n'}"
+          tag_response="${tag_lookup%$'\n'*}"
+          if [[ "$tag_http_status" != "200" ]]; then
+            echo "::error::Could not verify release tag signature (GitHub returned HTTP ${tag_http_status})."
+            exit 1
+          fi
+
+          tag_signature_verified="$(jq -r '.verification.verified // false' <<< "$tag_response")"
+          if [[ "$tag_signature_verified" != "true" ]]; then
+            verification_reason="$(jq -r '.verification.reason // "unknown"' <<< "$tag_response")"
+            echo "::error::GitHub did not verify the signature on ${release_tag} (reason: ${verification_reason})."
+            exit 1
+          fi
+
+          pom_version="$(./mvnw -q -DforceStdout help:evaluate -Dexpression=project.version)"
+          if [[ "$pom_version" == *-SNAPSHOT ]]; then
+            echo "::error::Cannot release snapshot project version: $pom_version"
+            exit 1
+          fi
+
+          if [[ "$tag_version" != "$pom_version" ]]; then
+            echo "::error::Tag version $tag_version does not match POM version $pom_version."
+            exit 1
+          fi
+
+          if ! git rev-parse --verify refs/remotes/origin/main >/dev/null 2>&1; then
+            echo "::error::origin/main is unavailable after the full checkout."
+            exit 1
+          fi
+
+          if ! git merge-base --is-ancestor "$release_sha" refs/remotes/origin/main; then
+            echo "::error::Release tag must point to a commit contained in origin/main."
+            exit 1
+          fi
+
+          for module in langfuse-otel-core langfuse-otel-spring-boot-starter; do
+            module_version="$(./mvnw -q -pl "$module" -DforceStdout help:evaluate -Dexpression=project.version)"
+            if [[ "$module_version" != "$pom_version" ]]; then
+              echo "::error::$module version $module_version does not match $pom_version."
+              exit 1
+            fi
+          done
+
+          for example in examples/spring-ai-example examples/langchain4j-example; do
+            example_version="$(./mvnw -q -f "$example/pom.xml" -DforceStdout help:evaluate -Dexpression=langfuse-otel.version)"
+            if [[ "$example_version" != "$pom_version" ]]; then
+              echo "::error::$example uses langfuse-otel version $example_version instead of $pom_version."
+              exit 1
+            fi
+          done
+
+          if grep -Eq '<version>[0-9]+\.[0-9]+\.[0-9]+-SNAPSHOT</version>' README.md; then
+            echo "::error::README still contains a snapshot dependency version."
+            exit 1
+          fi
+
+          readme_version_count="$(grep -Fc "<version>${pom_version}</version>" README.md || true)"
+          if (( readme_version_count < 2 )); then
+            echo "::error::README must show $pom_version for both published modules."
+            exit 1
+          fi
+
+          if ! grep -Fq "## [${pom_version}] - " CHANGELOG.md; then
+            echo "::error::CHANGELOG needs a dated ## [${pom_version}] release heading."
+            exit 1
+          fi
+
+          if grep -Fq "[Unreleased] - ${pom_version}" CHANGELOG.md; then
+            echo "::error::CHANGELOG still marks $pom_version as Unreleased."
+            exit 1
+          fi
+
+          release_lookup="$(curl --silent --show-error \
+            --header "Authorization: Bearer ${GH_TOKEN}" \
+            --header "Accept: application/vnd.github+json" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            --write-out $'\n%{http_code}' \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/releases/tags/${release_tag}")"
+          release_http_status="${release_lookup##*$'\n'}"
+          case "$release_http_status" in
+            200)
+              echo "::error::A GitHub release already exists for $release_tag; refusing a new Central deployment."
+              exit 1
+              ;;
+            404)
+              ;;
+            *)
+              echo "::error::Could not prove GitHub release uniqueness (GitHub returned HTTP ${release_http_status})."
+              exit 1
+              ;;
+          esac
+
+          group_path="io/github/chomingi"
+          for artifact in langfuse-otel-java langfuse-otel-core langfuse-otel-spring-boot-starter; do
+            artifact_url="https://repo1.maven.org/maven2/${group_path}/${artifact}/${pom_version}/${artifact}-${pom_version}.pom"
+            http_status="$(curl --location --silent --show-error --output /dev/null --write-out '%{http_code}' "$artifact_url")"
+            case "$http_status" in
+              200)
+                echo "::error::$artifact:$pom_version is already available from Maven Central."
+                exit 1
+                ;;
+              404)
+                ;;
+              *)
+                echo "::error::Could not prove release uniqueness for $artifact (Central returned HTTP $http_status)."
+                exit 1
+                ;;
+            esac
+          done
+
+          echo "release_tag=$release_tag" >> "$GITHUB_OUTPUT"
+          echo "release_sha=$release_sha" >> "$GITHUB_OUTPUT"
+          echo "version=$pom_version" >> "$GITHUB_OUTPUT"
+
+          {
+            echo "### Release preflight"
+            echo
+            echo "- Tag: \`$release_tag\`"
+            echo "- Commit: \`$release_sha\`"
+            echo "- Version: \`$pom_version\`"
+            echo "- Existing Central/GitHub release: none"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  verify:
+    name: release verify (Java 17)
+    runs-on: ubuntu-latest
+    needs: [preflight]
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ needs.preflight.outputs.release_sha }}
+          persist-credentials: false
+
+      - name: Set up Java 17
+        uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9 # v4.8.0
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: maven
+
+      - name: Clean verify
+        run: ./mvnw -B -ntp clean verify
+
+  core:
+    name: core release gate (Java ${{ matrix.java }})
+    runs-on: ubuntu-latest
+    needs: [preflight]
+    strategy:
+      fail-fast: false
+      matrix:
+        java: [11, 17, 21]
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ needs.preflight.outputs.release_sha }}
+          persist-credentials: false
+
+      - name: Set up Java ${{ matrix.java }}
+        uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9 # v4.8.0
+        with:
+          distribution: temurin
+          java-version: ${{ matrix.java }}
+          cache: maven
+
+      - name: Core unit tests
+        run: ./mvnw -B -ntp test -pl langfuse-otel-core -am
+
+  starter:
+    name: starter release gate (Java ${{ matrix.java }}, Spring AI ${{ matrix.spring-ai-version }}, LangChain4j ${{ matrix.langchain4j-version }})
+    runs-on: ubuntu-latest
+    needs: [preflight]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - java: 17
+            spring-ai-version: '1.0.0'
+            langchain4j-version: '1.0.0'
+          - java: 21
+            spring-ai-version: '1.0.0'
+            langchain4j-version: '1.0.0'
+          - java: 17
+            spring-ai-version: '1.1.8'
+            langchain4j-version: '1.18.0'
+          - java: 21
+            spring-ai-version: '1.1.8'
+            langchain4j-version: '1.18.0'
+          - java: 17
+            spring-ai-version: '2.0.0'
+            langchain4j-version: '1.18.0'
+          - java: 21
+            spring-ai-version: '2.0.0'
+            langchain4j-version: '1.18.0'
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ needs.preflight.outputs.release_sha }}
+          persist-credentials: false
+
+      - name: Set up Java ${{ matrix.java }}
+        uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9 # v4.8.0
+        with:
+          distribution: temurin
+          java-version: ${{ matrix.java }}
+          cache: maven
+
+      - name: Starter unit tests
+        run: >-
+          ./mvnw -B -ntp test
+          -pl langfuse-otel-spring-boot-starter -am
+          -Dspring-ai.version=${{ matrix.spring-ai-version }}
+          -Dlangchain4j.version=${{ matrix.langchain4j-version }}
+
+  consumer-smoke:
+    name: release consumer examples
+    runs-on: ubuntu-latest
+    needs: [preflight]
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ needs.preflight.outputs.release_sha }}
+          persist-credentials: false
+
+      - name: Set up Java 17
+        uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9 # v4.8.0
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: maven
+
+      - name: Install release artifacts locally
+        run: ./mvnw -B -ntp -DskipTests install
+
+      - name: Verify Spring AI consumer
+        run: ./mvnw -B -ntp -f examples/spring-ai-example/pom.xml -DskipTests verify
+
+      - name: Verify LangChain4j consumer
+        run: ./mvnw -B -ntp -f examples/langchain4j-example/pom.xml -DskipTests verify
+
+  release-gate:
+    name: release quality gate
+    runs-on: ubuntu-latest
+    if: always()
+    needs: [preflight, verify, core, starter, consumer-smoke]
+    permissions: {}
+    steps:
+      - name: Require every release candidate gate
+        shell: bash
+        env:
+          PREFLIGHT_RESULT: ${{ needs.preflight.result }}
+          VERIFY_RESULT: ${{ needs.verify.result }}
+          CORE_RESULT: ${{ needs.core.result }}
+          STARTER_RESULT: ${{ needs.starter.result }}
+          CONSUMER_RESULT: ${{ needs.consumer-smoke.result }}
+        run: |
+          set -euo pipefail
+          failed=false
+
+          for gate in PREFLIGHT VERIFY CORE STARTER CONSUMER; do
+            result_variable="${gate}_RESULT"
+            result="${!result_variable}"
+            echo "$gate: $result"
+            if [[ "$result" != "success" ]]; then
+              failed=true
+            fi
+          done
+
+          if [[ "$failed" == "true" ]]; then
+            echo "::error::Every release candidate gate must pass before Central credentials are exposed."
+            exit 1
+          fi
+
+          echo "All release candidate gates passed." >> "$GITHUB_STEP_SUMMARY"
+
+  central-deploy:
+    name: upload signed candidate to Central
+    runs-on: ubuntu-latest
+    needs: [preflight, release-gate]
+    permissions:
+      contents: read
+    environment:
+      name: central-validation
+      url: https://central.sonatype.com/publishing/deployments
+    steps:
+      - name: Refuse automatic deployment retries
+        shell: bash
+        env:
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+          MANUAL_RETRY_CONFIRMED: ${{ inputs.confirm_no_existing_deployment || false }}
+        run: |
+          if [[ "$RUN_ATTEMPT" != "1" ]]; then
+            echo "::error::Central upload is never repeated by Re-run jobs. Inspect Central Portal, then start a new workflow_dispatch run if a retry is safe."
+            exit 1
+          fi
+
+          if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" && "$MANUAL_RETRY_CONFIRMED" != "true" ]]; then
+            echo "::error::Manual Central upload requires explicit no-existing-deployment confirmation."
+            exit 1
+          fi
+
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ needs.preflight.outputs.release_sha }}
+          persist-credentials: false
+
+      - name: Set up Java 17 and signing
+        uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9 # v4.8.0
         with:
           distribution: temurin
           java-version: 17
@@ -25,25 +403,84 @@ jobs:
           gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
           gpg-passphrase: GPG_PASSPHRASE
 
-      - name: Run tests
-        run: mvn test --batch-mode --no-transfer-progress
-
-      - name: Deploy to Maven Central
+      - name: Build, sign, and upload one Central candidate
         env:
           MAVEN_USERNAME: ${{ secrets.CENTRAL_USERNAME }}
           MAVEN_PASSWORD: ${{ secrets.CENTRAL_TOKEN }}
           GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
-        run: mvn deploy --batch-mode --no-transfer-progress -Prelease -DskipTests
+        run: ./mvnw -B -ntp clean deploy -Prelease
 
-      - name: Extract version from tag
-        id: version
-        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+      - name: Record validated candidate
+        shell: bash
+        run: |
+          {
+            echo "### Maven Central candidate validated"
+            echo
+            echo "- Deployment name: \`io.github.chomingi:langfuse-otel-java:${{ needs.preflight.outputs.version }}\`"
+            echo "- State expected from this workflow: \`VALIDATED\`"
+            echo "- Automatic publish: disabled"
+            echo
+            echo "Follow \`RELEASING.md\`; do not rerun this deploy job."
+          } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Create GitHub Release
+  draft-release:
+    name: create draft GitHub release
+    runs-on: ubuntu-latest
+    needs: [preflight, central-deploy]
+    permissions:
+      contents: write
+    steps:
+      - name: Create or repair the draft only
+        shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.preflight.outputs.release_tag }}
+          RELEASE_VERSION: ${{ needs.preflight.outputs.version }}
         run: |
-          gh release create "${{ github.ref_name }}" \
-            --title "v${{ steps.version.outputs.VERSION }}" \
-            --notes "See [CHANGELOG.md](CHANGELOG.md) for details." \
-            --latest
+          set -euo pipefail
+
+          notes="Central candidate is VALIDATED and awaits manual publication. Follow [RELEASING.md](RELEASING.md), then publish this draft only after both artifacts resolve from Maven Central. See [CHANGELOG.md](CHANGELOG.md) for details."
+          release_lookup="$(curl --silent --show-error \
+            --header "Authorization: Bearer ${GH_TOKEN}" \
+            --header "Accept: application/vnd.github+json" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            --write-out $'\n%{http_code}' \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/releases/tags/${RELEASE_TAG}")"
+          release_http_status="${release_lookup##*$'\n'}"
+          release_response="${release_lookup%$'\n'*}"
+
+          case "$release_http_status" in
+            200)
+              existing_state="$(jq -r '.draft' <<< "$release_response")"
+              ;;
+            404)
+              existing_state=''
+              ;;
+            *)
+              echo "::error::Could not inspect the GitHub release (GitHub returned HTTP ${release_http_status})."
+              exit 1
+              ;;
+          esac
+
+          case "$existing_state" in
+            true)
+              gh release edit "$RELEASE_TAG" \
+                --repo "$GITHUB_REPOSITORY" \
+                --title "v${RELEASE_VERSION}" \
+                --notes "$notes"
+              ;;
+            false)
+              echo "::error::A published GitHub release already exists for $RELEASE_TAG; refusing to mutate it."
+              exit 1
+              ;;
+            '')
+              gh release create "$RELEASE_TAG" \
+                --repo "$GITHUB_REPOSITORY" \
+                --verify-tag \
+                --title "v${RELEASE_VERSION}" \
+                --notes "$notes" \
+                --draft
+              ;;
+          esac
+
+          echo "Draft release $RELEASE_TAG is ready; Central publication remains manual." >> "$GITHUB_STEP_SUMMARY"

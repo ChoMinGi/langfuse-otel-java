@@ -1,6 +1,7 @@
 package io.github.chomingi.langfuse.otel.spring;
 
 import io.github.chomingi.langfuse.otel.LangfuseContext;
+import io.github.chomingi.langfuse.otel.LangfuseTraceContext;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.web.server.ServerWebExchange;
@@ -10,7 +11,7 @@ import reactor.core.publisher.Mono;
 
 import java.security.Principal;
 
-@Order(Ordered.HIGHEST_PRECEDENCE + 10)
+@Order(Ordered.LOWEST_PRECEDENCE - 100)
 public class LangfuseReactiveContextFilter implements WebFilter {
 
     private final LangfuseOtelProperties properties;
@@ -21,32 +22,32 @@ public class LangfuseReactiveContextFilter implements WebFilter {
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, WebFilterChain chain) {
-        Mono<Principal> principalMono = exchange.getPrincipal()
-                .defaultIfEmpty(new AnonymousPrincipal());
-        Mono<String> sessionIdMono = exchange.getSession()
-                .map(session -> session.getId() != null ? session.getId() : "")
-                .defaultIfEmpty("");
+        Mono<Principal> principalMono = properties.getContext().isCaptureUserId()
+                ? exchange.getPrincipal().defaultIfEmpty(new AnonymousPrincipal())
+                : Mono.just(new AnonymousPrincipal());
+        Mono<String> sessionIdMono = properties.getContext().isCaptureSessionId()
+                ? exchange.getSession()
+                        .map(session -> session.getId() != null ? session.getId() : "")
+                        .defaultIfEmpty("")
+                : Mono.just("");
 
         return Mono.zip(principalMono, sessionIdMono)
                 .flatMap(tuple -> {
-                    try {
-                        if (properties.getEnvironment() != null) {
-                            LangfuseContext.setEnvironment(properties.getEnvironment());
-                        }
-                        Principal principal = tuple.getT1();
-                        if (!(principal instanceof AnonymousPrincipal)
-                                && principal.getName() != null && !principal.getName().isBlank()) {
-                            LangfuseContext.setUserId(principal.getName());
-                        }
-                        String sessionId = tuple.getT2();
-                        if (!sessionId.isEmpty()) {
-                            LangfuseContext.setSessionId(sessionId);
-                        }
-                    } catch (Exception ignored) {
+                    LangfuseTraceContext.Builder contextBuilder = LangfuseTraceContext.builder()
+                            .environment(properties.getEnvironment());
+                    Principal principal = tuple.getT1();
+                    if (!(principal instanceof AnonymousPrincipal)
+                            && principal.getName() != null && !principal.getName().isBlank()) {
+                        contextBuilder.userId(principal.getName());
                     }
+                    String sessionId = tuple.getT2();
+                    if (!sessionId.isEmpty()) {
+                        contextBuilder.sessionId(sessionId);
+                    }
+                    LangfuseTraceContext traceContext = contextBuilder.build();
 
                     return chain.filter(exchange)
-                            .doFinally(signalType -> LangfuseContext.clear());
+                            .contextWrite(context -> context.put(LangfuseContext.reactorContextKey(), traceContext));
                 });
     }
 

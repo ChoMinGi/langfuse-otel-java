@@ -18,6 +18,8 @@ class LangfuseContextFilterTest {
     void filterExtractsEnvironmentUserAndSessionAndClearsAfterwards() throws ServletException, IOException {
         LangfuseOtelProperties properties = new LangfuseOtelProperties();
         properties.setEnvironment("staging");
+        properties.getContext().setCaptureUserId(true);
+        properties.getContext().setCaptureSessionId(true);
 
         LangfuseContextFilter filter = new LangfuseContextFilter(properties);
         MockHttpServletRequest request = new MockHttpServletRequest();
@@ -40,5 +42,21 @@ class LangfuseContextFilterTest {
         assertThat(LangfuseContext.getEnvironment()).isNull();
         assertThat(LangfuseContext.getUserId()).isNull();
         assertThat(LangfuseContext.getSessionId()).isNull();
+    }
+
+    @Test
+    void principalAndHttpSessionAreNotCapturedByDefault() throws ServletException, IOException {
+        LangfuseOtelProperties properties = new LangfuseOtelProperties();
+        LangfuseContextFilter filter = new LangfuseContextFilter(properties);
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.setUserPrincipal(() -> "sensitive-user");
+        request.getSession(true);
+
+        FilterChain chain = (req, res) -> {
+            assertThat(LangfuseContext.getUserId()).isNull();
+            assertThat(LangfuseContext.getSessionId()).isNull();
+        };
+
+        filter.doFilter(request, new MockHttpServletResponse(), chain);
     }
 }

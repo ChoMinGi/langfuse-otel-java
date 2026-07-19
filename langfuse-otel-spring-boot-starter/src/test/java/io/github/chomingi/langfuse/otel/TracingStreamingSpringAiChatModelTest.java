@@ -309,6 +309,7 @@ class TracingStreamingSpringAiChatModelTest {
                 .block();
 
         assertThat(responses).hasSize(2);
+        awaitSpanCount("schedulerswitchingproviderspanstreaming.chat", 2);
         SpanData firstWrapper = schedulerWrapperForUser("spring-scheduled-user-a");
         SpanData secondWrapper = schedulerWrapperForUser("spring-scheduled-user-b");
         SpanData firstProvider = spanNamed("spring-scheduled-provider-a");

@@ -46,6 +46,30 @@ class TracingSpringAiImageModelTest {
     }
 
     @Test
+    void publicBuilderDefaultsAutomaticImageInstrumentationToMetadataOnly() {
+        ImageModel proxy = proxy(
+                new StubSpringAiImageModel(),
+                LangfuseOtel.externalBuilder(otel.getOpenTelemetry()).build());
+
+        ImageResponse response = proxy.call(new ImagePrompt(
+                "confidential image prompt",
+                ImageOptionsBuilder.builder().model("dall-e-3").build()));
+
+        assertThat(response.getResults()).hasSize(1);
+        assertThat(otel.getSpans()).hasSize(1);
+
+        SpanData span = otel.getSpans().get(0);
+        assertThat(span.getAttributes().get(AttributeKey.stringKey("gen_ai.operation.name")))
+                .isEqualTo("image_generation");
+        assertThat(span.getAttributes().get(AttributeKey.stringKey("gen_ai.request.model")))
+                .isEqualTo("dall-e-3");
+        assertThat(span.getAttributes().get(AttributeKey.stringKey("langfuse.observation.input")))
+                .isNull();
+        assertThat(span.getAttributes().get(AttributeKey.stringKey("langfuse.observation.output")))
+                .isNull();
+    }
+
+    @Test
     void imageRecordsException() {
         ImageModel proxy = proxy(new ErrorSpringAiImageModel());
 
@@ -58,9 +82,13 @@ class TracingSpringAiImageModelTest {
     }
 
     private ImageModel proxy(ImageModel target) {
+        return proxy(target, new LangfuseOtel(null, otel.getOpenTelemetry(), null, true));
+    }
+
+    private ImageModel proxy(ImageModel target, LangfuseOtel langfuseOtel) {
         return new io.github.chomingi.langfuse.otel.spring.TracingSpringAiImageModel(
                 target,
-                new LangfuseOtel(null, otel.getOpenTelemetry(), null, true));
+                langfuseOtel);
     }
 
     static class StubSpringAiImageModel implements ImageModel {

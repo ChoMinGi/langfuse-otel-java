@@ -1,12 +1,14 @@
 package io.github.chomingi.langfuse.otel.spring;
 
+import io.github.chomingi.langfuse.otel.ContentCapturePolicy;
 import io.github.chomingi.langfuse.otel.JsonUtils;
 import io.github.chomingi.langfuse.otel.LangfuseAttributes;
+import io.github.chomingi.langfuse.otel.LangfuseContext;
 import io.github.chomingi.langfuse.otel.LangfuseGeneration;
 import io.github.chomingi.langfuse.otel.LangfuseOtel;
+import io.github.chomingi.langfuse.otel.LangfuseTraceContext;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.SpanKind;
-import io.opentelemetry.api.trace.StatusCode;
 import io.opentelemetry.context.Context;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -17,10 +19,13 @@ import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.prompt.ChatOptions;
 import org.springframework.ai.chat.prompt.Prompt;
+import reactor.core.Exceptions;
 import reactor.core.publisher.Flux;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class TracingSpringAiChatModel implements ChatModel {
 
@@ -41,81 +46,140 @@ public class TracingSpringAiChatModel implements ChatModel {
             gen = new LangfuseGeneration(langfuseOtel.getTracer(), resolveSpanName());
             gen.system("spring-ai");
             setRequestAttributes(gen, prompt);
-        } catch (Exception e) {
-            log.debug("Langfuse instrumentation setup failed, proceeding without tracing", e);
+        } catch (Throwable failure) {
+            InstrumentationFailureSupport.endQuietly(gen);
+            gen = null;
+            InstrumentationFailureSupport.rethrowIfFatal(failure);
+            log.debug("Langfuse instrumentation setup failed, proceeding without tracing", failure);
         }
 
         try {
             ChatResponse response = delegate.call(prompt);
             try {
                 setResponseAttributes(gen, response);
-            } catch (Exception e) {
-                log.debug("Failed to record response attributes", e);
+            } catch (Throwable failure) {
+                InstrumentationFailureSupport.rethrowIfFatal(failure);
+                log.debug("Failed to record response attributes", failure);
             }
             return response;
         } catch (Throwable t) {
             if (gen != null) {
-                try { gen.recordException(t); } catch (Exception ignored) {}
+                InstrumentationFailureSupport.recordExceptionQuietly(langfuseOtel, gen, t);
             }
             throw t;
         } finally {
             if (gen != null) {
-                try { gen.end(); } catch (Exception ignored) {}
+                InstrumentationFailureSupport.endQuietly(gen);
             }
         }
     }
 
     @Override
     public Flux<ChatResponse> stream(Prompt prompt) {
-        Span span;
-        try {
-            span = langfuseOtel.getTracer().spanBuilder(resolveSpanName())
-                    .setParent(Context.current())
-                    .setSpanKind(SpanKind.CLIENT)
-                    .setAttribute(LangfuseAttributes.GEN_AI_OPERATION_NAME, "chat")
-                    .setAttribute(LangfuseAttributes.GEN_AI_SYSTEM, "spring-ai")
-                    .startSpan();
-            setRequestAttributesOnSpan(span, prompt);
-        } catch (Exception e) {
-            log.debug("Langfuse streaming instrumentation setup failed, proceeding without tracing", e);
-            return delegate.stream(prompt);
-        }
+        return Flux.deferContextual(reactorContext -> {
+            Context parentContext;
+            LangfuseTraceContext traceContext;
+            Span createdSpan = null;
+            AtomicBoolean spanEnded;
+            BoundedTextAccumulator accumulated;
+            AtomicBoolean firstChunk;
+            AtomicBoolean streamCompleted;
+            AtomicReference<Throwable> streamFailure;
+            Context invocationContext;
+            try {
+                parentContext = reactorContext.getOrDefault(
+                        Context.class, Context.current());
+                traceContext = reactorContext.getOrDefault(
+                        LangfuseContext.reactorContextKey(),
+                        LangfuseContext.from(parentContext));
+                if (traceContext == null) {
+                    traceContext = LangfuseContext.current();
+                }
+                if (traceContext != null) {
+                    parentContext = LangfuseContext.storeIn(parentContext, traceContext);
+                }
+                ContentCapturePolicy capturePolicy = Objects.requireNonNull(
+                        langfuseOtel.getContentCapturePolicy(),
+                        "langfuseOtel.getContentCapturePolicy() must not return null");
+                createdSpan = langfuseOtel.getTracer().spanBuilder(resolveSpanName())
+                        .setParent(parentContext)
+                        .setSpanKind(SpanKind.CLIENT)
+                        .setAttribute(LangfuseAttributes.GEN_AI_OPERATION_NAME, "chat")
+                        .setAttribute(LangfuseAttributes.GEN_AI_SYSTEM, "spring-ai")
+                        .startSpan();
+                LangfuseContext.applyTo(createdSpan,
+                        traceContext != null ? traceContext : LangfuseContext.current());
+                setRequestAttributesOnSpan(createdSpan, prompt, capturePolicy);
+                spanEnded = new AtomicBoolean(false);
+                accumulated = capturePolicy.isOutputCaptureEnabled()
+                        ? new BoundedTextAccumulator(capturePolicy.getMaxLength())
+                        : null;
+                firstChunk = new AtomicBoolean(true);
+                streamCompleted = new AtomicBoolean(false);
+                streamFailure = new AtomicReference<>();
+                invocationContext = parentContext.with(createdSpan);
+            } catch (Throwable failure) {
+                InstrumentationFailureSupport.endQuietly(createdSpan);
+                InstrumentationFailureSupport.rethrowIfFatal(failure);
+                log.debug("Langfuse streaming instrumentation setup failed, proceeding without tracing", failure);
+                return delegate.stream(prompt);
+            }
 
-        AtomicBoolean spanEnded = new AtomicBoolean(false);
-        StringBuffer accumulated = new StringBuffer();
-        AtomicBoolean firstChunk = new AtomicBoolean(true);
+            Span span = createdSpan;
 
-        return delegate.stream(prompt)
-                .doOnNext(chunk -> {
-                    try {
-                        if (firstChunk.compareAndSet(true, false)) {
-                            span.setAttribute(LangfuseAttributes.OBSERVATION_COMPLETION_START_TIME,
-                                    java.time.Instant.now().toString());
+            Flux<ChatResponse> delegateStream;
+            try {
+                delegateStream = Objects.requireNonNull(
+                        SpanScopeSupport.call(invocationContext, () -> delegate.stream(prompt)),
+                        "delegate.stream(prompt) must not return null");
+            } catch (Throwable t) {
+                InstrumentationFailureSupport.recordExceptionQuietly(langfuseOtel, span, t);
+                endSpan(span, spanEnded);
+                Exceptions.throwIfFatal(t);
+                return Flux.error(t);
+            }
+
+            Flux<ChatResponse> contextBridgedStream = ReactorSpanContextBridge.bridge(
+                    delegateStream, invocationContext, traceContext);
+
+            return contextBridgedStream
+                    .doOnNext(chunk -> {
+                        try {
+                            if (firstChunk.compareAndSet(true, false)) {
+                                span.setAttribute(LangfuseAttributes.OBSERVATION_COMPLETION_START_TIME,
+                                        java.time.Instant.now().toString());
+                            }
+                            if (chunk.getResult() != null && chunk.getResult().getOutput() != null) {
+                                String text = chunk.getResult().getOutput().getText();
+                                if (text != null && accumulated != null) accumulated.append(text);
+                            }
+                            setStreamResponseAttributesOnSpan(span, chunk);
+                        } catch (Throwable failure) {
+                            InstrumentationFailureSupport.rethrowIfFatal(failure);
+                            log.debug("Failed to record streaming chunk attributes", failure);
                         }
-                        if (chunk.getResult() != null && chunk.getResult().getOutput() != null) {
-                            String text = chunk.getResult().getOutput().getText();
-                            if (text != null) accumulated.append(text);
+                    })
+                    .doOnError(streamFailure::set)
+                    .doOnComplete(() -> streamCompleted.set(true))
+                    .doFinally(signalType -> {
+                        try {
+                            Throwable failure = streamFailure.getAndSet(null);
+                            if (failure != null) {
+                                InstrumentationFailureSupport.recordExceptionQuietly(
+                                        langfuseOtel, span, failure);
+                            } else if (streamCompleted.get()
+                                    && accumulated != null
+                                    && !accumulated.overflowed()
+                                    && accumulated.length() > 0) {
+                                langfuseOtel.recordOutput(span, accumulated.toString());
+                            }
+                        } catch (Throwable failure) {
+                            InstrumentationFailureSupport.rethrowIfFatal(failure);
+                        } finally {
+                            endSpan(span, spanEnded);
                         }
-                        setStreamResponseAttributesOnSpan(span, chunk);
-                    } catch (Exception e) {
-                        log.debug("Failed to record streaming chunk attributes", e);
-                    }
-                })
-                .doOnError(t -> {
-                    try {
-                        recordExceptionOnSpan(span, t);
-                    } catch (Exception ignored) {}
-                    endSpan(span, spanEnded);
-                })
-                .doOnComplete(() -> {
-                    try {
-                        if (accumulated.length() > 0) {
-                            span.setAttribute(LangfuseAttributes.OBSERVATION_OUTPUT, accumulated.toString());
-                        }
-                    } catch (Exception ignored) {}
-                    endSpan(span, spanEnded);
-                })
-                .doOnCancel(() -> endSpan(span, spanEnded));
+                    });
+        });
     }
 
     @Override
@@ -124,8 +188,7 @@ public class TracingSpringAiChatModel implements ChatModel {
     }
 
     private String resolveSpanName() {
-        String className = delegate.getClass().getSimpleName();
-        return className.replace("ChatModel", "").replace("ChatClient", "").toLowerCase() + ".chat";
+        return ModelSpanNameSupport.resolve(delegate, "chat", "ChatModel", "ChatClient");
     }
 
     private void setRequestAttributes(LangfuseGeneration gen, Prompt prompt) {
@@ -142,7 +205,9 @@ public class TracingSpringAiChatModel implements ChatModel {
             if (options.getTopP() != null) gen.topP(options.getTopP());
         }
 
-        gen.input(toJsonMessages(prompt.getInstructions()));
+        if (langfuseOtel.getContentCapturePolicy().isInputCaptureEnabled()) {
+            langfuseOtel.recordInput(gen, toJsonMessages(prompt.getInstructions()));
+        }
     }
 
     private String toJsonMessages(List<Message> messages) {
@@ -180,11 +245,12 @@ public class TracingSpringAiChatModel implements ChatModel {
 
         if (response.getResult() != null && response.getResult().getOutput() != null) {
             String text = response.getResult().getOutput().getText();
-            if (text != null) gen.output(text);
+            if (text != null) langfuseOtel.recordOutput(gen, text);
         }
     }
 
-    private void setRequestAttributesOnSpan(Span span, Prompt prompt) {
+    private void setRequestAttributesOnSpan(Span span, Prompt prompt,
+                                            ContentCapturePolicy capturePolicy) {
         ChatOptions options = prompt.getOptions();
         if (options == null) {
             options = delegate.getDefaultOptions();
@@ -195,7 +261,9 @@ public class TracingSpringAiChatModel implements ChatModel {
             if (options.getMaxTokens() != null) span.setAttribute(LangfuseAttributes.GEN_AI_REQUEST_MAX_TOKENS, (long) options.getMaxTokens());
             if (options.getTopP() != null) span.setAttribute(LangfuseAttributes.GEN_AI_REQUEST_TOP_P, options.getTopP());
         }
-        span.setAttribute(LangfuseAttributes.OBSERVATION_INPUT, toJsonMessages(prompt.getInstructions()));
+        if (capturePolicy.isInputCaptureEnabled()) {
+            langfuseOtel.recordInput(span, toJsonMessages(prompt.getInstructions()));
+        }
     }
 
     private void setStreamResponseAttributesOnSpan(Span span, ChatResponse chunk) {
@@ -218,17 +286,9 @@ public class TracingSpringAiChatModel implements ChatModel {
         }
     }
 
-    private static void recordExceptionOnSpan(Span span, Throwable t) {
-        String message = t.getMessage() != null ? t.getMessage() : t.getClass().getName();
-        span.setStatus(StatusCode.ERROR, message);
-        span.recordException(t);
-        span.setAttribute(LangfuseAttributes.OBSERVATION_LEVEL, "ERROR");
-        span.setAttribute(LangfuseAttributes.OBSERVATION_STATUS_MESSAGE, message);
-    }
-
     private static void endSpan(Span span, AtomicBoolean spanEnded) {
         if (spanEnded.compareAndSet(false, true)) {
-            span.end();
+            InstrumentationFailureSupport.endQuietly(span);
         }
     }
 }

@@ -1,10 +1,10 @@
 package io.github.chomingi.langfuse.otel.spring;
 
 import io.github.chomingi.langfuse.otel.LangfuseAttributes;
+import io.github.chomingi.langfuse.otel.LangfuseContext;
 import io.github.chomingi.langfuse.otel.LangfuseOtel;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.SpanKind;
-import io.opentelemetry.api.trace.StatusCode;
 import io.opentelemetry.context.Context;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -18,6 +18,7 @@ import org.springframework.ai.embedding.EmbeddingResponseMetadata;
 import org.springframework.ai.chat.metadata.Usage;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 public class TracingSpringAiEmbeddingModel implements EmbeddingModel {
 
@@ -33,45 +34,127 @@ public class TracingSpringAiEmbeddingModel implements EmbeddingModel {
 
     @Override
     public EmbeddingResponse call(EmbeddingRequest request) {
-        Span span;
+        Span createdSpan = null;
         try {
-            span = langfuseOtel.getTracer().spanBuilder(resolveSpanName())
+            createdSpan = langfuseOtel.getTracer().spanBuilder(resolveSpanName())
                     .setParent(Context.current())
                     .setSpanKind(SpanKind.CLIENT)
                     .setAttribute(LangfuseAttributes.GEN_AI_OPERATION_NAME, "embeddings")
                     .setAttribute(LangfuseAttributes.GEN_AI_SYSTEM, "spring-ai")
                     .startSpan();
-            setRequestAttributes(span, request);
-        } catch (Exception e) {
-            log.debug("Langfuse embedding instrumentation setup failed, proceeding without tracing", e);
+            LangfuseContext.applyTo(createdSpan);
+            setRequestAttributes(createdSpan, request);
+        } catch (Throwable failure) {
+            InstrumentationFailureSupport.endQuietly(createdSpan);
+            InstrumentationFailureSupport.rethrowIfFatal(failure);
+            log.debug("Langfuse embedding instrumentation setup failed, proceeding without tracing", failure);
             return delegate.call(request);
         }
 
+        Span span = createdSpan;
         try {
-            EmbeddingResponse response = delegate.call(request);
+            EmbeddingResponse response = SpanScopeSupport.call(span, () -> delegate.call(request));
             try {
                 setResponseAttributes(span, response);
-            } catch (Exception e) {
-                log.debug("Failed to record embedding response attributes", e);
+            } catch (Throwable failure) {
+                InstrumentationFailureSupport.rethrowIfFatal(failure);
+                log.debug("Failed to record embedding response attributes", failure);
             }
             return response;
         } catch (Throwable t) {
-            try { recordException(span, t); } catch (Exception ignored) {}
+            InstrumentationFailureSupport.recordExceptionQuietly(langfuseOtel, span, t);
             throw t;
         } finally {
-            span.end();
+            InstrumentationFailureSupport.endQuietly(span);
         }
     }
 
     @Override
     public float[] embed(Document document) {
-        return delegate.embed(document);
+        Span createdSpan = null;
+        try {
+            createdSpan = langfuseOtel.getTracer().spanBuilder(resolveSpanName())
+                    .setParent(Context.current())
+                    .setSpanKind(SpanKind.CLIENT)
+                    .setAttribute(LangfuseAttributes.GEN_AI_OPERATION_NAME, "embeddings")
+                    .setAttribute(LangfuseAttributes.GEN_AI_SYSTEM, "spring-ai")
+                    .startSpan();
+            LangfuseContext.applyTo(createdSpan);
+            if (document != null) {
+                langfuseOtel.recordInput(createdSpan, document.getText());
+            }
+        } catch (Throwable failure) {
+            InstrumentationFailureSupport.endQuietly(createdSpan);
+            InstrumentationFailureSupport.rethrowIfFatal(failure);
+            log.debug("Langfuse document embedding instrumentation setup failed, proceeding without tracing", failure);
+            return delegate.embed(document);
+        }
+
+        Span span = createdSpan;
+        try {
+            float[] embedding = SpanScopeSupport.call(span, () -> delegate.embed(document));
+            try {
+                langfuseOtel.recordOutput(span, embedding == null
+                        ? "0 embedding(s)" : "1 embedding (" + embedding.length + " dimensions)");
+            } catch (Throwable failure) {
+                InstrumentationFailureSupport.rethrowIfFatal(failure);
+            }
+            return embedding;
+        } catch (Throwable t) {
+            InstrumentationFailureSupport.recordExceptionQuietly(langfuseOtel, span, t);
+            throw t;
+        } finally {
+            InstrumentationFailureSupport.endQuietly(span);
+        }
+    }
+
+    @Override
+    public List<float[]> embed(List<Document> documents, EmbeddingOptions options,
+                               BatchingStrategy batchingStrategy) {
+        Span createdSpan = null;
+        try {
+            createdSpan = langfuseOtel.getTracer().spanBuilder(resolveSpanName())
+                    .setParent(Context.current())
+                    .setSpanKind(SpanKind.CLIENT)
+                    .setAttribute(LangfuseAttributes.GEN_AI_OPERATION_NAME, "embeddings")
+                    .setAttribute(LangfuseAttributes.GEN_AI_SYSTEM, "spring-ai")
+                    .startSpan();
+            LangfuseContext.applyTo(createdSpan);
+            setBulkRequestAttributes(createdSpan, documents, options);
+        } catch (Throwable failure) {
+            InstrumentationFailureSupport.endQuietly(createdSpan);
+            InstrumentationFailureSupport.rethrowIfFatal(failure);
+            log.debug("Langfuse bulk embedding instrumentation setup failed, proceeding without tracing", failure);
+            return delegate.embed(documents, options, batchingStrategy);
+        }
+
+        Span span = createdSpan;
+        try {
+            List<float[]> embeddings = SpanScopeSupport.call(span,
+                    () -> delegate.embed(documents, options, batchingStrategy));
+            int embeddingCount = embeddings != null ? embeddings.size() : 0;
+            try {
+                langfuseOtel.recordOutput(span, embeddingCount + " embedding(s)");
+            } catch (Throwable failure) {
+                InstrumentationFailureSupport.rethrowIfFatal(failure);
+            }
+            return embeddings;
+        } catch (Throwable failure) {
+            InstrumentationFailureSupport.recordExceptionQuietly(langfuseOtel, span, failure);
+            throw failure;
+        } finally {
+            InstrumentationFailureSupport.endQuietly(span);
+        }
+    }
+
+    @Override
+    public int dimensions() {
+        return delegate.dimensions();
     }
 
     private String resolveSpanName() {
-        String className = delegate.getClass().getSimpleName();
-        return className.replace("EmbeddingModel", "").replace("EmbeddingClient", "")
-                .toLowerCase() + ".embeddings";
+        return ModelSpanNameSupport.resolve(
+                delegate, "embeddings", "EmbeddingModel", "EmbeddingClient");
     }
 
     private void setRequestAttributes(Span span, EmbeddingRequest request) {
@@ -82,14 +165,30 @@ public class TracingSpringAiEmbeddingModel implements EmbeddingModel {
             }
         }
 
+        if (!langfuseOtel.getContentCapturePolicy().isInputCaptureEnabled()) return;
         List<String> inputs = request.getInstructions();
         if (inputs != null && !inputs.isEmpty()) {
             if (inputs.size() == 1) {
-                span.setAttribute(LangfuseAttributes.OBSERVATION_INPUT, inputs.get(0));
+                langfuseOtel.recordInput(span, inputs.get(0));
             } else {
-                span.setAttribute(LangfuseAttributes.OBSERVATION_INPUT, String.valueOf(inputs));
+                langfuseOtel.recordInput(span, String.valueOf(inputs));
             }
         }
+    }
+
+    private void setBulkRequestAttributes(Span span, List<Document> documents, EmbeddingOptions options) {
+        if (options != null && options.getModel() != null) {
+            span.setAttribute(LangfuseAttributes.GEN_AI_REQUEST_MODEL, options.getModel());
+        }
+
+        if (!langfuseOtel.getContentCapturePolicy().isInputCaptureEnabled()
+                || documents == null || documents.isEmpty()) {
+            return;
+        }
+        String input = documents.stream()
+                .map(document -> document == null ? "null" : String.valueOf(document.getText()))
+                .collect(Collectors.joining(", ", "[", "]"));
+        langfuseOtel.recordInput(span, input);
     }
 
     private void setResponseAttributes(Span span, EmbeddingResponse response) {
@@ -111,14 +210,7 @@ public class TracingSpringAiEmbeddingModel implements EmbeddingModel {
         }
 
         int embeddingCount = response.getResults() != null ? response.getResults().size() : 0;
-        span.setAttribute(LangfuseAttributes.OBSERVATION_OUTPUT, embeddingCount + " embedding(s)");
+        langfuseOtel.recordOutput(span, embeddingCount + " embedding(s)");
     }
 
-    private static void recordException(Span span, Throwable t) {
-        String message = t.getMessage() != null ? t.getMessage() : t.getClass().getName();
-        span.setStatus(StatusCode.ERROR, message);
-        span.recordException(t);
-        span.setAttribute(LangfuseAttributes.OBSERVATION_LEVEL, "ERROR");
-        span.setAttribute(LangfuseAttributes.OBSERVATION_STATUS_MESSAGE, message);
-    }
 }

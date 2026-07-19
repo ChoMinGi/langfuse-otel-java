@@ -1,6 +1,7 @@
 package io.github.chomingi.langfuse.otel;
 
 import io.opentelemetry.api.common.AttributeKey;
+import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.sdk.testing.junit5.OpenTelemetryExtension;
 import io.opentelemetry.sdk.trace.data.SpanData;
 import org.junit.jupiter.api.Test;
@@ -17,8 +18,10 @@ import org.springframework.ai.chat.prompt.ChatOptions;
 import org.springframework.ai.chat.prompt.Prompt;
 
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class TracingSpringAiChatModelTest {
 
@@ -73,10 +76,73 @@ class TracingSpringAiChatModelTest {
                 .contains("\"content\":\"msg-array\"");
     }
 
+    @Test
+    void publicBuilderDefaultsAutomaticInstrumentationToMetadataOnly() {
+        LangfuseOtel langfuse = LangfuseOtel.externalBuilder(otel.getOpenTelemetry()).build();
+        ChatModel proxy = proxy(new StubSpringAiChatModel(), langfuse);
+
+        proxy.call(new Prompt("sensitive prompt"));
+
+        SpanData span = otel.getSpans().get(0);
+        assertThat(span.getAttributes().get(AttributeKey.stringKey("gen_ai.request.model")))
+                .isEqualTo("gpt-4o-mini");
+        assertThat(span.getAttributes().get(AttributeKey.stringKey("langfuse.observation.input"))).isNull();
+        assertThat(span.getAttributes().get(AttributeKey.stringKey("langfuse.observation.output"))).isNull();
+    }
+
+    @Test
+    void automaticContentCanBeRedactedAndEnabledPerDirection() {
+        ContentCapturePolicy policy = ContentCapturePolicy.builder()
+                .captureInput(true)
+                .captureOutput(false)
+                .redactor((type, content) -> "[REDACTED]")
+                .build();
+        LangfuseOtel langfuse = LangfuseOtel.externalBuilder(otel.getOpenTelemetry())
+                .contentCapturePolicy(policy)
+                .build();
+        ChatModel proxy = proxy(new StubSpringAiChatModel(), langfuse);
+
+        proxy.call(new Prompt("sensitive prompt"));
+
+        SpanData span = otel.getSpans().get(0);
+        assertThat(span.getAttributes().get(AttributeKey.stringKey("langfuse.observation.input")))
+                .isEqualTo("[REDACTED]");
+        assertThat(span.getAttributes().get(AttributeKey.stringKey("langfuse.observation.output"))).isNull();
+    }
+
+    @Test
+    void nonFatalSetupErrorEndsGenerationRestoresScopeAndFallsBackToDelegate() {
+        ChatModel proxy = proxy(new NonFatalSetupErrorSpringAiChatModel());
+
+        ChatResponse response = proxy.call(new Prompt("fallback"));
+
+        assertThat(response.getResult().getOutput().getText()).isEqualTo("answer: fallback");
+        assertThat(otel.getSpans()).hasSize(1);
+        assertThat(Span.current().getSpanContext().isValid()).isFalse();
+    }
+
+    @Test
+    void fatalSetupErrorEndsGenerationRestoresScopeAndIsRethrown() {
+        FatalSetupErrorSpringAiChatModel target = new FatalSetupErrorSpringAiChatModel();
+        ChatModel proxy = proxy(target);
+
+        assertThatThrownBy(() -> proxy.call(new Prompt("fatal")))
+                .isInstanceOf(LinkageError.class)
+                .hasMessage("default options linkage failure");
+
+        assertThat(target.callInvocations()).isZero();
+        assertThat(otel.getSpans()).hasSize(1);
+        assertThat(Span.current().getSpanContext().isValid()).isFalse();
+    }
+
     private ChatModel proxy(ChatModel target) {
+        return proxy(target, new LangfuseOtel(null, otel.getOpenTelemetry(), null, true));
+    }
+
+    private ChatModel proxy(ChatModel target, LangfuseOtel langfuseOtel) {
         return new io.github.chomingi.langfuse.otel.spring.TracingSpringAiChatModel(
                 target,
-                new LangfuseOtel(null, otel.getOpenTelemetry(), null, true));
+                langfuseOtel);
     }
 
     static class StubSpringAiChatModel implements ChatModel {
@@ -100,6 +166,32 @@ class TracingSpringAiChatModelTest {
                     .maxTokens(256)
                     .topP(0.9)
                     .build();
+        }
+    }
+
+    static class NonFatalSetupErrorSpringAiChatModel extends StubSpringAiChatModel {
+        @Override
+        public ChatOptions getDefaultOptions() {
+            throw new AssertionError("default options unavailable");
+        }
+    }
+
+    static class FatalSetupErrorSpringAiChatModel extends StubSpringAiChatModel {
+        private final AtomicInteger callInvocations = new AtomicInteger();
+
+        @Override
+        public ChatOptions getDefaultOptions() {
+            throw new LinkageError("default options linkage failure");
+        }
+
+        @Override
+        public ChatResponse call(Prompt prompt) {
+            callInvocations.incrementAndGet();
+            return super.call(prompt);
+        }
+
+        int callInvocations() {
+            return callInvocations.get();
         }
     }
 

@@ -1,6 +1,9 @@
 package io.github.chomingi.langfuse.otel;
 
 import io.opentelemetry.api.common.AttributeKey;
+import io.opentelemetry.api.trace.Span;
+import io.opentelemetry.context.Context;
+import io.opentelemetry.context.Scope;
 import io.opentelemetry.sdk.OpenTelemetrySdk;
 import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter;
 import io.opentelemetry.sdk.trace.SdkTracerProvider;
@@ -13,6 +16,8 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class LangfuseContextSpanProcessorTest {
 
@@ -128,6 +133,151 @@ class LangfuseContextSpanProcessorTest {
                 .isEqualTo("user-temp");
         assertThat(afterSpan.getAttributes().get(AttributeKey.stringKey("user.id")))
                 .isNull();
+    }
+
+    @Test
+    void spanProcessorReadsImmutableMetadataFromExplicitParentContext() {
+        LangfuseContext.setUserId("wrong-thread-local-user");
+        LangfuseTraceContext traceContext = LangfuseTraceContext.builder()
+                .userId("otel-context-user")
+                .sessionId("otel-context-session")
+                .tags("reactive", "safe")
+                .environment("production")
+                .build();
+        Context parent = LangfuseContext.storeIn(Context.root(), traceContext);
+
+        Span span = langfuse.getTracer().spanBuilder("explicit-parent")
+                .setParent(parent)
+                .startSpan();
+        span.end();
+
+        SpanData spanData = findSpan("explicit-parent");
+        assertThat(spanData.getAttributes().get(AttributeKey.stringKey("user.id")))
+                .isEqualTo("otel-context-user");
+        assertThat(spanData.getAttributes().get(AttributeKey.stringKey("session.id")))
+                .isEqualTo("otel-context-session");
+        assertThat(spanData.getAttributes().get(AttributeKey.stringArrayKey("langfuse.trace.tags")))
+                .containsExactly("reactive", "safe");
+    }
+
+    @Test
+    void explicitParentWithoutMetadataDoesNotInheritUnrelatedCurrentRequestMetadata() {
+        LangfuseTraceContext unrelatedRequest = LangfuseTraceContext.builder()
+                .userId("unrelated-user")
+                .sessionId("unrelated-session")
+                .build();
+
+        try (Scope ignored = LangfuseContext.makeCurrent(unrelatedRequest)) {
+            Span span = langfuse.getTracer().spanBuilder("explicit-unrelated-parent")
+                    .setParent(Context.root())
+                    .startSpan();
+            span.end();
+        }
+
+        SpanData spanData = findSpan("explicit-unrelated-parent");
+        assertThat(spanData.getAttributes().get(AttributeKey.stringKey("user.id"))).isNull();
+        assertThat(spanData.getAttributes().get(AttributeKey.stringKey("session.id"))).isNull();
+    }
+
+    @Test
+    void explicitRootDoesNotInheritLegacyMetadataWhenCurrentContextIsRoot() {
+        LangfuseContext.setUserId("legacy-user");
+
+        Span span = langfuse.getTracer().spanBuilder("explicit-root")
+                .setParent(Context.root())
+                .startSpan();
+        span.end();
+
+        SpanData spanData = findSpan("explicit-root");
+        assertThat(spanData.getAttributes().get(AttributeKey.stringKey("user.id"))).isNull();
+    }
+
+    @Test
+    void settersAndClearOverrideImmutableMetadataWithinCurrentScope() {
+        LangfuseContext.setUserId("previous-user");
+        LangfuseTraceContext request = LangfuseTraceContext.builder()
+                .userId("request-user")
+                .sessionId("request-session")
+                .build();
+
+        try (Scope ignored = LangfuseContext.makeCurrent(request)) {
+            LangfuseContext.setUserId("replacement-user");
+            assertThat(LangfuseContext.getUserId()).isEqualTo("replacement-user");
+
+            Span replacement = langfuse.getTracer().spanBuilder("replacement-context").startSpan();
+            replacement.end();
+            assertThat(findSpan("replacement-context").getAttributes()
+                    .get(AttributeKey.stringKey("user.id"))).isEqualTo("replacement-user");
+
+            LangfuseContext.clear();
+            assertThat(LangfuseContext.getUserId()).isNull();
+            assertThat(LangfuseContext.getSessionId()).isNull();
+
+            Span cleared = langfuse.getTracer().spanBuilder("cleared-context").startSpan();
+            cleared.end();
+            assertThat(findSpan("cleared-context").getAttributes()
+                    .get(AttributeKey.stringKey("user.id"))).isNull();
+            assertThat(findSpan("cleared-context").getAttributes()
+                    .get(AttributeKey.stringKey("session.id"))).isNull();
+        }
+
+        assertThat(LangfuseContext.getUserId()).isEqualTo("previous-user");
+    }
+
+    @Test
+    void unmanagedImmutableScopeIgnoresLegacyMutationsWithoutLeakingAnOverride() {
+        LangfuseContext.setUserId("legacy-user");
+        LangfuseTraceContext firstRequest = LangfuseTraceContext.builder()
+                .userId("first-request")
+                .build();
+
+        try (Scope ignored = LangfuseContext.storeIn(Context.root(), firstRequest).makeCurrent()) {
+            LangfuseContext.setUserId("must-not-escape");
+            LangfuseContext.clear();
+            assertThat(LangfuseContext.getUserId()).isEqualTo("first-request");
+        }
+
+        assertThat(LangfuseContext.getUserId()).isEqualTo("legacy-user");
+
+        LangfuseTraceContext secondRequest = LangfuseTraceContext.builder()
+                .userId("second-request")
+                .build();
+        try (Scope ignored = LangfuseContext.storeIn(Context.root(), secondRequest).makeCurrent()) {
+            assertThat(LangfuseContext.getUserId()).isEqualTo("second-request");
+        }
+    }
+
+    @Test
+    void makeCurrentRestoresPreviousThreadLocalAndOtelContext() {
+        LangfuseContext.setUserId("previous-user");
+        LangfuseTraceContext traceContext = LangfuseTraceContext.builder()
+                .userId("request-user")
+                .sessionId("request-session")
+                .build();
+
+        try (Scope ignored = LangfuseContext.makeCurrent(traceContext)) {
+            assertThat(LangfuseContext.getUserId()).isEqualTo("request-user");
+            assertThat(LangfuseContext.from(Context.current())).isSameAs(traceContext);
+        }
+
+        assertThat(LangfuseContext.getUserId()).isEqualTo("previous-user");
+        assertThat(LangfuseContext.from(Context.current())).isNull();
+    }
+
+    @Test
+    void restoringScopeRunsRestoreActionEvenWhenOtelScopeCloseFails() {
+        boolean[] restored = {false};
+        Scope throwingScope = () -> {
+            throw new IllegalStateException("scope close failed");
+        };
+        Scope restoringScope = LangfuseContext.restoringScope(
+                throwingScope, () -> restored[0] = true);
+
+        assertThatThrownBy(restoringScope::close)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("scope close failed");
+        assertThat(restored[0]).isTrue();
+        assertThatCode(restoringScope::close).doesNotThrowAnyException();
     }
 
     private SpanData findSpan(String name) {

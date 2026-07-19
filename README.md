@@ -10,7 +10,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![OpenTelemetry](https://img.shields.io/badge/OpenTelemetry-enabled-blueviolet)](https://opentelemetry.io/)
 
-[Why this exists](#the-problem) · [Quick Start](#quick-start) · [What gets traced](#what-gets-traced) · [Features](#features) · [Compatibility](#compatibility)
+[Why this exists](#the-problem) · [Quick Start](#quick-start) · [What gets traced](#what-gets-traced) · [Features](#features) · [Compatibility](#compatibility) · [Migration](MIGRATION-0.2.md) · [Roadmap](ROADMAP.md) · [Release process](RELEASING.md)
 
 </div>
 
@@ -69,31 +69,39 @@ This library eliminates all of it.
             └─────────────────┘
 ```
 
-Add one dependency, set three properties. Every LLM call — sync, streaming, embeddings, image generation — automatically appears in your Langfuse dashboard.
+For a dedicated exporter, add one dependency, select standalone mode, and configure the connection properties. Supported Spring AI and LangChain4j calls — sync, streaming, embeddings, and image generation — are then exported to Langfuse.
 
 ---
 
 ## Quick Start
 
-### Spring Boot (Recommended)
+`0.2.0-SNAPSHOT` is the current production-preview development line. Build it locally with `./mvnw clean install`; use `0.1.1` when resolving only from Maven Central until 0.2.0 is released.
+
+### Spring Boot (Dedicated Exporter Quick Start)
 
 ```xml
 <dependency>
     <groupId>io.github.chomingi</groupId>
     <artifactId>langfuse-otel-spring-boot-starter</artifactId>
-    <version>0.1.0</version>
+    <version>0.2.0-SNAPSHOT</version>
 </dependency>
 ```
 
 ```yaml
 # application.yml
 langfuse:
+  otel-mode: standalone              # create and own a dedicated Langfuse exporter
   public-key: ${LANGFUSE_PUBLIC_KEY}
   secret-key: ${LANGFUSE_SECRET_KEY}
   host: https://cloud.langfuse.com   # or your self-hosted URL
+  content:
+    capture-input: false             # safe default
+    capture-output: false            # safe default
 ```
 
-Done. Your Spring AI and LangChain4j calls are now traced.
+This quick start deliberately selects `standalone`, so the configured keys and host are used by a dedicated SDK/exporter. For production applications that already own OpenTelemetry, use the external setup below instead of creating a second SDK.
+
+Standalone endpoints must use HTTPS. For a loopback development receiver only, plaintext HTTP can be enabled explicitly with `langfuse.allow-insecure-http-for-development=true`; never use that option with production credentials.
 
 ### Standalone (No Spring)
 
@@ -101,7 +109,7 @@ Done. Your Spring AI and LangChain4j calls are now traced.
 <dependency>
     <groupId>io.github.chomingi</groupId>
     <artifactId>langfuse-otel-core</artifactId>
-    <version>0.1.0</version>
+    <version>0.2.0-SNAPSHOT</version>
 </dependency>
 ```
 
@@ -120,6 +128,23 @@ try (LangfuseOtel langfuse = LangfuseOtel.builder()
     });
 }
 ```
+
+### Existing OpenTelemetry SDK (Production Recommended)
+
+With the default `langfuse.otel-mode=auto`, the starter reuses exactly one application `OpenTelemetry` bean when available. It does not create an exporter and never flushes or shuts down the application-owned SDK. Configure that SDK or an OpenTelemetry Collector to export traces to Langfuse. If Langfuse keys are also configured, the starter warns that they are ignored in external mode.
+
+Set `langfuse.otel-mode=external` to require one application bean, or `standalone` to force a dedicated Langfuse SDK/exporter. Ambiguous external bean configurations fail at startup instead of silently selecting the wrong telemetry pipeline.
+
+Without Spring, select the same non-owning mode explicitly:
+
+```java
+try (LangfuseOtel langfuse = LangfuseOtel.externalBuilder(openTelemetry).build()) {
+    langfuse.trace("my-flow", trace -> { /* ... */ });
+}
+// openTelemetry remains owned by the application
+```
+
+The original `builder()` remains the standalone mode: it creates and owns a dedicated SDK and Langfuse OTLP exporter.
 
 ---
 
@@ -156,6 +181,23 @@ public class MyAiService {
 }
 ```
 
+Reactor scheduler transitions and downstream signals are bridged automatically. If a provider
+owns a raw Reactive Streams source that emits from a plain thread, place the explicit boundary at
+the closest raw source so provider-side operators also run with the subscription context:
+
+```java
+Publisher<ChatResponse> rawPublisher = provider.openStream(prompt);
+
+return Flux.from(ReactorContextPropagation.wrap(rawPublisher))
+        .map(this::providerSideMapping);
+```
+
+`ReactorContextPropagation.wrap(...)` resolves each subscription independently and scopes source
+subscription, signals, request, and cancel. The automatic model/annotation wrapper still restores
+the final downstream signal when this explicit boundary is absent, but it cannot reach provider
+`map`/`filter` operators already assembled upstream of that final wrapper. Code executed by the raw
+source before it calls a Reactive Streams boundary also remains provider-owned.
+
 ### LangChain4j
 
 | Model | Methods | Operation |
@@ -178,17 +220,42 @@ streamingModel.chat("Hello", new StreamingChatResponseHandler() {
 });
 ```
 
+Streaming callbacks and model listeners run with the wrapper observation and immutable Langfuse request metadata restored automatically. When a provider accepts an `Executor`, `ExecutorService`, or `ScheduledExecutorService`, configure it with the matching submission-time adapter:
+
+```java
+executor.execute(LangChain4jStreamingContext.wrap(() -> providerCall(handler)));
+Executor contextAware = LangChain4jStreamingContext.taskWrapping(executor);
+ScheduledExecutorService contextAwareScheduler =
+        LangChain4jStreamingContext.taskWrapping(scheduler);
+```
+
+These adapters capture the context at submission, so they cover work submitted from `doChat` or a restored callback/listener. If a provider retains a request and submits it later from an unscoped control thread, capture one fixed snapshot while `doChat` is active and retain it with that request:
+
+```java
+LangChain4jStreamingContext.Snapshot invocation =
+        LangChain4jStreamingContext.capture();
+
+// This may be called after doChat has returned and from another thread.
+ScheduledExecutorService invocationScheduler =
+        invocation.taskWrapping(scheduler);
+invocationScheduler.schedule(() -> providerCall(handler), 10, TimeUnit.MILLISECONDS);
+```
+
+A snapshot is thread-safe and opens only short-lived scopes while a task executes. It is also terminal-aware: a task whose wrapper execution is admitted after terminal cleanup still runs, but without restoring the ended observation. A task admitted before cleanup is already in flight and finishes with its captured context; terminal completion does not block on arbitrary provider work. Keep one snapshot per invocation and release it with the provider request state after the terminal callback; the library keeps no global request registry.
+
+A provider-owned executor that exposes neither configuration nor a scheduling hook cannot be intercepted through the generic LangChain4j SPI. Such a provider requires its own executor configuration/adapter or OpenTelemetry agent instrumentation; callbacks remain covered automatically.
+
 ### Auto-captured attributes
 
 | Attribute | Description |
 |-----------|-------------|
 | Model name | Request & response model |
-| Input | Messages (chat), text (embeddings), prompt (image) |
-| Output | Response text, accumulated stream, embedding/image count |
+| Input | Disabled by default; messages, embedding text, or image prompt when opted in |
+| Output | Disabled by default; response or accumulated stream when opted in |
 | Token usage | Input, output, and total tokens |
 | Temperature, top_p, max_tokens | Model parameters |
 | TTFT | Time to first token (streaming only) |
-| Errors | Exception message + stack trace |
+| Errors | Exception type by default; policy-processed message/stack trace only after explicit opt-in |
 
 ---
 
@@ -208,7 +275,13 @@ public class LLMService {
 }
 ```
 
-### ThreadLocal Context Propagation
+`@ObserveGeneration` tracks synchronous methods, the actual completion of `CompletionStage` values, and Reactor `Mono`/`Flux` terminal signals. A `CompletionStage` is returned unchanged, including its concrete type and identity. Reactor observations are created per subscription, so an unsubscribed publisher creates no span and re-subscription creates an independent span. Tasks scheduled through Reactor while the instrumented subscription context is current inherit the observation and request metadata until that subscription terminates. When output capture is enabled for a multi-value publisher, the last emitted value is used as the automatic output.
+
+Explicit annotation wins at the model-bean boundary: if a Spring AI or LangChain4j model bean has `@ObserveGeneration` on any model method, BeanPostProcessor-based model instrumentation is skipped for that whole bean to prevent duplicate generation spans. Use one instrumentation style per model bean and annotate every model entry point that needs tracing; annotations on ordinary service methods are unaffected.
+
+When circular references are explicitly enabled, the model post-processors participate in Spring's early-reference phase so injected collaborators and the final singleton receive the same instrumented proxy. Spring Boot still disables circular references by default.
+
+### Request Context Propagation
 
 ```java
 // Set once in a filter or interceptor
@@ -216,13 +289,70 @@ LangfuseContext.setUserId("user-123");
 LangfuseContext.setSessionId("session-456");
 LangfuseContext.setTags("prod", "v2");
 
-// All traces on this thread automatically inherit these values
+// Synchronous traces on this thread inherit these values
 langfuse.trace("flow", trace -> { ... });
 
-// Spring Boot: auto-extracts from HTTP requests
-// Servlet: LangfuseContextFilter (Principal → userId, HttpSession → sessionId)
-// WebFlux: LangfuseReactiveContextFilter (same, reactive)
+// Spring Boot filters can extract HTTP metadata after explicit opt-in
+// Servlet: Principal → userId, HttpSession → sessionId
+// WebFlux: stores the opted-in immutable metadata in Reactor Context
 ```
+
+New integrations can use immutable metadata with OTel Context directly:
+
+```java
+LangfuseTraceContext metadata = LangfuseTraceContext.builder()
+        .userId("user-123")
+        .sessionId("session-456")
+        .tags("prod", "v2")
+        .build();
+
+try (Scope ignored = LangfuseContext.makeCurrent(metadata)) {
+    langfuse.trace("flow", trace -> { /* ... */ });
+}
+```
+
+`LangfuseContext.makeCurrent(...)` is also the restoration boundary for legacy `set*()` and `clear()` calls made inside that scope. A context installed directly with `storeIn(...).makeCurrent()` remains immutable, so legacy mutations inside such an unmanaged scope are ignored instead of leaking into a reused executor thread.
+
+### Content Capture and Redaction
+
+Automatic instrumentation is metadata-only by default. Enable input and output independently, and keep a finite post-redaction length limit:
+
+```yaml
+langfuse:
+  content:
+    capture-input: true
+    capture-output: true
+    max-length: 8192
+```
+
+To redact content before export, provide one thread-safe bean:
+
+```java
+@Bean
+ContentRedactor contentRedactor() {
+    return (type, content) -> content.replaceAll("(?i)api[-_ ]?key\\s*[:=]\\s*\\S+", "[REDACTED]");
+}
+```
+
+Capture opt-in does not implicitly install a redactor. With zero `ContentRedactor` beans, the identity redactor is used and enabled content is exported unchanged except for the length limit. Production environments that may capture sensitive values should treat exactly one thread-safe redactor as required. Multiple beans fail closed and drop automatic content; redactor failures or a `null` result also drop the affected value.
+
+Non-streaming values are redacted before the length limit is applied. Spring AI streaming retains only a bounded raw value; if the raw stream exceeds `max-length` before terminal redaction, the output attribute is dropped entirely instead of exporting a prefix that could bypass a boundary-sensitive redactor.
+
+The policy applies to automatic Spring AI, LangChain4j, streaming, embedding, image, and `@ObserveGeneration` capture. Explicit calls to the core fluent `.input()` and `.output()` methods remain an intentional opt-in by the caller.
+
+Exception details use a separate safe-by-default policy. Only the exception type is recorded unless message or stack capture is enabled:
+
+```yaml
+langfuse:
+  exception:
+    capture-message: false
+    capture-stack-trace: false
+    max-length: 8192
+```
+
+Exception detail opt-in also uses an identity redactor when no `ExceptionRedactor` bean exists. In production, provide exactly one thread-safe redactor before enabling potentially sensitive messages or stacks. Multiple beans, redactor failures, or a `null` result fail closed and drop the affected details. Automatic wrappers and `LangfuseOtel.recordException(...)` use this policy; the direct span wrapper `.recordException(...)` remains type-only.
+
+Stack capture renders exception types and frames without embedding throwable messages, including messages from causes and suppressed exceptions. Enable `capture-message` separately when the redacted message is required.
 
 ### Prompt Management
 
@@ -259,7 +389,7 @@ gen.output(result).end();
 
 ### Fail-safe by Default
 
-Missing API keys? Misconfigured endpoint? The library switches to no-op mode silently. Your application never crashes because of observability.
+Missing API keys or a misconfigured endpoint? With the default fail-safe builder, the library logs a warning and switches to no-op mode. Your application does not crash because of observability; production deployments should still alert on that warning until a health indicator is available.
 
 ---
 
@@ -274,13 +404,35 @@ Missing API keys? Misconfigured endpoint? The library switches to no-op mode sil
 
 | Property | Default | Description |
 |----------|---------|-------------|
-| `langfuse.public-key` | — | Langfuse public key (required) |
-| `langfuse.secret-key` | — | Langfuse secret key (required) |
-| `langfuse.host` | `https://cloud.langfuse.com` | Langfuse host URL |
-| `langfuse.service-name` | `langfuse-app` | Service name in traces |
-| `langfuse.environment` | — | Environment (e.g., `production`) |
-| `langfuse.release` | — | Release version |
+| `langfuse.public-key` | — | Standalone mode public key; not used with an external OTel bean |
+| `langfuse.secret-key` | — | Standalone mode secret key; not used with an external OTel bean |
+| `langfuse.host` | `https://cloud.langfuse.com` | Standalone mode Langfuse host URL |
+| `langfuse.allow-insecure-http-for-development` | `false` | Allow a plaintext standalone HTTP endpoint on `localhost` or a literal loopback address only |
+| `langfuse.service-name` | `langfuse-app` | Standalone mode service name |
+| `langfuse.environment` | — | Standalone resource environment (e.g., `production`) |
+| `langfuse.release` | — | Standalone resource release version |
 | `langfuse.enabled` | `true` | Enable/disable all tracing |
+| `langfuse.otel-mode` | `auto` | `auto`, `external`, or `standalone` OpenTelemetry ownership selection |
+| `langfuse.content.capture-input` | `false` | Capture automatic model input |
+| `langfuse.content.capture-output` | `false` | Capture automatic model output |
+| `langfuse.content.max-length` | `8192` | Maximum UTF-16 units retained after redaction |
+| `langfuse.exception.capture-message` | `false` | Capture policy-processed exception messages from automatic instrumentation |
+| `langfuse.exception.capture-stack-trace` | `false` | Capture policy-processed exception stack traces from automatic instrumentation |
+| `langfuse.exception.max-length` | `8192` | Maximum UTF-16 units retained per exception detail after redaction |
+| `langfuse.context.capture-user-id` | `false` | Export the authenticated Principal name as `user.id` |
+| `langfuse.context.capture-session-id` | `false` | Export the HTTP session identifier as `session.id`; avoid this for bearer-style session IDs |
+
+## Production-preview limitations
+
+- WebFlux request metadata and the wrapper OpenTelemetry context propagate through Spring AI streams and `@ObserveGeneration` Reactor publishers, including raw downstream signals and Reactor Scheduler tasks scheduled while that instrumented subscription context is current. The keyed hook is removed after the last subscription lease closes, and a task whose execution starts after termination does not restore the ended context. Provider-side operators above a raw-thread source require `ReactorContextPropagation.wrap(rawPublisher)` at that source; arbitrary work performed before the source invokes `subscribe`, a signal, `request`, or `cancel` cannot be intercepted by a Reactive Streams adapter.
+- LangChain4j streaming callbacks and model listeners restore the invocation context automatically. Provider-internal work submitted to an owned raw executor must use `LangChain4jStreamingContext.wrap(...)`, `taskWrapping(...)`, a per-invocation `Snapshot` for late submission, provider-specific configuration, or agent instrumentation; an opaque executor cannot be reached through the generic model SPI.
+- The 0.2 compatibility matrix is JVM-only. The reflective LangChain4j 1.18 cancellation bridge is not validated for Spring AOT or GraalVM native images and fails open when its runtime types cannot be reflected; native-image support requires dedicated runtime hints and tests before it can be claimed.
+- Automatic model instrumentation uses a class-based proxy for safely proxyable provider classes, preserving their concrete type and extension interfaces. Final classes, final model methods, or externally callable final extension methods are left unchanged and logged as uninstrumented rather than replaced with an incompatible interface decorator.
+- Existing JDK proxies retain their declared interfaces; they cannot recover a concrete type that was already removed by the original proxy.
+- Completion-aware annotation support covers `CompletionStage` and declared return types compatible with Reactor `Mono`, `Flux`, or `Publisher`. A custom concrete publisher subtype is returned unchanged and is not automatically tracked when a compatible wrapper type cannot be preserved.
+- The legacy manual `TracingStreamingLangChain4jChatModel` keeps both synchronous and streaming interfaces for binary compatibility; the automatic BeanPostProcessor path preserves a streaming-only bean's original interface set.
+
+Remaining production work is tracked in [ROADMAP.md](ROADMAP.md); `0.2.0-SNAPSHOT` is not the final production release.
 
 ## Compatibility
 
@@ -290,9 +442,9 @@ Missing API keys? Misconfigured endpoint? The library switches to no-op mode sil
 | Java | 17+ | Spring Boot starter |
 | OpenTelemetry SDK | 1.44.1 | Via BOM |
 | Spring Boot | 3.4.x | Auto-configuration |
-| Spring AI | 1.0.0 — 1.1.6 | Chat, streaming, embeddings, images |
-| Spring AI | 2.0.0-M6 | Experimental (CI tested) |
-| LangChain4j | 1.0.0 — 1.14.1 | Chat, streaming, embeddings, images |
+| Spring AI | 1.0.0 — 1.1.8 | Chat, streaming, embeddings, images |
+| Spring AI | 2.0.0 | Current stable (CI tested) |
+| LangChain4j | 1.0.0 — 1.18.0 | Chat, streaming, embeddings, images |
 | langfuse-java | 0.2.x | Prompt management (optional) |
 | Langfuse Cloud | v3+ | OTLP ingestion |
 | Langfuse Self-hosted | v3.22.0+ | Requires OTLP support |

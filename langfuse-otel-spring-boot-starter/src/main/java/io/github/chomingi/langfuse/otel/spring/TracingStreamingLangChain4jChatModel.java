@@ -8,7 +8,10 @@ import dev.langchain4j.model.ModelProvider;
 import dev.langchain4j.model.chat.Capability;
 import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.model.chat.StreamingChatModel;
+import dev.langchain4j.model.chat.listener.ChatModelErrorContext;
 import dev.langchain4j.model.chat.listener.ChatModelListener;
+import dev.langchain4j.model.chat.listener.ChatModelRequestContext;
+import dev.langchain4j.model.chat.listener.ChatModelResponseContext;
 import dev.langchain4j.model.chat.request.ChatRequest;
 import dev.langchain4j.model.chat.request.ChatRequestParameters;
 import dev.langchain4j.model.chat.response.ChatResponse;
@@ -16,18 +19,27 @@ import dev.langchain4j.model.chat.response.StreamingChatResponseHandler;
 import dev.langchain4j.model.output.TokenUsage;
 import io.github.chomingi.langfuse.otel.JsonUtils;
 import io.github.chomingi.langfuse.otel.LangfuseAttributes;
+import io.github.chomingi.langfuse.otel.LangfuseContext;
 import io.github.chomingi.langfuse.otel.LangfuseGeneration;
 import io.github.chomingi.langfuse.otel.LangfuseOtel;
+import io.github.chomingi.langfuse.otel.LangfuseTraceContext;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.SpanKind;
-import io.opentelemetry.api.trace.StatusCode;
 import io.opentelemetry.context.Context;
+import io.opentelemetry.context.Scope;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.lang.reflect.InvocationHandler;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.lang.reflect.Proxy;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 
 public class TracingStreamingLangChain4jChatModel implements StreamingChatModel, ChatModel {
 
@@ -45,62 +57,28 @@ public class TracingStreamingLangChain4jChatModel implements StreamingChatModel,
 
     @Override
     public void doChat(ChatRequest chatRequest, StreamingChatResponseHandler handler) {
-        Span span;
+        InvocationState state = startState(chatRequest);
+        BoundedTextAccumulator accumulated;
+        StreamingChatResponseHandler tracingHandler;
         try {
-            span = langfuseOtel.getTracer().spanBuilder(resolveSpanName())
-                    .setParent(Context.current())
-                    .setSpanKind(SpanKind.CLIENT)
-                    .setAttribute(LangfuseAttributes.GEN_AI_OPERATION_NAME, "chat")
-                    .setAttribute(LangfuseAttributes.GEN_AI_SYSTEM, "langchain4j")
-                    .startSpan();
-            setRequestAttributesOnSpan(span, chatRequest);
-        } catch (Exception e) {
-            log.debug("Langfuse streaming instrumentation setup failed, proceeding without tracing", e);
+            accumulated = langfuseOtel.getContentCapturePolicy().isOutputCaptureEnabled()
+                    ? new BoundedTextAccumulator(langfuseOtel.getContentCapturePolicy().getMaxLength())
+                    : null;
+            tracingHandler = tracingHandler(handler, state, accumulated, new AtomicBoolean(true));
+        } catch (Throwable failure) {
+            abortState(state);
+            InstrumentationFailureSupport.rethrowIfFatal(failure);
+            log.debug("Langfuse streaming callback instrumentation setup failed, proceeding without tracing",
+                    failure);
             ((StreamingChatModel) delegate).doChat(chatRequest, handler);
             return;
         }
 
-        AtomicBoolean spanEnded = new AtomicBoolean(false);
-        StringBuffer accumulated = new StringBuffer();
-        AtomicBoolean firstChunk = new AtomicBoolean(true);
-
-        StreamingChatResponseHandler tracingHandler = new StreamingChatResponseHandler() {
-            @Override
-            public void onPartialResponse(String partialResponse) {
-                try {
-                    if (firstChunk.compareAndSet(true, false)) {
-                        span.setAttribute(LangfuseAttributes.OBSERVATION_COMPLETION_START_TIME,
-                                java.time.Instant.now().toString());
-                    }
-                    accumulated.append(partialResponse);
-                } catch (Exception ignored) {}
-                handler.onPartialResponse(partialResponse);
-            }
-
-            @Override
-            public void onCompleteResponse(ChatResponse response) {
-                try {
-                    setResponseAttributesOnSpan(span, response, accumulated);
-                } catch (Exception ignored) {}
-                endSpan(span, spanEnded);
-                handler.onCompleteResponse(response);
-            }
-
-            @Override
-            public void onError(Throwable error) {
-                try {
-                    recordExceptionOnSpan(span, error);
-                } catch (Exception ignored) {}
-                endSpan(span, spanEnded);
-                handler.onError(error);
-            }
-        };
-
         try {
-            ((StreamingChatModel) delegate).doChat(chatRequest, tracingHandler);
+            runWithContext(state, () ->
+                    ((StreamingChatModel) delegate).doChat(chatRequest, tracingHandler));
         } catch (Throwable t) {
-            try { recordExceptionOnSpan(span, t); } catch (Exception ignored) {}
-            endSpan(span, spanEnded);
+            terminateWithError(state, t);
             throw t;
         }
     }
@@ -118,13 +96,18 @@ public class TracingStreamingLangChain4jChatModel implements StreamingChatModel,
 
     @Override
     public List<ChatModelListener> listeners() {
+        List<ChatModelListener> delegateListeners;
         if (delegate instanceof StreamingChatModel) {
-            return ((StreamingChatModel) delegate).listeners();
+            delegateListeners = ((StreamingChatModel) delegate).listeners();
+        } else if (delegate instanceof ChatModel) {
+            delegateListeners = ((ChatModel) delegate).listeners();
+        } else {
+            delegateListeners = Collections.emptyList();
         }
-        if (delegate instanceof ChatModel) {
-            return ((ChatModel) delegate).listeners();
-        }
-        return StreamingChatModel.super.listeners();
+        List<ChatModelListener> snapshot = delegateListeners == null
+                ? Collections.emptyList()
+                : Collections.unmodifiableList(new ArrayList<>(delegateListeners));
+        return Collections.singletonList(new ContextPropagatingListener(snapshot));
     }
 
     @Override
@@ -164,26 +147,489 @@ public class TracingStreamingLangChain4jChatModel implements StreamingChatModel,
             gen = new LangfuseGeneration(langfuseOtel.getTracer(), resolveSpanName());
             gen.system("langchain4j");
             setRequestAttributes(gen, chatRequest);
-        } catch (Exception e) {
-            log.debug("Langfuse instrumentation setup failed, proceeding without tracing", e);
+        } catch (Throwable failure) {
+            InstrumentationFailureSupport.endQuietly(gen);
+            gen = null;
+            InstrumentationFailureSupport.rethrowIfFatal(failure);
+            log.debug("Langfuse instrumentation setup failed, proceeding without tracing", failure);
         }
 
         try {
             ChatResponse response = syncDelegate.doChat(chatRequest);
             try {
                 setSyncResponseAttributes(gen, response);
-            } catch (Exception e) {
-                log.debug("Failed to record response attributes", e);
+            } catch (Throwable failure) {
+                InstrumentationFailureSupport.rethrowIfFatal(failure);
+                log.debug("Failed to record response attributes", failure);
             }
             return response;
         } catch (Throwable t) {
             if (gen != null) {
-                try { gen.recordException(t); } catch (Exception ignored) {}
+                InstrumentationFailureSupport.recordExceptionQuietly(langfuseOtel, gen, t);
             }
             throw t;
         } finally {
             if (gen != null) {
-                try { gen.end(); } catch (Exception ignored) {}
+                InstrumentationFailureSupport.endQuietly(gen);
+            }
+        }
+    }
+
+    private InvocationState startState(ChatRequest chatRequest) {
+        Context parent = Context.current();
+        LangfuseTraceContext traceContext = null;
+        Span span = null;
+        try {
+            traceContext = LangfuseContext.current();
+            span = langfuseOtel.getTracer().spanBuilder(resolveSpanName())
+                    .setParent(parent)
+                    .setSpanKind(SpanKind.CLIENT)
+                    .setAttribute(LangfuseAttributes.GEN_AI_OPERATION_NAME, "chat")
+                    .setAttribute(LangfuseAttributes.GEN_AI_SYSTEM, "langchain4j")
+                    .startSpan();
+            LangfuseContext.applyTo(span, traceContext);
+            setRequestAttributesOnSpan(span, chatRequest);
+
+            InvocationState state = new InvocationState(span, traceContext);
+            Context invocationContext = storeStateSafely(
+                    contextWithTrace(parent.with(span), traceContext), state);
+            state.context(invocationContext);
+            return state;
+        } catch (Throwable failure) {
+            InstrumentationFailureSupport.endQuietly(span);
+            InstrumentationFailureSupport.rethrowIfFatal(failure);
+            log.debug("Langfuse streaming instrumentation setup failed, proceeding without tracing", failure);
+
+            InvocationState state = new InvocationState(null, traceContext);
+            state.context(storeStateSafely(contextWithTrace(parent, traceContext), state));
+            return state;
+        }
+    }
+
+    private Context storeStateSafely(Context context, InvocationState state) {
+        try {
+            return LangChain4jStreamingContext.storeState(context, state);
+        } catch (Throwable failure) {
+            InstrumentationFailureSupport.rethrowIfFatal(failure);
+            log.debug("Could not attach LangChain4j streaming state to the invocation context", failure);
+            return context;
+        }
+    }
+
+    private Context contextWithTrace(Context context, LangfuseTraceContext traceContext) {
+        if (traceContext == null) return context;
+        try {
+            return LangfuseContext.storeIn(context, traceContext);
+        } catch (Throwable failure) {
+            InstrumentationFailureSupport.rethrowIfFatal(failure);
+            log.debug("Could not attach Langfuse metadata to the streaming invocation context", failure);
+            return context;
+        }
+    }
+
+    private StreamingChatResponseHandler tracingHandler(StreamingChatResponseHandler handler,
+                                                         InvocationState state,
+                                                         BoundedTextAccumulator accumulated,
+                                                         AtomicBoolean firstChunk) {
+        InvocationHandler invocationHandler = (proxy, method, arguments) -> {
+            if (method.getDeclaringClass() == Object.class) {
+                return invokeObjectMethod(proxy, method, arguments);
+            }
+            if (state.terminal()) {
+                return null;
+            }
+
+            synchronized (state.callbackMonitor()) {
+                if (state.terminal()) {
+                    return null;
+                }
+                String methodName = method.getName();
+                Object[] callbackArguments = arguments == null ? new Object[0] : arguments;
+                if ("onCompleteResponse".equals(methodName)) {
+                    return onComplete(handler, method, callbackArguments, state, accumulated);
+                }
+                if ("onError".equals(methodName)) {
+                    return onError(handler, method, callbackArguments, state);
+                }
+                if ("onPartialResponse".equals(methodName)) {
+                    recordPartial(state, callbackArguments, accumulated, firstChunk);
+                }
+                Object[] forwardedArguments = wrapStreamingContext(callbackArguments, state);
+                try {
+                    return invokeWithContext(state, method, handler, forwardedArguments);
+                } catch (Throwable failure) {
+                    terminateWithError(state, failure);
+                    throw failure;
+                }
+            }
+        };
+
+        return (StreamingChatResponseHandler) Proxy.newProxyInstance(
+                StreamingChatResponseHandler.class.getClassLoader(),
+                new Class<?>[]{StreamingChatResponseHandler.class},
+                invocationHandler);
+    }
+
+    private Object onComplete(StreamingChatResponseHandler handler,
+                              Method method,
+                              Object[] arguments,
+                              InvocationState state,
+                              BoundedTextAccumulator accumulated) throws Throwable {
+        if (!state.markTerminal()) return null;
+
+        try {
+            if (state.span() != null) {
+                ChatResponse response = arguments.length == 0 ? null : (ChatResponse) arguments[0];
+                try {
+                    setResponseAttributesOnSpan(state.span(), response, accumulated);
+                } catch (Throwable failure) {
+                    InstrumentationFailureSupport.rethrowIfFatal(failure);
+                    log.debug("Failed to record streaming response attributes", failure);
+                }
+            }
+            return invokeWithContext(state, method, handler, arguments);
+        } catch (Throwable failure) {
+            recordException(state, failure);
+            throw failure;
+        } finally {
+            endState(state);
+        }
+    }
+
+    private Object onError(StreamingChatResponseHandler handler,
+                           Method method,
+                           Object[] arguments,
+                           InvocationState state) throws Throwable {
+        if (!state.markTerminal()) return null;
+
+        Throwable providerFailure = arguments.length == 0 ? null : (Throwable) arguments[0];
+        if (providerFailure != null) recordException(state, providerFailure);
+        try {
+            return invokeWithContext(state, method, handler, arguments);
+        } catch (Throwable callbackFailure) {
+            recordException(state, callbackFailure);
+            throw callbackFailure;
+        } finally {
+            endState(state);
+        }
+    }
+
+    private void recordPartial(InvocationState state,
+                               Object[] arguments,
+                               BoundedTextAccumulator accumulated,
+                               AtomicBoolean firstChunk) {
+        try {
+            if (state.span() != null && firstChunk.compareAndSet(true, false)) {
+                state.span().setAttribute(LangfuseAttributes.OBSERVATION_COMPLETION_START_TIME,
+                        java.time.Instant.now().toString());
+            }
+            if (accumulated != null && arguments.length > 0) {
+                String partial = partialText(arguments[0]);
+                if (partial != null) accumulated.append(partial);
+            }
+        } catch (Throwable failure) {
+            if (InstrumentationFailureSupport.isFatal(failure)) {
+                terminateWithError(state, failure);
+            }
+            InstrumentationFailureSupport.rethrowIfFatal(failure);
+            log.debug("Failed to record a streaming response chunk", failure);
+        }
+    }
+
+    private String partialText(Object partial) throws ReflectiveOperationException {
+        if (partial instanceof String) return (String) partial;
+        if (partial == null) return null;
+        Method textMethod = partial.getClass().getMethod("text");
+        Object text = textMethod.invoke(partial);
+        return text == null ? null : String.valueOf(text);
+    }
+
+    private Object[] wrapStreamingContext(Object[] arguments, InvocationState state) {
+        if (arguments.length < 2 || arguments[arguments.length - 1] == null) return arguments;
+
+        Object callbackContext = arguments[arguments.length - 1];
+        try {
+            Method streamingHandleMethod = callbackContext.getClass().getMethod("streamingHandle");
+            Object streamingHandle = streamingHandleMethod.invoke(callbackContext);
+            if (streamingHandle == null) return arguments;
+
+            Class<?> handleType = streamingHandleMethod.getReturnType();
+            Object tracingHandle = Proxy.newProxyInstance(
+                    handleType.getClassLoader(),
+                    new Class<?>[]{handleType},
+                    (proxy, method, handleArguments) -> invokeStreamingHandle(
+                            proxy, method, handleArguments, streamingHandle, state));
+            Object tracingContext = callbackContext.getClass()
+                    .getConstructor(handleType)
+                    .newInstance(tracingHandle);
+
+            Object[] forwarded = arguments.clone();
+            forwarded[forwarded.length - 1] = tracingContext;
+            return forwarded;
+        } catch (NoSuchMethodException ignored) {
+            return arguments;
+        } catch (Throwable failure) {
+            InstrumentationFailureSupport.rethrowIfFatal(failure);
+            log.debug("Could not wrap the LangChain4j streaming cancellation handle", failure);
+            return arguments;
+        }
+    }
+
+    private Object invokeStreamingHandle(Object proxy,
+                                         Method method,
+                                         Object[] arguments,
+                                         Object delegateHandle,
+                                         InvocationState state) throws Throwable {
+        if (method.getDeclaringClass() == Object.class) {
+            return invokeObjectMethod(proxy, method, arguments);
+        }
+        if ("isCancelled".equals(method.getName()) && state.cancelled()) {
+            return true;
+        }
+        if (!"cancel".equals(method.getName())) {
+            return invokeReflectively(method, delegateHandle, arguments);
+        }
+        synchronized (state.callbackMonitor()) {
+            if (!state.markCancelled()) return null;
+
+            try {
+                return invokeWithContext(state, method, delegateHandle,
+                        arguments == null ? new Object[0] : arguments);
+            } catch (Throwable failure) {
+                recordException(state, failure);
+                throw failure;
+            } finally {
+                endState(state);
+            }
+        }
+    }
+
+    private Object invokeObjectMethod(Object proxy, Method method, Object[] arguments) {
+        if ("toString".equals(method.getName())) {
+            return "LangfuseTracingStreamingChatResponseHandler";
+        }
+        if ("hashCode".equals(method.getName())) {
+            return System.identityHashCode(proxy);
+        }
+        if ("equals".equals(method.getName())) {
+            return arguments != null && arguments.length == 1 && proxy == arguments[0];
+        }
+        throw new UnsupportedOperationException(method.toString());
+    }
+
+    private Object invokeWithContext(InvocationState state,
+                                     Method method,
+                                     Object target,
+                                     Object[] arguments) throws Throwable {
+        Scope scope = makeCurrent(state);
+        try {
+            return invokeReflectively(method, target, arguments);
+        } finally {
+            closeScope(scope);
+        }
+    }
+
+    private Object invokeReflectively(Method method, Object target, Object[] arguments) throws Throwable {
+        try {
+            return method.invoke(target, arguments);
+        } catch (InvocationTargetException failure) {
+            throw failure.getCause();
+        }
+    }
+
+    private void runWithContext(InvocationState state, Runnable invocation) {
+        Scope scope = makeCurrent(state);
+        try {
+            invocation.run();
+        } finally {
+            closeScope(scope);
+        }
+    }
+
+    private Scope makeCurrent(InvocationState state) {
+        try {
+            return state.context().makeCurrent();
+        } catch (Throwable failure) {
+            InstrumentationFailureSupport.rethrowIfFatal(failure);
+            log.debug("Could not restore the LangChain4j streaming context", failure);
+            return null;
+        }
+    }
+
+    private void closeScope(Scope scope) {
+        if (scope == null) return;
+        try {
+            scope.close();
+        } catch (Throwable failure) {
+            InstrumentationFailureSupport.rethrowIfFatal(failure);
+            log.debug("Could not close the LangChain4j streaming context", failure);
+        }
+    }
+
+    private void terminateWithError(InvocationState state, Throwable failure) {
+        if (!state.markTerminal()) return;
+        try {
+            recordException(state, failure);
+        } finally {
+            endState(state);
+        }
+    }
+
+    private void abortState(InvocationState state) {
+        if (state.markTerminal()) endState(state);
+    }
+
+    private void recordException(InvocationState state, Throwable failure) {
+        if (state.span() != null && failure != null) {
+            InstrumentationFailureSupport.recordExceptionQuietly(langfuseOtel, state.span(), failure);
+        }
+    }
+
+    private void endState(InvocationState state) {
+        if (state.markEnded() && state.span() != null) {
+            InstrumentationFailureSupport.endQuietly(state.span());
+        }
+    }
+
+    private final class ContextPropagatingListener implements ChatModelListener {
+        private final List<ChatModelListener> listeners;
+
+        private ContextPropagatingListener(List<ChatModelListener> listeners) {
+            this.listeners = listeners;
+        }
+
+        @Override
+        public void onRequest(ChatModelRequestContext requestContext) {
+            LangChain4jStreamingContext.putCurrentListenerAttributes(requestContext.attributes());
+            notifyListeners(null, listener -> listener.onRequest(requestContext));
+        }
+
+        @Override
+        public void onResponse(ChatModelResponseContext responseContext) {
+            InvocationState state = currentState();
+            if (state == null) {
+                notifyListeners(null, listener -> listener.onResponse(responseContext));
+                return;
+            }
+            LangChain4jStreamingContext.putListenerAttributes(responseContext.attributes(), state);
+            if (!state.markListenerTerminal() || state.cancelled()) return;
+            notifyListeners(state, listener -> listener.onResponse(responseContext));
+        }
+
+        @Override
+        public void onError(ChatModelErrorContext errorContext) {
+            InvocationState state = currentState();
+            if (state == null) {
+                notifyListeners(null, listener -> listener.onError(errorContext));
+                return;
+            }
+            LangChain4jStreamingContext.putListenerAttributes(errorContext.attributes(), state);
+            if (!state.markListenerTerminal() || state.cancelled()) return;
+            notifyListeners(state, listener -> listener.onError(errorContext));
+        }
+
+        private void notifyListeners(InvocationState state, Consumer<ChatModelListener> invocation) {
+            Scope scope = state == null ? null : makeCurrent(state);
+            try {
+                for (ChatModelListener listener : listeners) {
+                    try {
+                        invocation.accept(listener);
+                    } catch (Exception failure) {
+                        log.warn("An exception occurred during the invocation of a LangChain4j chat model "
+                                + "listener. This exception has been ignored.", failure);
+                    }
+                }
+            } finally {
+                closeScope(scope);
+            }
+        }
+    }
+
+    private InvocationState currentState() {
+        LangChain4jStreamingContext.State state = LangChain4jStreamingContext.currentState();
+        return state instanceof InvocationState ? (InvocationState) state : null;
+    }
+
+    private static final class InvocationState implements LangChain4jStreamingContext.State {
+        private final Span span;
+        private final LangfuseTraceContext traceContext;
+        private volatile Context context;
+        private final AtomicBoolean terminal = new AtomicBoolean(false);
+        private final AtomicBoolean listenerTerminal = new AtomicBoolean(false);
+        private final AtomicBoolean cancelled = new AtomicBoolean(false);
+        private final Object callbackMonitor = new Object();
+        private final Object lifecycleMonitor = new Object();
+        private boolean ended;
+
+        private InvocationState(Span span, LangfuseTraceContext traceContext) {
+            this.span = span;
+            this.traceContext = traceContext;
+        }
+
+        private Span span() {
+            return span;
+        }
+
+        @Override
+        public Context context() {
+            return context;
+        }
+
+        private void context(Context context) {
+            this.context = context;
+        }
+
+        @Override
+        public LangfuseTraceContext traceContext() {
+            return traceContext;
+        }
+
+        @Override
+        public boolean isActive() {
+            synchronized (lifecycleMonitor) {
+                return !ended;
+            }
+        }
+
+        @Override
+        public boolean tryStartTask() {
+            synchronized (lifecycleMonitor) {
+                if (ended) return false;
+                return true;
+            }
+        }
+
+        public boolean terminal() {
+            return terminal.get();
+        }
+
+        private boolean markTerminal() {
+            return terminal.compareAndSet(false, true);
+        }
+
+        private boolean markListenerTerminal() {
+            return listenerTerminal.compareAndSet(false, true);
+        }
+
+        private boolean markCancelled() {
+            if (!markTerminal()) return false;
+            cancelled.set(true);
+            return true;
+        }
+
+        private boolean cancelled() {
+            return cancelled.get();
+        }
+
+        private Object callbackMonitor() {
+            return callbackMonitor;
+        }
+
+        private boolean markEnded() {
+            synchronized (lifecycleMonitor) {
+                if (ended) return false;
+                ended = true;
+                return true;
             }
         }
     }
@@ -191,9 +637,7 @@ public class TracingStreamingLangChain4jChatModel implements StreamingChatModel,
     // --- Helpers ---
 
     private String resolveSpanName() {
-        String className = delegate.getClass().getSimpleName();
-        return className.replaceAll("ChatModel$|ChatLanguageModel$", "")
-                .toLowerCase() + ".chat";
+        return ModelSpanNameSupport.resolve(delegate, "chat", "ChatModel", "ChatLanguageModel");
     }
 
     private void setRequestAttributesOnSpan(Span span, ChatRequest request) {
@@ -215,8 +659,9 @@ public class TracingStreamingLangChain4jChatModel implements StreamingChatModel,
         }
 
         List<ChatMessage> messages = request.messages();
-        if (messages != null && !messages.isEmpty()) {
-            span.setAttribute(LangfuseAttributes.OBSERVATION_INPUT, toJsonMessages(messages));
+        if (langfuseOtel.getContentCapturePolicy().isInputCaptureEnabled()
+                && messages != null && !messages.isEmpty()) {
+            langfuseOtel.recordInput(span, toJsonMessages(messages));
         }
     }
 
@@ -233,12 +678,14 @@ public class TracingStreamingLangChain4jChatModel implements StreamingChatModel,
         if (effectiveParameters.topP() != null) gen.topP(effectiveParameters.topP());
 
         List<ChatMessage> messages = request.messages();
-        if (messages != null && !messages.isEmpty()) {
-            gen.input(toJsonMessages(messages));
+        if (langfuseOtel.getContentCapturePolicy().isInputCaptureEnabled()
+                && messages != null && !messages.isEmpty()) {
+            langfuseOtel.recordInput(gen, toJsonMessages(messages));
         }
     }
 
-    private void setResponseAttributesOnSpan(Span span, ChatResponse response, CharSequence accumulated) {
+    private void setResponseAttributesOnSpan(Span span, ChatResponse response,
+                                             BoundedTextAccumulator accumulated) {
         if (response == null) return;
 
         if (response.modelName() != null) {
@@ -260,11 +707,11 @@ public class TracingStreamingLangChain4jChatModel implements StreamingChatModel,
         String output = null;
         if (response.aiMessage() != null && response.aiMessage().text() != null) {
             output = response.aiMessage().text();
-        } else if (accumulated.length() > 0) {
+        } else if (accumulated != null && !accumulated.overflowed() && accumulated.length() > 0) {
             output = accumulated.toString();
         }
         if (output != null) {
-            span.setAttribute(LangfuseAttributes.OBSERVATION_OUTPUT, output);
+            langfuseOtel.recordOutput(span, output);
         }
     }
 
@@ -282,7 +729,7 @@ public class TracingStreamingLangChain4jChatModel implements StreamingChatModel,
             if (usage.totalTokenCount() != null) gen.totalTokens(usage.totalTokenCount());
         }
         if (response.aiMessage() != null && response.aiMessage().text() != null) {
-            gen.output(response.aiMessage().text());
+            langfuseOtel.recordOutput(gen, response.aiMessage().text());
         }
     }
 
@@ -317,17 +764,4 @@ public class TracingStreamingLangChain4jChatModel implements StreamingChatModel,
         return String.valueOf(message);
     }
 
-    private static void recordExceptionOnSpan(Span span, Throwable t) {
-        String message = t.getMessage() != null ? t.getMessage() : t.getClass().getName();
-        span.setStatus(StatusCode.ERROR, message);
-        span.recordException(t);
-        span.setAttribute(LangfuseAttributes.OBSERVATION_LEVEL, "ERROR");
-        span.setAttribute(LangfuseAttributes.OBSERVATION_STATUS_MESSAGE, message);
-    }
-
-    private static void endSpan(Span span, AtomicBoolean spanEnded) {
-        if (spanEnded.compareAndSet(false, true)) {
-            span.end();
-        }
-    }
 }

@@ -1,7 +1,6 @@
 package io.github.chomingi.langfuse.otel;
 
 import io.opentelemetry.api.trace.Span;
-import io.opentelemetry.api.trace.StatusCode;
 import io.opentelemetry.context.Scope;
 
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -15,16 +14,36 @@ abstract class AbstractLangfuseSpan implements AutoCloseable {
 
     protected AbstractLangfuseSpan(Span span, String name) {
         this.span = span;
-        this.scope = span.makeCurrent();
-        this.cleanable = SpanGuard.register(this, span, scope, name, closed);
+        Scope openedScope = null;
+        java.lang.ref.Cleaner.Cleanable registeredCleanable;
+        try {
+            // External OpenTelemetry SDKs do not install our SpanProcessor, so library-created spans
+            // also apply the current immutable metadata directly.
+            LangfuseContext.applyTo(span, LangfuseContext.current());
+            openedScope = span.makeCurrent();
+            registeredCleanable = SpanGuard.register(this, span, openedScope, name, closed);
+        } catch (Throwable setupFailure) {
+            try {
+                if (openedScope != null) {
+                    openedScope.close();
+                }
+            } catch (Throwable ignored) {
+                // Preserve the original setup failure.
+            } finally {
+                try {
+                    span.end();
+                } catch (Throwable ignored) {
+                    // Preserve the original setup failure.
+                }
+            }
+            throw setupFailure;
+        }
+        this.scope = openedScope;
+        this.cleanable = registeredCleanable;
     }
 
     public void recordException(Throwable t) {
-        String message = t.getMessage() != null ? t.getMessage() : t.getClass().getName();
-        span.setStatus(StatusCode.ERROR, message);
-        span.recordException(t);
-        span.setAttribute(LangfuseAttributes.OBSERVATION_LEVEL, "ERROR");
-        span.setAttribute(LangfuseAttributes.OBSERVATION_STATUS_MESSAGE, message);
+        ExceptionRecorder.recordTypeOnly(span, t);
     }
 
     public Span getSpan() {

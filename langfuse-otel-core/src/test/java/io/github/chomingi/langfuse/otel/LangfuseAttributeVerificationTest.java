@@ -106,11 +106,18 @@ class LangfuseAttributeVerificationTest {
 
         SpanData span = otel.getSpans().get(otel.getSpans().size() - 1);
         assertThat(span.getStatus().getStatusCode()).isEqualTo(io.opentelemetry.api.trace.StatusCode.ERROR);
-        assertThat(span.getStatus().getDescription()).isEqualTo("test error");
+        assertThat(span.getStatus().getDescription()).isEmpty();
         assertThat(span.getAttributes().get(AttributeKey.stringKey("langfuse.observation.level"))).isEqualTo("ERROR");
-        assertThat(span.getAttributes().get(AttributeKey.stringKey("langfuse.observation.status_message"))).isEqualTo("test error");
+        assertThat(span.getAttributes().get(AttributeKey.stringKey("langfuse.observation.status_message")))
+                .isEqualTo(RuntimeException.class.getName());
         assertThat(span.getEvents()).hasSize(1);
         assertThat(span.getEvents().get(0).getName()).isEqualTo("exception");
+        assertThat(span.getEvents().get(0).getAttributes()
+                .get(AttributeKey.stringKey("exception.type"))).isEqualTo(RuntimeException.class.getName());
+        assertThat(span.getEvents().get(0).getAttributes()
+                .get(AttributeKey.stringKey("exception.message"))).isNull();
+        assertThat(span.getEvents().get(0).getAttributes()
+                .get(AttributeKey.stringKey("exception.stacktrace"))).isNull();
     }
 
     @Test

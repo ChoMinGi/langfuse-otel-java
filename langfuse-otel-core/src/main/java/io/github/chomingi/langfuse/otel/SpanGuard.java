@@ -34,12 +34,19 @@ final class SpanGuard {
 
         @Override
         public void run() {
-            if (span.isRecording()) {
-                if (!closed.get()) {
-                    log.warn("Langfuse span '{}' was not closed. Auto-closing to prevent leak. "
-                             + "Use try-with-resources, callback API, or call end() explicitly.", spanName);
+            boolean explicitlyClosed = closed.get();
+            if (!explicitlyClosed) {
+                log.warn("Langfuse span '{}' was not closed. Ending the span, but its originating thread Scope "
+                         + "cannot be restored by the Cleaner. Use try-with-resources, callback API, or call "
+                         + "end() explicitly.", spanName);
+            }
+            try {
+                // OTel Scope is thread-affine. Cleaners run on a different thread and therefore
+                // cannot restore the originating thread's Context safely.
+                if (explicitlyClosed) {
+                    scope.close();
                 }
-                scope.close();
+            } finally {
                 span.end();
             }
         }

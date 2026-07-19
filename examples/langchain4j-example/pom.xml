@@ -15,6 +15,7 @@
 
     <properties>
         <java.version>17</java.version>
+        <langfuse-otel.version>0.2.0-SNAPSHOT</langfuse-otel.version>
     </properties>
 
     <dependencies>
@@ -25,7 +26,7 @@
         <dependency>
             <groupId>io.github.chomingi</groupId>
             <artifactId>langfuse-otel-spring-boot-starter</artifactId>
-            <version>0.1.1</version>
+            <version>${langfuse-otel.version}</version>
         </dependency>
 
         <dependency>

@@ -1,10 +1,10 @@
 package io.github.chomingi.langfuse.otel.spring;
 
 import io.github.chomingi.langfuse.otel.LangfuseAttributes;
+import io.github.chomingi.langfuse.otel.LangfuseContext;
 import io.github.chomingi.langfuse.otel.LangfuseOtel;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.SpanKind;
-import io.opentelemetry.api.trace.StatusCode;
 import io.opentelemetry.context.Context;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,40 +29,44 @@ public class TracingSpringAiImageModel implements ImageModel {
 
     @Override
     public ImageResponse call(ImagePrompt prompt) {
-        Span span;
+        Span createdSpan = null;
         try {
-            span = langfuseOtel.getTracer().spanBuilder(resolveSpanName())
+            createdSpan = langfuseOtel.getTracer().spanBuilder(resolveSpanName())
                     .setParent(Context.current())
                     .setSpanKind(SpanKind.CLIENT)
                     .setAttribute(LangfuseAttributes.GEN_AI_OPERATION_NAME, "image_generation")
                     .setAttribute(LangfuseAttributes.GEN_AI_SYSTEM, "spring-ai")
                     .startSpan();
-            setRequestAttributes(span, prompt);
-        } catch (Exception e) {
-            log.debug("Langfuse image instrumentation setup failed, proceeding without tracing", e);
+            LangfuseContext.applyTo(createdSpan);
+            setRequestAttributes(createdSpan, prompt);
+        } catch (Throwable failure) {
+            InstrumentationFailureSupport.endQuietly(createdSpan);
+            InstrumentationFailureSupport.rethrowIfFatal(failure);
+            log.debug("Langfuse image instrumentation setup failed, proceeding without tracing", failure);
             return delegate.call(prompt);
         }
 
+        Span span = createdSpan;
         try {
-            ImageResponse response = delegate.call(prompt);
+            ImageResponse response = SpanScopeSupport.call(span, () -> delegate.call(prompt));
             try {
                 setResponseAttributes(span, response);
-            } catch (Exception e) {
-                log.debug("Failed to record image response attributes", e);
+            } catch (Throwable failure) {
+                InstrumentationFailureSupport.rethrowIfFatal(failure);
+                log.debug("Failed to record image response attributes", failure);
             }
             return response;
         } catch (Throwable t) {
-            try { recordException(span, t); } catch (Exception ignored) {}
+            InstrumentationFailureSupport.recordExceptionQuietly(langfuseOtel, span, t);
             throw t;
         } finally {
-            span.end();
+            InstrumentationFailureSupport.endQuietly(span);
         }
     }
 
     private String resolveSpanName() {
-        String className = delegate.getClass().getSimpleName();
-        return className.replace("ImageModel", "").replace("ImageClient", "")
-                .toLowerCase() + ".image_generation";
+        return ModelSpanNameSupport.resolve(
+                delegate, "image_generation", "ImageModel", "ImageClient");
     }
 
     private void setRequestAttributes(Span span, ImagePrompt prompt) {
@@ -73,11 +77,12 @@ public class TracingSpringAiImageModel implements ImageModel {
             }
         }
 
-        if (prompt.getInstructions() != null && !prompt.getInstructions().isEmpty()) {
+        if (langfuseOtel.getContentCapturePolicy().isInputCaptureEnabled()
+                && prompt.getInstructions() != null && !prompt.getInstructions().isEmpty()) {
             String input = prompt.getInstructions().stream()
                     .map(msg -> msg.getText())
                     .collect(Collectors.joining("; "));
-            span.setAttribute(LangfuseAttributes.OBSERVATION_INPUT, input);
+            langfuseOtel.recordInput(span, input);
         }
     }
 
@@ -85,14 +90,7 @@ public class TracingSpringAiImageModel implements ImageModel {
         if (response == null) return;
 
         int count = response.getResults() != null ? response.getResults().size() : 0;
-        span.setAttribute(LangfuseAttributes.OBSERVATION_OUTPUT, count + " image(s) generated");
+        langfuseOtel.recordOutput(span, count + " image(s) generated");
     }
 
-    private static void recordException(Span span, Throwable t) {
-        String message = t.getMessage() != null ? t.getMessage() : t.getClass().getName();
-        span.setStatus(StatusCode.ERROR, message);
-        span.recordException(t);
-        span.setAttribute(LangfuseAttributes.OBSERVATION_LEVEL, "ERROR");
-        span.setAttribute(LangfuseAttributes.OBSERVATION_STATUS_MESSAGE, message);
-    }
 }

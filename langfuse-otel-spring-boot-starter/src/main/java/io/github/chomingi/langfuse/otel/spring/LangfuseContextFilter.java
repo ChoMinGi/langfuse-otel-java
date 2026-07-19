@@ -1,6 +1,8 @@
 package io.github.chomingi.langfuse.otel.spring;
 
 import io.github.chomingi.langfuse.otel.LangfuseContext;
+import io.github.chomingi.langfuse.otel.LangfuseTraceContext;
+import io.opentelemetry.context.Scope;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -13,7 +15,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import java.io.IOException;
 import java.security.Principal;
 
-@Order(Ordered.HIGHEST_PRECEDENCE + 10)
+@Order(Ordered.LOWEST_PRECEDENCE - 100)
 public class LangfuseContextFilter extends OncePerRequestFilter {
 
     private final LangfuseOtelProperties properties;
@@ -26,22 +28,23 @@ public class LangfuseContextFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request,
                                     HttpServletResponse response,
                                     FilterChain filterChain) throws ServletException, IOException {
-        try {
-            if (properties.getEnvironment() != null) {
-                LangfuseContext.setEnvironment(properties.getEnvironment());
-            }
+        LangfuseTraceContext.Builder contextBuilder = LangfuseTraceContext.builder()
+                .environment(properties.getEnvironment());
+        if (properties.getContext().isCaptureUserId()) {
             Principal principal = request.getUserPrincipal();
             if (principal != null && principal.getName() != null && !principal.getName().isBlank()) {
-                LangfuseContext.setUserId(principal.getName());
+                contextBuilder.userId(principal.getName());
             }
+        }
+        if (properties.getContext().isCaptureSessionId()) {
             HttpSession session = request.getSession(false);
             if (session != null) {
-                LangfuseContext.setSessionId(session.getId());
+                contextBuilder.sessionId(session.getId());
             }
+        }
 
+        try (Scope ignored = LangfuseContext.makeCurrent(contextBuilder.build())) {
             filterChain.doFilter(request, response);
-        } finally {
-            LangfuseContext.clear();
         }
     }
 }

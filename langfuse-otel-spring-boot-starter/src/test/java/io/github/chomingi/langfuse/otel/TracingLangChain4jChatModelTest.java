@@ -48,6 +48,39 @@ class TracingLangChain4jChatModelTest {
     }
 
     @Test
+    void publicBuilderDefaultsAutomaticChatInstrumentationToMetadataOnly() {
+        ChatModel proxy = proxy(
+                new StubLangChain4jChatModel(),
+                LangfuseOtel.externalBuilder(otel.getOpenTelemetry()).build());
+
+        ChatResponse response = proxy.chat(ChatRequest.builder()
+                .messages(UserMessage.from("confidential chat input"))
+                .parameters(DefaultChatRequestParameters.builder()
+                        .modelName("gpt-4o-mini")
+                        .build())
+                .build());
+
+        assertThat(response.aiMessage().text()).isEqualTo("answer: confidential chat input");
+        assertThat(otel.getSpans()).hasSize(1);
+
+        SpanData span = otel.getSpans().get(0);
+        assertThat(span.getAttributes().get(AttributeKey.stringKey("gen_ai.request.model")))
+                .isEqualTo("gpt-4o-mini");
+        assertThat(span.getAttributes().get(AttributeKey.stringKey("gen_ai.response.model")))
+                .isEqualTo("gpt-4o-mini");
+        assertThat(span.getAttributes().get(AttributeKey.longKey("gen_ai.usage.input_tokens")))
+                .isEqualTo(4L);
+        assertThat(span.getAttributes().get(AttributeKey.longKey("gen_ai.usage.output_tokens")))
+                .isEqualTo(5L);
+        assertThat(span.getAttributes().get(AttributeKey.longKey("gen_ai.usage.total_tokens")))
+                .isEqualTo(9L);
+        assertThat(span.getAttributes().get(AttributeKey.stringKey("langfuse.observation.input")))
+                .isNull();
+        assertThat(span.getAttributes().get(AttributeKey.stringKey("langfuse.observation.output")))
+                .isNull();
+    }
+
+    @Test
     void stringCallsUseDefaultParametersAndCaptureOutput() {
         ChatModel proxy = proxy(new StubLangChain4jChatModel());
 
@@ -74,9 +107,13 @@ class TracingLangChain4jChatModelTest {
     }
 
     private ChatModel proxy(ChatModel target) {
+        return proxy(target, new LangfuseOtel(null, otel.getOpenTelemetry(), null, true));
+    }
+
+    private ChatModel proxy(ChatModel target, LangfuseOtel langfuseOtel) {
         return new io.github.chomingi.langfuse.otel.spring.TracingLangChain4jChatModel(
                 target,
-                new LangfuseOtel(null, otel.getOpenTelemetry(), null, true));
+                langfuseOtel);
     }
 
     static class StubLangChain4jChatModel implements ChatModel {

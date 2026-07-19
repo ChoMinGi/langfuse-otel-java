@@ -40,26 +40,30 @@ public class TracingLangChain4jChatModel implements ChatModel {
             gen = new LangfuseGeneration(langfuseOtel.getTracer(), resolveSpanName());
             gen.system("langchain4j");
             setRequestAttributes(gen, chatRequest);
-        } catch (Exception e) {
-            log.debug("Langfuse instrumentation setup failed, proceeding without tracing", e);
+        } catch (Throwable failure) {
+            InstrumentationFailureSupport.endQuietly(gen);
+            gen = null;
+            InstrumentationFailureSupport.rethrowIfFatal(failure);
+            log.debug("Langfuse instrumentation setup failed, proceeding without tracing", failure);
         }
 
         try {
             ChatResponse response = delegate.chat(chatRequest);
             try {
                 setResponseAttributes(gen, response);
-            } catch (Exception e) {
-                log.debug("Failed to record response attributes", e);
+            } catch (Throwable failure) {
+                InstrumentationFailureSupport.rethrowIfFatal(failure);
+                log.debug("Failed to record response attributes", failure);
             }
             return response;
         } catch (Throwable t) {
             if (gen != null) {
-                try { gen.recordException(t); } catch (Exception ignored) {}
+                InstrumentationFailureSupport.recordExceptionQuietly(langfuseOtel, gen, t);
             }
             throw t;
         } finally {
             if (gen != null) {
-                try { gen.end(); } catch (Exception ignored) {}
+                InstrumentationFailureSupport.endQuietly(gen);
             }
         }
     }
@@ -85,9 +89,7 @@ public class TracingLangChain4jChatModel implements ChatModel {
     }
 
     private String resolveSpanName() {
-        String className = delegate.getClass().getSimpleName();
-        return className.replaceAll("ChatModel$|ChatLanguageModel$", "")
-                .toLowerCase() + ".chat";
+        return ModelSpanNameSupport.resolve(delegate, "chat", "ChatModel", "ChatLanguageModel");
     }
 
     private void setRequestAttributes(LangfuseGeneration gen, ChatRequest request) {
@@ -111,8 +113,9 @@ public class TracingLangChain4jChatModel implements ChatModel {
         }
 
         List<ChatMessage> messages = request.messages();
-        if (messages != null && !messages.isEmpty()) {
-            gen.input(toJsonMessages(messages));
+        if (langfuseOtel.getContentCapturePolicy().isInputCaptureEnabled()
+                && messages != null && !messages.isEmpty()) {
+            langfuseOtel.recordInput(gen, toJsonMessages(messages));
         }
     }
 
@@ -163,7 +166,7 @@ public class TracingLangChain4jChatModel implements ChatModel {
         }
 
         if (response.aiMessage() != null && response.aiMessage().text() != null) {
-            gen.output(response.aiMessage().text());
+            langfuseOtel.recordOutput(gen, response.aiMessage().text());
         }
     }
 }

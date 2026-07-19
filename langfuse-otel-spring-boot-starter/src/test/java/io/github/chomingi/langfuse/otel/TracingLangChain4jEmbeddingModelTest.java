@@ -43,6 +43,33 @@ class TracingLangChain4jEmbeddingModelTest {
     }
 
     @Test
+    void publicBuilderDefaultsAutomaticEmbeddingInstrumentationToMetadataOnly() {
+        EmbeddingModel proxy = proxy(
+                new StubLangChain4jEmbeddingModel(),
+                LangfuseOtel.externalBuilder(otel.getOpenTelemetry()).build());
+
+        Response<List<Embedding>> response = proxy.embedAll(
+                List.of(TextSegment.from("confidential embedding input")));
+
+        assertThat(response.content()).hasSize(1);
+        assertThat(otel.getSpans()).hasSize(1);
+
+        SpanData span = otel.getSpans().get(0);
+        assertThat(span.getAttributes().get(AttributeKey.stringKey("gen_ai.operation.name")))
+                .isEqualTo("embeddings");
+        assertThat(span.getAttributes().get(AttributeKey.stringKey("gen_ai.system")))
+                .isEqualTo("langchain4j");
+        assertThat(span.getAttributes().get(AttributeKey.longKey("gen_ai.usage.input_tokens")))
+                .isEqualTo(5L);
+        assertThat(span.getAttributes().get(AttributeKey.longKey("gen_ai.usage.total_tokens")))
+                .isEqualTo(5L);
+        assertThat(span.getAttributes().get(AttributeKey.stringKey("langfuse.observation.input")))
+                .isNull();
+        assertThat(span.getAttributes().get(AttributeKey.stringKey("langfuse.observation.output")))
+                .isNull();
+    }
+
+    @Test
     void embeddingRecordsException() {
         EmbeddingModel proxy = proxy(new ErrorLangChain4jEmbeddingModel());
 
@@ -82,10 +109,24 @@ class TracingLangChain4jEmbeddingModelTest {
         assertThat(span.getAttributes().get(AttributeKey.stringKey("gen_ai.operation.name"))).isEqualTo("embeddings");
     }
 
+    @Test
+    void dimensionDelegatesProviderOverrideWithoutCreatingAnEmbeddingSpan() {
+        EmbeddingModel proxy = proxy(new StubLangChain4jEmbeddingModel());
+
+        int dimension = proxy.dimension();
+
+        assertThat(dimension).isEqualTo(1_536);
+        assertThat(otel.getSpans()).isEmpty();
+    }
+
     private EmbeddingModel proxy(EmbeddingModel target) {
+        return proxy(target, new LangfuseOtel(null, otel.getOpenTelemetry(), null, true));
+    }
+
+    private EmbeddingModel proxy(EmbeddingModel target, LangfuseOtel langfuseOtel) {
         return new io.github.chomingi.langfuse.otel.spring.TracingLangChain4jEmbeddingModel(
                 target,
-                new LangfuseOtel(null, otel.getOpenTelemetry(), null, true));
+                langfuseOtel);
     }
 
     static class StubLangChain4jEmbeddingModel implements EmbeddingModel {
@@ -95,6 +136,11 @@ class TracingLangChain4jEmbeddingModelTest {
                     .map(s -> Embedding.from(new float[]{0.1f, 0.2f, 0.3f}))
                     .toList();
             return Response.from(embeddings, new TokenUsage(5, 0, 5));
+        }
+
+        @Override
+        public int dimension() {
+            return 1_536;
         }
     }
 

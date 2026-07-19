@@ -6,10 +6,10 @@ import dev.langchain4j.model.embedding.EmbeddingModel;
 import dev.langchain4j.model.output.Response;
 import dev.langchain4j.model.output.TokenUsage;
 import io.github.chomingi.langfuse.otel.LangfuseAttributes;
+import io.github.chomingi.langfuse.otel.LangfuseContext;
 import io.github.chomingi.langfuse.otel.LangfuseOtel;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.SpanKind;
-import io.opentelemetry.api.trace.StatusCode;
 import io.opentelemetry.context.Context;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -31,52 +31,63 @@ public class TracingLangChain4jEmbeddingModel implements EmbeddingModel {
 
     @Override
     public Response<List<Embedding>> embedAll(List<TextSegment> textSegments) {
-        Span span;
+        Span createdSpan = null;
         try {
-            span = langfuseOtel.getTracer().spanBuilder(resolveSpanName())
+            createdSpan = langfuseOtel.getTracer().spanBuilder(resolveSpanName())
                     .setParent(Context.current())
                     .setSpanKind(SpanKind.CLIENT)
                     .setAttribute(LangfuseAttributes.GEN_AI_OPERATION_NAME, "embeddings")
                     .setAttribute(LangfuseAttributes.GEN_AI_SYSTEM, "langchain4j")
                     .startSpan();
-            setRequestAttributes(span, textSegments);
-        } catch (Exception e) {
-            log.debug("Langfuse embedding instrumentation setup failed, proceeding without tracing", e);
+            LangfuseContext.applyTo(createdSpan);
+            setRequestAttributes(createdSpan, textSegments);
+        } catch (Throwable failure) {
+            InstrumentationFailureSupport.endQuietly(createdSpan);
+            InstrumentationFailureSupport.rethrowIfFatal(failure);
+            log.debug("Langfuse embedding instrumentation setup failed, proceeding without tracing", failure);
             return delegate.embedAll(textSegments);
         }
 
+        Span span = createdSpan;
         try {
-            Response<List<Embedding>> response = delegate.embedAll(textSegments);
+            Response<List<Embedding>> response = SpanScopeSupport.call(span,
+                    () -> delegate.embedAll(textSegments));
             try {
                 setResponseAttributes(span, response);
-            } catch (Exception e) {
-                log.debug("Failed to record embedding response attributes", e);
+            } catch (Throwable failure) {
+                InstrumentationFailureSupport.rethrowIfFatal(failure);
+                log.debug("Failed to record embedding response attributes", failure);
             }
             return response;
         } catch (Throwable t) {
-            try { recordException(span, t); } catch (Exception ignored) {}
+            InstrumentationFailureSupport.recordExceptionQuietly(langfuseOtel, span, t);
             throw t;
         } finally {
-            span.end();
+            InstrumentationFailureSupport.endQuietly(span);
         }
     }
 
+    @Override
+    public int dimension() {
+        return delegate.dimension();
+    }
+
     private String resolveSpanName() {
-        String className = delegate.getClass().getSimpleName();
-        return className.replace("EmbeddingModel", "").replace("EmbeddingClient", "")
-                .toLowerCase() + ".embeddings";
+        return ModelSpanNameSupport.resolve(
+                delegate, "embeddings", "EmbeddingModel", "EmbeddingClient");
     }
 
     private void setRequestAttributes(Span span, List<TextSegment> segments) {
+        if (!langfuseOtel.getContentCapturePolicy().isInputCaptureEnabled()) return;
         if (segments == null || segments.isEmpty()) return;
 
         if (segments.size() == 1) {
-            span.setAttribute(LangfuseAttributes.OBSERVATION_INPUT, segments.get(0).text());
+            langfuseOtel.recordInput(span, segments.get(0).text());
         } else {
             String input = segments.stream()
                     .map(TextSegment::text)
                     .collect(Collectors.joining(", ", "[", "]"));
-            span.setAttribute(LangfuseAttributes.OBSERVATION_INPUT, input);
+            langfuseOtel.recordInput(span, input);
         }
     }
 
@@ -92,14 +103,7 @@ public class TracingLangChain4jEmbeddingModel implements EmbeddingModel {
         }
 
         int embeddingCount = response.content() != null ? response.content().size() : 0;
-        span.setAttribute(LangfuseAttributes.OBSERVATION_OUTPUT, embeddingCount + " embedding(s)");
+        langfuseOtel.recordOutput(span, embeddingCount + " embedding(s)");
     }
 
-    private static void recordException(Span span, Throwable t) {
-        String message = t.getMessage() != null ? t.getMessage() : t.getClass().getName();
-        span.setStatus(StatusCode.ERROR, message);
-        span.recordException(t);
-        span.setAttribute(LangfuseAttributes.OBSERVATION_LEVEL, "ERROR");
-        span.setAttribute(LangfuseAttributes.OBSERVATION_STATUS_MESSAGE, message);
-    }
 }

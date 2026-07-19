@@ -24,6 +24,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.LockSupport;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -527,7 +528,7 @@ class ReactorSchedulerContextPropagationTest {
         assertThat(values).containsExactlyInAnyOrder(
                 "raw-concurrent-a:raw-concurrent-a",
                 "raw-concurrent-b:raw-concurrent-b");
-        assertThat(ReactorSchedulerContextPropagation.registeredLeaseCount()).isZero();
+        awaitNoRegisteredLeases();
         assertThat(Span.current().getSpanContext().isValid()).isFalse();
     }
 
@@ -551,6 +552,15 @@ class ReactorSchedulerContextPropagationTest {
         ReactorSchedulerContextPropagation.closeForBridge(failedSubscriptionLease);
 
         assertThat(failedSubscriptionLease.isActive()).isFalse();
+        assertThat(ReactorSchedulerContextPropagation.registeredLeaseCount()).isZero();
+    }
+
+    private static void awaitNoRegisteredLeases() {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+        while (System.nanoTime() < deadline
+                && ReactorSchedulerContextPropagation.registeredLeaseCount() != 0) {
+            LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(1));
+        }
         assertThat(ReactorSchedulerContextPropagation.registeredLeaseCount()).isZero();
     }
 

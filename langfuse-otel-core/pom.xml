@@ -67,5 +67,11 @@
             <artifactId>opentelemetry-sdk-testing</artifactId>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>io.opentelemetry.proto</groupId>
+            <artifactId>opentelemetry-proto</artifactId>
+            <version>${otel.proto.version}</version>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 </project>

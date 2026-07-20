@@ -44,7 +44,7 @@
 ### Required before the 0.2.0 release
 
 - [x] Add a mock OTLP receiver contract test for endpoint path, span payload/name, and auth headers
-- [ ] Extend the mock OTLP receiver contract to assert multi-span hierarchy and representative attributes
+- [x] Extend the mock OTLP receiver contract to assert multi-span hierarchy and representative attributes
 - [x] Reject insecure standalone endpoints unless an explicit development-only opt-in is set
 - [x] Add redirect/credential-host safety tests for the standalone exporter
 - [x] Add an explicit policy for exception messages and user metadata that may contain sensitive values

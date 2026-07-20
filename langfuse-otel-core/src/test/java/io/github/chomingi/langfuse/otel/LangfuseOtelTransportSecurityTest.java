@@ -2,16 +2,24 @@ package io.github.chomingi.langfuse.otel;
 
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
+import io.opentelemetry.proto.collector.trace.v1.ExportTraceServiceRequest;
+import io.opentelemetry.proto.common.v1.AnyValue;
+import io.opentelemetry.proto.common.v1.KeyValue;
+import io.opentelemetry.proto.trace.v1.ResourceSpans;
+import io.opentelemetry.proto.trace.v1.Span;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -53,6 +61,89 @@ class LangfuseOtelTransportSecurityTest {
             assertThat(request.contentType).startsWith("application/x-protobuf");
             assertThat(request.body).isNotEmpty();
             assertThat(containsUtf8(request.body, "transport-contract-span")).isTrue();
+        } finally {
+            receiver.stop(0);
+        }
+    }
+
+    @Test
+    void standaloneExporterPreservesMultiSpanHierarchyAndRepresentativeAttributes() throws Exception {
+        List<CapturedRequest> captured = new CopyOnWriteArrayList<>();
+        CountDownLatch received = new CountDownLatch(1);
+        HttpServer receiver = startServer(exchange -> {
+            try {
+                captured.add(CapturedRequest.from(exchange));
+                sendEmptyProtobufResponse(exchange, 200);
+            } finally {
+                received.countDown();
+            }
+        });
+
+        try {
+            try (LangfuseOtel langfuse = standaloneBuilder(loopbackHost(receiver))
+                    .allowInsecureHttpForDevelopment(true)
+                    .build()) {
+                langfuse.trace("contract-trace", trace -> {
+                    trace.userId("user-42")
+                            .sessionId("session-7")
+                            .tags("contract", "0.2");
+                    trace.span("retrieve-context", span -> {
+                        span.input("question")
+                                .metadata("source", "catalog");
+                        span.generation("answer", generation -> generation
+                                .model("gpt-4o-mini")
+                                .totalTokens(19));
+                    });
+                });
+                langfuse.flush();
+            }
+
+            assertThat(received.await(5, TimeUnit.SECONDS)).isTrue();
+            assertThat(captured).isNotEmpty();
+
+            List<ExportTraceServiceRequest> exports = decodeExports(captured);
+            List<ResourceSpans> resourceSpans = resourceSpans(exports);
+            assertThat(resourceSpans)
+                    .extracting(group -> stringAttribute(group.getResource().getAttributesList(), "service.name"))
+                    .containsOnly("transport-contract-test");
+
+            List<Span> spans = spans(resourceSpans);
+            assertThat(spans)
+                    .extracting(Span::getName)
+                    .containsExactlyInAnyOrder("contract-trace", "retrieve-context", "answer");
+
+            Span trace = spanNamed(spans, "contract-trace");
+            Span retrieval = spanNamed(spans, "retrieve-context");
+            Span generation = spanNamed(spans, "answer");
+
+            assertThat(trace.getTraceId()).hasSize(16);
+            assertThat(retrieval.getTraceId()).isEqualTo(trace.getTraceId());
+            assertThat(generation.getTraceId()).isEqualTo(trace.getTraceId());
+            assertThat(List.of(trace.getSpanId(), retrieval.getSpanId(), generation.getSpanId()))
+                    .allSatisfy(spanId -> assertThat(spanId).hasSize(8))
+                    .doesNotHaveDuplicates();
+            assertThat(trace.getParentSpanId()).isEmpty();
+            assertThat(retrieval.getParentSpanId()).isEqualTo(trace.getSpanId());
+            assertThat(generation.getParentSpanId()).isEqualTo(retrieval.getSpanId());
+            assertThat(trace.getKind()).isEqualTo(Span.SpanKind.SPAN_KIND_INTERNAL);
+            assertThat(retrieval.getKind()).isEqualTo(Span.SpanKind.SPAN_KIND_INTERNAL);
+            assertThat(generation.getKind()).isEqualTo(Span.SpanKind.SPAN_KIND_CLIENT);
+
+            assertThat(stringAttribute(trace, LangfuseAttributes.TRACE_NAME)).isEqualTo("contract-trace");
+            assertThat(stringAttribute(trace, LangfuseAttributes.TRACE_USER_ID)).isEqualTo("user-42");
+            assertThat(stringAttribute(trace, LangfuseAttributes.TRACE_SESSION_ID)).isEqualTo("session-7");
+            assertThat(stringArrayAttribute(trace, LangfuseAttributes.TRACE_TAGS))
+                    .containsExactly("contract", "0.2");
+
+            assertThat(stringAttribute(retrieval, LangfuseAttributes.OBSERVATION_INPUT))
+                    .isEqualTo("question");
+            assertThat(stringAttribute(retrieval, LangfuseAttributes.OBSERVATION_METADATA + ".source"))
+                    .isEqualTo("catalog");
+
+            assertThat(stringAttribute(generation, LangfuseAttributes.GEN_AI_OPERATION_NAME)).isEqualTo("chat");
+            assertThat(stringAttribute(generation, LangfuseAttributes.GEN_AI_REQUEST_MODEL))
+                    .isEqualTo("gpt-4o-mini");
+            assertThat(longAttribute(generation, LangfuseAttributes.GEN_AI_USAGE_TOTAL_TOKENS)).isEqualTo(19);
         } finally {
             receiver.stop(0);
         }
@@ -180,6 +271,75 @@ class LangfuseOtelTransportSecurityTest {
             return true;
         }
         return false;
+    }
+
+    private static List<ExportTraceServiceRequest> decodeExports(List<CapturedRequest> requests)
+            throws IOException {
+        List<ExportTraceServiceRequest> exports = new ArrayList<>();
+        for (CapturedRequest request : requests) {
+            exports.add(ExportTraceServiceRequest.parseFrom(request.body));
+        }
+        return exports;
+    }
+
+    private static List<ResourceSpans> resourceSpans(List<ExportTraceServiceRequest> exports) {
+        return exports.stream()
+                .flatMap(export -> export.getResourceSpansList().stream())
+                .collect(Collectors.toList());
+    }
+
+    private static List<Span> spans(List<ResourceSpans> resourceSpans) {
+        return resourceSpans.stream()
+                .flatMap(group -> group.getScopeSpansList().stream())
+                .flatMap(scope -> scope.getSpansList().stream())
+                .collect(Collectors.toList());
+    }
+
+    private static Span spanNamed(List<Span> spans, String name) {
+        List<Span> matches = spans.stream()
+                .filter(span -> span.getName().equals(name))
+                .collect(Collectors.toList());
+        assertThat(matches).as("span named %s", name).hasSize(1);
+        return matches.get(0);
+    }
+
+    private static String stringAttribute(Span span, String key) {
+        return stringAttribute(span.getAttributesList(), key);
+    }
+
+    private static String stringAttribute(List<KeyValue> attributes, String key) {
+        AnyValue value = attribute(attributes, key);
+        assertThat(value.getValueCase()).as("attribute %s type", key)
+                .isEqualTo(AnyValue.ValueCase.STRING_VALUE);
+        return value.getStringValue();
+    }
+
+    private static long longAttribute(Span span, String key) {
+        AnyValue value = attribute(span.getAttributesList(), key);
+        assertThat(value.getValueCase()).as("attribute %s type", key)
+                .isEqualTo(AnyValue.ValueCase.INT_VALUE);
+        return value.getIntValue();
+    }
+
+    private static List<String> stringArrayAttribute(Span span, String key) {
+        AnyValue value = attribute(span.getAttributesList(), key);
+        assertThat(value.getValueCase()).as("attribute %s type", key)
+                .isEqualTo(AnyValue.ValueCase.ARRAY_VALUE);
+        return value.getArrayValue().getValuesList().stream()
+                .map(item -> {
+                    assertThat(item.getValueCase()).as("attribute %s item type", key)
+                            .isEqualTo(AnyValue.ValueCase.STRING_VALUE);
+                    return item.getStringValue();
+                })
+                .collect(Collectors.toList());
+    }
+
+    private static AnyValue attribute(List<KeyValue> attributes, String key) {
+        return attributes.stream()
+                .filter(attribute -> attribute.getKey().equals(key))
+                .map(KeyValue::getValue)
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("Missing OTLP attribute: " + key));
     }
 
     @FunctionalInterface

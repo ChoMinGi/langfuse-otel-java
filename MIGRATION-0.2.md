@@ -61,13 +61,19 @@ Standalone hosts now require HTTPS and reject user-info, query, fragment, missin
 
 Legacy `LangfuseContext.set*()` and `clear()` mutations can override immutable metadata only within `LangfuseContext.makeCurrent(...)`, which restores them on close. A scope created directly from `LangfuseContext.storeIn(...)` remains immutable and ignores legacy mutations, preventing executor-thread state from escaping the scope.
 
-## 5. Streaming lifecycle is subscription-scoped
+## 5. Review operational signals
+
+Applications that include Spring Boot Actuator now receive a `langfuse` health component and Micrometer meters automatically. A fail-safe no-op is `OUT_OF_SERVICE`. The component is `DOWN` when the latest standalone export failed, a queue drop has not yet been followed by a successful export, or the latest flush failed or timed out. This can affect aggregate health. Disable only the health contribution with `management.health.langfuse.enabled=false` if a deployment needs a different policy.
+
+Application-owned OpenTelemetry is reported as `UNKNOWN`, and its transport meters are omitted because this library cannot observe that pipeline. Health reads only a local snapshot. `UP` may precede the first export, and a successful flush confirms local SDK drain completion rather than remote receipt. Keep `langfuse` out of liveness and add it to readiness only when trace-delivery failure should stop traffic. Without Actuator, poll `LangfuseOtel.getStatus()` or integrate that snapshot with the application's monitoring system.
+
+## 6. Streaming lifecycle is subscription-scoped
 
 Spring AI streaming creates a separate span and bounded output accumulator for every subscription. Merely creating a `Flux` no longer creates a span, and re-subscribing no longer reuses prior trace state. Verify any code that relied on eager instrumentation side effects.
 
 When output capture is enabled, a raw stream that exceeds `content.max-length` is now omitted entirely. Shorter streams are redacted at completion and then length-limited. This fail-closed behavior avoids exporting a pre-redaction prefix when a sensitive pattern crosses the buffer boundary.
 
-## 6. Validate adapter compatibility
+## 7. Validate adapter compatibility
 
 0.2 remains a production preview. Automatic instrumentation now uses a class-based proxy for safely proxyable models, preserving provider concrete types and extension interfaces. Final provider classes, final model methods, and externally callable final extension methods cannot be safely intercepted or delegated without changing behavior, so they remain unchanged and emit an instrumentation warning. Existing JDK proxies retain only the interfaces already present on that proxy. When singleton circular references are explicitly enabled, the BeanPostProcessor promotes one instrumented early proxy as the final singleton so injected early and final references retain identity.
 
@@ -79,6 +85,7 @@ An explicit `@ObserveGeneration` on any Spring AI or LangChain4j model method no
 
 - Run `./mvnw -B -ntp clean verify` and compile application consumers against `0.2.0-SNAPSHOT`.
 - Decide `langfuse.otel-mode` and verify the selected exporter actually reaches Langfuse.
+- Add Actuator or poll `LangfuseOtel.getStatus()`, alert on fallback/export/drop/flush failures, and keep the `langfuse` component out of liveness.
 - Approve each content, exception, principal, and session field before enabling it.
 - Exercise streaming complete, error, and cancellation paths under load.
 - Confirm provider-specific concrete injection and extension APIs resolve through the proxied bean, and alert on any non-proxyable-model warning.

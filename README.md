@@ -391,9 +391,24 @@ var gen = trace.generation("llm").model("gpt-4o");
 gen.output(result).end();
 ```
 
-### Fail-safe by Default
+### Operational Signals
 
-Missing API keys or a misconfigured endpoint? With the default fail-safe builder, the library logs a warning and switches to no-op mode. Your application does not crash because of observability; production deployments should still alert on that warning until a health indicator is available.
+Missing API keys or an invalid standalone configuration still fall back to no-op mode without crashing the application. `LangfuseOtel.getStatus()` returns an immutable snapshot of that fallback, ownership, export, queue-drop, and flush state. Reading it does not flush or make a network request.
+
+When the application includes `spring-boot-starter-actuator`, the starter registers a `langfuse` health component and Micrometer meters. The Actuator dependency remains optional and is not added transitively by this library.
+
+- `UP`: the standalone pipeline is owned and has no current failure. This can include the initial state before the first export.
+- `DOWN`: the latest export failed, a queue drop has not yet been followed by a successful export, or the latest flush failed or timed out.
+- `OUT_OF_SERVICE`: fail-safe construction produced the library's no-op fallback.
+- `UNKNOWN`: OpenTelemetry is application-owned, so its exporter, queue, and flush state are not observed here.
+
+A later successful export clears the current exporter/drop health condition but cannot recover spans that were already lost. A successful flush means only that the local SDK drain completed; it does not prove that Langfuse accepted every span.
+
+The starter publishes `langfuse.otel.noop.fallback` with fixed `ownership` and `fallback_reason` tags. Its value is `1` only for this library's fail-safe fallback, not for an externally supplied no-op SDK. Owned pipelines also publish cumulative `langfuse.otel.export.failed.spans`, `langfuse.otel.queue.dropped.spans`, `langfuse.otel.flush.failures`, and `langfuse.otel.flush.timeouts` counters. `langfuse.otel.flush.state` is a one-hot gauge with a fixed `state` tag.
+
+External and no-op modes omit transport meters rather than reporting unobserved work as zero. `langfuse.enabled=false` removes both health and meter beans. The standard `management.health.langfuse.enabled=false` and `management.metrics.enable.langfuse=false` properties disable either surface independently.
+
+Keep this component out of liveness. Add it to readiness only when losing Langfuse delivery should intentionally stop the application from receiving traffic.
 
 ---
 

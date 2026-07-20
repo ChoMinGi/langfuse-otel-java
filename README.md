@@ -220,7 +220,11 @@ streamingModel.chat("Hello", new StreamingChatResponseHandler() {
 });
 ```
 
-Streaming callbacks and model listeners run with the wrapper observation and immutable Langfuse request metadata restored automatically. When a provider accepts an `Executor`, `ExecutorService`, or `ScheduledExecutorService`, configure it with the matching submission-time adapter:
+Streaming callbacks and model listeners run with the wrapper observation and immutable Langfuse request metadata restored automatically. This is the guaranteed boundary for stock providers.
+
+The LangChain4j OpenAI JDK transport was exercised at 1.0.0 and 1.18.0 with a configured `HttpClient` executor. That hook controls HTTP-client work. Its SSE continuation is not guaranteed to remain on the supplied executor, so wrapping a shared model executor is not an end-to-end propagation guarantee. Keep a configured executor application-owned and shut it down with the application; never bind a request-specific `Snapshot` to a shared model executor.
+
+When you implement a provider adapter and control its submission point, use the matching submission-time adapter:
 
 ```java
 executor.execute(LangChain4jStreamingContext.wrap(() -> providerCall(handler)));
@@ -229,7 +233,7 @@ ScheduledExecutorService contextAwareScheduler =
         LangChain4jStreamingContext.taskWrapping(scheduler);
 ```
 
-These adapters capture the context at submission, so they cover work submitted from `doChat` or a restored callback/listener. If a provider retains a request and submits it later from an unscoped control thread, capture one fixed snapshot while `doChat` is active and retain it with that request:
+These adapters capture the context at submission, so they cover work submitted from `doChat` or a restored callback/listener. If an integration you own retains a request and submits it later from an unscoped control thread, capture one fixed snapshot while `doChat` is active and retain it with that request:
 
 ```java
 LangChain4jStreamingContext.Snapshot invocation =
@@ -425,7 +429,7 @@ Missing API keys or a misconfigured endpoint? With the default fail-safe builder
 ## Production-preview limitations
 
 - WebFlux request metadata and the wrapper OpenTelemetry context propagate through Spring AI streams and `@ObserveGeneration` Reactor publishers, including raw downstream signals and Reactor Scheduler tasks scheduled while that instrumented subscription context is current. The keyed hook is removed after the last subscription lease closes, and a task whose execution starts after termination does not restore the ended context. Provider-side operators above a raw-thread source require `ReactorContextPropagation.wrap(rawPublisher)` at that source; arbitrary work performed before the source invokes `subscribe`, a signal, `request`, or `cancel` cannot be intercepted by a Reactive Streams adapter.
-- LangChain4j streaming callbacks and model listeners restore the invocation context automatically. Provider-internal work submitted to an owned raw executor must use `LangChain4jStreamingContext.wrap(...)`, `taskWrapping(...)`, a per-invocation `Snapshot` for late submission, provider-specific configuration, or agent instrumentation; an opaque executor cannot be reached through the generic model SPI.
+- LangChain4j streaming callbacks and model listeners restore the invocation context automatically. Provider-internal work can inherit it only at a scheduling boundary the integration controls with `LangChain4jStreamingContext.wrap(...)`, `taskWrapping(...)`, or a per-invocation `Snapshot`, or through provider-specific/agent instrumentation. A model-wide executor setting is not itself request-scoped, and an opaque executor cannot be reached through the generic model SPI.
 - The 0.2 compatibility matrix is JVM-only. The reflective LangChain4j 1.18 cancellation bridge is not validated for Spring AOT or GraalVM native images and fails open when its runtime types cannot be reflected; native-image support requires dedicated runtime hints and tests before it can be claimed.
 - Automatic model instrumentation uses a class-based proxy for safely proxyable provider classes, preserving their concrete type and extension interfaces. Final classes, final model methods, or externally callable final extension methods are left unchanged and logged as uninstrumented rather than replaced with an incompatible interface decorator.
 - Existing JDK proxies retain their declared interfaces; they cannot recover a concrete type that was already removed by the original proxy.
@@ -444,7 +448,7 @@ Remaining production work is tracked in [ROADMAP.md](ROADMAP.md); `0.2.0-SNAPSHO
 | Spring Boot | 3.4.x | Auto-configuration |
 | Spring AI | 1.0.0 — 1.1.8 | Chat, streaming, embeddings, images |
 | Spring AI | 2.0.0 | Current stable (CI tested) |
-| LangChain4j | 1.0.0 — 1.18.0 | Chat, streaming, embeddings, images |
+| LangChain4j | 1.0.0 — 1.18.0 | Chat, streaming, embeddings, images; provider internals vary |
 | langfuse-java | 0.2.x | Prompt management (optional) |
 | Langfuse Cloud | v3+ | OTLP ingestion |
 | Langfuse Self-hosted | v3.22.0+ | Requires OTLP support |

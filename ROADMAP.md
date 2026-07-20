@@ -55,7 +55,7 @@
 - [x] Make `@ObserveGeneration` completion-aware for Reactor and `CompletionStage` results
 - [x] Propagate wrapper observation context into Reactor Scheduler tasks scheduled under the active instrumented subscription
 - [x] Restore wrapper observation context around LangChain4j streaming callbacks and expose `LangChain4jStreamingContext` submission-time and late-scheduling snapshot bridges
-- [ ] Validate and document supported-provider executor configuration where LangChain4j implementations use an opaque internal executor; generic SPI coverage stops at the callback and explicit scheduling boundaries
+- [x] Validate and document supported-provider executor configuration where LangChain4j implementations use an opaque internal executor; generic SPI coverage stops at the callback and explicit scheduling boundaries
 - [ ] Expose Actuator health/metrics for ownership mode, no-op fallback, exporter failures, queue drops, and flush state
 - [ ] Add JaCoCo baseline and prevent coverage regression
 - [ ] Add static analysis, dependency vulnerability, license, and SBOM gates

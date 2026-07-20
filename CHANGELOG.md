@@ -14,6 +14,7 @@
 - Per-subscription, reference-counted Reactor Scheduler propagation leases for Spring AI streams and Reactor-returning `@ObserveGeneration` methods
 - `ReactorContextPropagation.wrap(Publisher)` for raw-thread source signals and provider-side Reactive Streams operators
 - `LangChain4jStreamingContext` terminal-aware fixed snapshots, task/executor wrappers preserving scheduled capabilities, and listener-attribute accessors for provider integration boundaries
+- OpenAI streaming provider contract coverage with a configured JDK HTTP executor at LangChain4j 1.0.0 and 1.18.0
 - Maven Wrapper with a pinned distribution checksum
 - Reproducible archive metadata through a fixed Maven build output timestamp
 - Contract tests for SDK ownership, scope restoration, safe content defaults, reactive context isolation, streaming lifecycle, and standalone OTLP transport security

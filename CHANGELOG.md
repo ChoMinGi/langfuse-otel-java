@@ -30,7 +30,7 @@
 - Final/non-proxyable model beans are kept unchanged and reported as uninstrumented instead of being replaced by an incompatible decorator
 - Explicit `@ObserveGeneration` model methods take bean-level precedence over automatic model instrumentation
 - WebFlux request metadata no longer relies on a request-lifetime ThreadLocal
-- CI runs `./mvnw -B -ntp clean verify`, including packaging, sources, and Javadoc generation
+- CI runs `./mvnw -B -ntp clean verify`, including packaging, sources, Javadoc generation, and module line/branch coverage gates
 - Release validation now requires tag/POM/docs/examples consistency plus the Java/framework and consumer gates; Central publishing stops for manual approval
 - Live Langfuse CI reports an explicit opt-in status and fails on missing credentials once enabled
 - Standalone hosts are validated and require HTTPS; the development-only HTTP opt-in is restricted to loopback hosts

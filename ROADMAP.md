@@ -57,7 +57,7 @@
 - [x] Restore wrapper observation context around LangChain4j streaming callbacks and expose `LangChain4jStreamingContext` submission-time and late-scheduling snapshot bridges
 - [x] Validate and document supported-provider executor configuration where LangChain4j implementations use an opaque internal executor; generic SPI coverage stops at the callback and explicit scheduling boundaries
 - [x] Expose Actuator health/metrics for ownership mode, no-op fallback, exporter failures, queue drops, and flush state
-- [ ] Add JaCoCo baseline and prevent coverage regression
+- [x] Add JaCoCo baseline and prevent coverage regression
 - [ ] Add static analysis, dependency vulnerability, license, and SBOM gates
 - [ ] Add binary/source API compatibility checks against 0.1.1
 - [ ] Resolve public API Javadoc warnings

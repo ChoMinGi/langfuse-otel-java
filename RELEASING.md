@@ -46,7 +46,7 @@ Before Central credentials are available, the workflow verifies:
 - an annotated release tag with a GitHub-verified signature, root/module/example versions, release commit, and `main` ancestry;
 - release-version snippets in README and a dated changelog heading;
 - absence of an existing GitHub release or published Maven Central coordinates;
-- `clean verify`, core Java 11/17/21, the full blocking Spring AI/LangChain4j matrix, and both consumer builds.
+- `clean verify` with module coverage baselines, plus core Java 11/17/21, the full blocking Spring AI/LangChain4j matrix, and both consumer builds.
 
 The `central-validation` environment is entered only after every gate succeeds. The deploy job builds and signs once, uploads a candidate named `io.github.chomingi:langfuse-otel-java:<version>`, waits for `VALIDATED`, and stops. The following job has the only `contents:write` permission and creates a draft GitHub release without checking out or building repository code.
 

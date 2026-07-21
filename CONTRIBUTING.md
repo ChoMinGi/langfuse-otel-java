@@ -25,6 +25,14 @@ Unit tests (no external dependencies):
 ./mvnw -B -ntp test
 ```
 
+Before opening a PR, run the full verification build:
+
+```bash
+./mvnw -B -ntp clean verify
+```
+
+This enforces the module coverage baselines. HTML reports are written to `langfuse-otel-core/target/site/jacoco/index.html` and `langfuse-otel-spring-boot-starter/target/site/jacoco/index.html`.
+
 Integration tests (requires Langfuse API keys):
 
 ```bash

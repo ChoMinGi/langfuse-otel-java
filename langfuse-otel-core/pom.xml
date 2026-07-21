@@ -13,6 +13,11 @@
     <name>langfuse-otel-core</name>
     <description>Core library for OpenTelemetry integration with Langfuse</description>
 
+    <properties>
+        <jacoco.minimum.line.coverage>0.873</jacoco.minimum.line.coverage>
+        <jacoco.minimum.branch.coverage>0.762</jacoco.minimum.branch.coverage>
+    </properties>
+
     <build>
         <plugins>
             <plugin>

@@ -39,13 +39,41 @@ public class LangfuseOtelAutoConfiguration {
                                      ObjectProvider<OpenTelemetry> openTelemetryProvider,
                                      ObjectProvider<ContentRedactor> contentRedactorProvider,
                                      ObjectProvider<ExceptionRedactor> exceptionRedactorProvider) {
+        List<ContentRedactor> contentRedactors = contentRedactorProvider.orderedStream()
+                .collect(Collectors.toList());
+        List<ExceptionRedactor> exceptionRedactors = exceptionRedactorProvider.orderedStream()
+                .collect(Collectors.toList());
+        List<OpenTelemetry> externalOpenTelemetryBeans = openTelemetryProvider.orderedStream()
+                .collect(Collectors.toList());
+        OpenTelemetry externalOpenTelemetry = openTelemetryProvider.getIfUnique();
+
+        return createLangfuseOtel(properties, contentRedactors, exceptionRedactors,
+                externalOpenTelemetryBeans, externalOpenTelemetry);
+    }
+
+    /**
+     * Compatibility bridge for callers that directly invoked the 0.1.x auto-configuration factory.
+     * This direct call does not discover Spring beans; {@code AUTO} mode therefore uses the
+     * standalone path.
+     *
+     * @param properties standalone configuration properties
+     * @return the configured Langfuse client
+     * @deprecated Prefer Spring auto-configuration or {@link LangfuseOtel#builder()}.
+     */
+    @Deprecated(since = "0.2.0", forRemoval = false)
+    public LangfuseOtel langfuseOtel(LangfuseOtelProperties properties) {
+        return createLangfuseOtel(properties, List.of(), List.of(), List.of(), null);
+    }
+
+    private LangfuseOtel createLangfuseOtel(LangfuseOtelProperties properties,
+                                            List<ContentRedactor> contentRedactors,
+                                            List<ExceptionRedactor> exceptionRedactors,
+                                            List<OpenTelemetry> externalOpenTelemetryBeans,
+                                            OpenTelemetry externalOpenTelemetry) {
         ContentCapturePolicy.Builder capturePolicyBuilder = ContentCapturePolicy.builder()
                 .captureInput(properties.getContent().isCaptureInput())
                 .captureOutput(properties.getContent().isCaptureOutput())
                 .maxLength(properties.getContent().getMaxLength());
-
-        List<ContentRedactor> contentRedactors = contentRedactorProvider.orderedStream()
-                .collect(Collectors.toList());
         if (contentRedactors.size() == 1) {
             capturePolicyBuilder.redactor(contentRedactors.get(0));
         } else if (contentRedactors.size() > 1) {
@@ -57,8 +85,6 @@ public class LangfuseOtelAutoConfiguration {
                 .captureMessage(properties.getException().isCaptureMessage())
                 .captureStackTrace(properties.getException().isCaptureStackTrace())
                 .maxLength(properties.getException().getMaxLength());
-        List<ExceptionRedactor> exceptionRedactors = exceptionRedactorProvider.orderedStream()
-                .collect(Collectors.toList());
         if (exceptionRedactors.size() == 1) {
             exceptionPolicyBuilder.redactor(exceptionRedactors.get(0));
         } else if (exceptionRedactors.size() > 1) {
@@ -66,9 +92,6 @@ public class LangfuseOtelAutoConfiguration {
             exceptionPolicyBuilder.redactor((type, content) -> null);
         }
 
-        List<OpenTelemetry> externalOpenTelemetryBeans = openTelemetryProvider.orderedStream()
-                .collect(Collectors.toList());
-        OpenTelemetry externalOpenTelemetry = openTelemetryProvider.getIfUnique();
         LangfuseOtelProperties.OpenTelemetryMode otelMode = properties.getOtelMode();
         if (otelMode == null) {
             throw new IllegalStateException("langfuse.otel-mode must not be null");

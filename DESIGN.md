@@ -14,7 +14,7 @@ We wrap OpenTelemetry SDK instead of calling the Langfuse ingestion API directly
 
 ---
 
-## 2. Three API styles (callback, try-with-resources, manual end)
+## 2. Three synchronous API styles (callback, try-with-resources, manual end)
 
 ```java
 // Callback
@@ -28,9 +28,11 @@ LangfuseTrace trace = langfuse.trace("flow");
 trace.end();
 ```
 
-**Why:** Different Java codebases have different styles. Callback is cleanest for new code. Try-with-resources is idiomatic Java. Manual `end()` is necessary for async flows where scope doesn't align with method boundaries. Forcing one style on an open-source library limits adoption.
+**Why:** Different Java codebases have different synchronous control-flow styles. Callback is cleanest for new code, try-with-resources is idiomatic Java, and manual `end()` supports explicit lifecycle management when a lexical resource block is inconvenient.
 
-**Trade-off:** Three patterns means more API surface to maintain and test. We accept this because the implementation cost is low (callback just wraps TWR internally) and the user benefit is high.
+**Contract:** Every wrapper retains an OpenTelemetry `Scope` for its lifetime, so it must be closed on its creating thread and in reverse creation order. Manual `end()` changes syntax, not this thread-affinity rule. Asynchronous instrumentation uses raw spans and short-lived same-thread scopes instead.
+
+**Trade-off:** Three patterns means more API surface to maintain and test. We accept this because callback wraps try-with-resources internally and all three share one lifecycle contract.
 
 ---
 
@@ -48,11 +50,11 @@ LangfuseOtel.builder().build()  // no keys → returns no-op, never throws
 
 ## 4. SpanGuard with java.lang.ref.Cleaner
 
-When a span is not properly closed, `SpanGuard` logs a WARNING and closes the span via GC finalization.
+When a span is not properly closed, `SpanGuard` logs a WARNING and ends the span through a `Cleaner` action.
 
-**Why:** Forgetting to close a span (especially with the manual `end()` pattern) is a common mistake. Without SpanGuard, the span stays open forever on the OTel context stack, silently corrupting parent-child relationships for all subsequent spans on that thread. The Cleaner-based approach provides a safety net during development without runtime overhead in the normal (properly closed) path.
+**Why:** Forgetting to close a span (especially with the manual `end()` pattern) is a common mistake. Ending an abandoned span prevents it from remaining unexported and the warning exposes the lifecycle error during development.
 
-**Limitation:** GC-based cleanup is unreliable — the Cleaner may not fire before JVM shutdown. This is acceptable because SpanGuard is a safety net, not the primary mechanism. The real fix is the WARNING log that tells the developer to use `try-with-resources` or `end()`.
+**Limitation:** A Cleaner runs on another thread, so it never owns or closes the originating thread's `Scope`; it cannot repair that thread's context stack. GC-based cleanup may also not run before JVM shutdown. It is a span-ending safety net, not a substitute for try-with-resources or a correctly placed `end()`.
 
 ---
 
@@ -62,30 +64,35 @@ When a span is not properly closed, `SpanGuard` logs a WARNING and closes the sp
 private final AtomicBoolean closed = new AtomicBoolean(false);
 
 public void close() {
-    if (closed.compareAndSet(false, true)) {
-        cleanable.clean();
-    }
+    if (closed.get()) return;
+    verifyCreatingThreadAndLifoOrder();
+    if (closed.compareAndSet(false, true)) closeScopeThenClean();
 }
 ```
 
-**Why:** `close()` delegates to `cleanable.clean()` which calls `scope.close()` + `span.end()`. Calling `scope.close()` twice corrupts the OTel context stack. While the JDK Cleaner guarantees at-most-once execution, `AtomicBoolean` provides an additional thread-safe guard for the case where `close()` and the Cleaner daemon run concurrently.
+**Why:** Calling `scope.close()` twice can corrupt the OTel context stack. The guard keeps repeated `close()` and `end()` calls idempotent and tells the Cleaner whether it should report an abandoned span.
 
 **Why not volatile boolean:** `if (!closed) { closed = true; }` is a check-then-act race. Two threads can both see `closed == false` and both enter the block.
 
 ---
 
-## 6. close() delegates entirely to cleanable.clean()
+## 6. close() restores Scope before the Cleaner ends the span
 
 ```java
 public void close() {
+    if (closed.get()) return;
+    verifyCreatingThreadAndLifoOrder();
     if (closed.compareAndSet(false, true)) {
-        cleanable.clean();  // this does scope.close() + span.end()
-        // NOT: scope.close(); span.end(); — would cause double-close
+        try {
+            scope.close();
+        } finally {
+            cleanable.clean(); // ends the span; never closes Scope
+        }
     }
 }
 ```
 
-**Why:** Earlier versions called `cleanable.clean()` AND `scope.close()` + `span.end()` in `close()`. This caused double-close because `clean()` already invokes `CleanAction.run()` which does `scope.close()` + `span.end()`. Double `scope.close()` corrupts the OTel context stack by popping the wrong parent context.
+**Why:** Scope restoration is thread-affine and must happen on the creating thread in LIFO order. Both checks run before the terminal state changes, so an invalid close fails without ending the span and can be retried correctly. The Cleaner owns only span termination; this makes it impossible for the Cleaner thread to close a user thread's Scope. The `finally` still ends the span if Scope restoration itself fails.
 
 ---
 

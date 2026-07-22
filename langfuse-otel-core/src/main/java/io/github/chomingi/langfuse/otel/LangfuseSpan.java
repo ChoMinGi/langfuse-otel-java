@@ -8,6 +8,9 @@ import java.util.function.Consumer;
 /**
  * A generic span within a trace. Use for non-LLM steps (preprocessing, postprocessing, tool calls).
  * Can contain nested spans and generations.
+ *
+ * <p>The span is a synchronous, thread-bound scope. Close it on the thread where it was
+ * created, after all child spans and generations have been closed.</p>
  */
 public class LangfuseSpan extends AbstractLangfuseSpan {
 

@@ -10,6 +10,9 @@ import java.util.function.Consumer;
 /**
  * Root span of a Langfuse trace. Contains child spans and generations.
  * Automatically inherits userId, sessionId, tags from {@link LangfuseContext}.
+ *
+ * <p>The trace is a synchronous, thread-bound scope. Close it on the thread where it was
+ * created, after all child spans and generations have been closed.</p>
  */
 public class LangfuseTrace extends AbstractLangfuseSpan {
 

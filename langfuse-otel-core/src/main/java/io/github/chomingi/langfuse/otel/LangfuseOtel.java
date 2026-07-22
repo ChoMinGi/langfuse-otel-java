@@ -218,7 +218,10 @@ public class LangfuseOtel implements AutoCloseable {
         }
     }
 
-    /** Creates a new trace. Caller must close the returned trace (try-with-resources or {@code end()}). */
+    /**
+     * Creates a synchronous, thread-bound trace scope. The caller must close it on the creating
+     * thread, after its children, using try-with-resources or {@code end()}.
+     */
     public LangfuseTrace trace(String name) {
         return new LangfuseTrace(tracer, name);
     }

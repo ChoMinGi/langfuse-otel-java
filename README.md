@@ -391,6 +391,11 @@ var gen = trace.generation("llm").model("gpt-4o");
 gen.output(result).end();
 ```
 
+All three wrapper styles are synchronous scope APIs. Close each handle on the thread that created
+it, in reverse creation order. Do not pass a handle to a `CompletionStage` or reactive callback;
+use the starter's async instrumentation or a raw OpenTelemetry span with short-lived scopes at
+the callback boundaries.
+
 ### Operational Signals
 
 Missing API keys or an invalid standalone configuration still fall back to no-op mode without crashing the application. `LangfuseOtel.getStatus()` returns an immutable snapshot of that fallback, ownership, export, queue-drop, and flush state. Reading it does not flush or make a network request.

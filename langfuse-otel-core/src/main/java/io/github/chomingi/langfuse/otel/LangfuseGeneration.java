@@ -6,6 +6,9 @@ import io.opentelemetry.api.trace.Tracer;
 /**
  * Represents an LLM generation (model invocation). Tracks model, input/output, tokens, and metadata.
  * Created via {@code trace.generation("name")} or directly with a Tracer for AOP use cases.
+ *
+ * <p>The generation is a synchronous, thread-bound scope. Close it on the thread where it was
+ * created and in reverse creation order relative to other Langfuse spans.</p>
  */
 public class LangfuseGeneration extends AbstractLangfuseSpan {
 

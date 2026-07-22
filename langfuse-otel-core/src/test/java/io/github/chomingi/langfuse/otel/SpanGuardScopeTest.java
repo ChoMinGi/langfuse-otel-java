@@ -1,6 +1,7 @@
 package io.github.chomingi.langfuse.otel;
 
 import io.opentelemetry.api.trace.Span;
+import io.opentelemetry.api.trace.SpanContext;
 import io.opentelemetry.api.trace.Tracer;
 import io.opentelemetry.context.Scope;
 import io.opentelemetry.sdk.testing.junit5.OpenTelemetryExtension;
@@ -8,10 +9,14 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 
 import java.lang.ref.Cleaner;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class SpanGuardScopeTest {
 
@@ -44,34 +49,91 @@ class SpanGuardScopeTest {
     }
 
     @Test
-    void cleanerPathEndsSpanWithoutClosingThreadAffineScope() {
+    void cleanerPathEndsSpanWithoutOwningThreadAffineScope() {
         Tracer tracer = otel.getOpenTelemetry().getTracer("cleaner-thread-safety-test");
         Span span = tracer.spanBuilder("abandoned-generation").startSpan();
-        AtomicInteger scopeCloseCalls = new AtomicInteger();
-        Scope threadAffineScope = scopeCloseCalls::incrementAndGet;
         Object owner = new Object();
 
         Cleaner.Cleanable cleanable = SpanGuard.register(
-                owner, span, threadAffineScope, "abandoned-generation", new AtomicBoolean(false));
+                owner, span, "abandoned-generation", new AtomicBoolean(false));
         cleanable.clean();
 
-        assertThat(scopeCloseCalls).hasValue(0);
         assertThat(span.isRecording()).isFalse();
     }
 
     @Test
-    void explicitClosePathStillClosesScopeBeforeEndingSpan() {
-        Tracer tracer = otel.getOpenTelemetry().getTracer("explicit-close-test");
-        Span span = tracer.spanBuilder("explicit-generation").startSpan();
-        AtomicInteger scopeCloseCalls = new AtomicInteger();
-        Scope scope = scopeCloseCalls::incrementAndGet;
-        AtomicBoolean closed = new AtomicBoolean(true);
-        Object owner = new Object();
+    void crossThreadEndFailsWithoutChangingEitherThreadContext() throws Exception {
+        Tracer tracer = otel.getOpenTelemetry().getTracer("cross-thread-close-test");
+        Span parent = tracer.spanBuilder("parent").startSpan();
+        ExecutorService executor = Executors.newSingleThreadExecutor();
 
-        Cleaner.Cleanable cleanable = SpanGuard.register(owner, span, scope, "explicit-generation", closed);
-        cleanable.clean();
+        try (Scope parentScope = parent.makeCurrent()) {
+            LangfuseGeneration generation = new LangfuseGeneration(tracer, "generation");
+            AtomicReference<SpanContext> workerContextBefore = new AtomicReference<>();
+            AtomicReference<SpanContext> workerContextAfter = new AtomicReference<>();
 
-        assertThat(scopeCloseCalls).hasValue(1);
-        assertThat(span.isRecording()).isFalse();
+            try {
+                Future<Throwable> result = executor.submit(() -> {
+                    workerContextBefore.set(Span.current().getSpanContext());
+                    try {
+                        generation.end();
+                        return null;
+                    } catch (Throwable failure) {
+                        return failure;
+                    } finally {
+                        workerContextAfter.set(Span.current().getSpanContext());
+                    }
+                });
+
+                assertThat(result.get())
+                        .isInstanceOf(IllegalStateException.class)
+                        .hasMessage("Langfuse spans must be closed on the thread where they were created");
+                assertThat(workerContextBefore).hasValue(SpanContext.getInvalid());
+                assertThat(workerContextAfter).hasValue(SpanContext.getInvalid());
+                assertThat(generation.getSpan().isRecording()).isTrue();
+                assertThat(Span.current().getSpanContext())
+                        .isEqualTo(generation.getSpan().getSpanContext());
+            } finally {
+                generation.close();
+            }
+
+            assertThat(Span.current().getSpanContext()).isEqualTo(parent.getSpanContext());
+        } finally {
+            executor.shutdownNow();
+            parent.end();
+        }
+
+        assertThat(otel.getSpans())
+                .filteredOn(span -> span.getName().equals("generation"))
+                .hasSize(1);
+    }
+
+    @Test
+    void outOfOrderCloseFailsAndCanBeRetriedInLifoOrder() {
+        Tracer tracer = otel.getOpenTelemetry().getTracer("lifo-close-test");
+        LangfuseSpan parent = new LangfuseSpan(tracer, "parent");
+        LangfuseGeneration child = new LangfuseGeneration(tracer, "child");
+
+        try {
+            assertThatThrownBy(parent::close)
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessage("Langfuse spans must be closed in reverse creation order");
+            assertThat(parent.getSpan().isRecording()).isTrue();
+            assertThat(child.getSpan().isRecording()).isTrue();
+            assertThat(Span.current().getSpanContext())
+                    .isEqualTo(child.getSpan().getSpanContext());
+
+            child.close();
+            assertThat(Span.current().getSpanContext())
+                    .isEqualTo(parent.getSpan().getSpanContext());
+        } finally {
+            child.close();
+            parent.close();
+        }
+
+        assertThat(Span.current().getSpanContext()).isEqualTo(SpanContext.getInvalid());
+        assertThat(otel.getSpans())
+                .filteredOn(span -> span.getName().equals("parent") || span.getName().equals("child"))
+                .hasSize(2);
     }
 }

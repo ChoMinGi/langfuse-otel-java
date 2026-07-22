@@ -41,7 +41,8 @@ class LangfuseOtelAutoConfigurationTest {
             assertThat(context).hasSingleBean(ObserveGenerationAspect.class);
             assertThat(context).hasSingleBean(SpringAiChatModelBeanPostProcessor.class);
             assertThat(context).hasSingleBean(LangChain4jChatModelBeanPostProcessor.class);
-            assertThat(context).hasSingleBean(LangfuseContextFilter.class);
+            assertThat(context).doesNotHaveBean(LangfuseContextFilter.class);
+            assertThat(context).doesNotHaveBean(LangfuseReactiveContextFilter.class);
         });
     }
 

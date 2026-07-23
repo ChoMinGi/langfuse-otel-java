@@ -58,6 +58,7 @@
 - [x] Validate and document supported-provider executor configuration where LangChain4j implementations use an opaque internal executor; generic SPI coverage stops at the callback and explicit scheduling boundaries
 - [x] Expose Actuator health/metrics for ownership mode, no-op fallback, exporter failures, queue drops, and flush state
 - [x] Add JaCoCo baseline and prevent coverage regression
+- [x] Align the Boot 3 dependency baseline and reject dependency convergence regressions
 - [ ] Add static analysis, dependency vulnerability, license, and SBOM gates
 - [ ] Add binary/source API compatibility checks against 0.1.1
 - [ ] Resolve public API Javadoc warnings
@@ -76,6 +77,7 @@
 
 ## 0.3 Adapter Direction
 
+- Move the Spring starter to Boot 4 and Spring AI 2 as a separate compatibility line
 - Replace Spring AI model BeanPostProcessor wrappers with its Observation extension points where supported
 - Prefer framework-native LangChain4j listener/context hooks over model proxying where supported, retaining an explicit provider scheduling boundary
 - Centralize and version the GenAI semantic attribute mapping

@@ -465,13 +465,14 @@ Remaining production work is tracked in [ROADMAP.md](ROADMAP.md); `0.2.0-SNAPSHO
 | Java | 11+ | Core module |
 | Java | 17+ | Spring Boot starter |
 | OpenTelemetry SDK | 1.44.1 | Via BOM |
-| Spring Boot | 3.4.x | Auto-configuration |
-| Spring AI | 1.0.0 — 1.1.8 | Chat, streaming, embeddings, images |
-| Spring AI | 2.0.0 | Current stable (CI tested) |
-| LangChain4j | 1.0.0 — 1.18.0 | Chat, streaming, embeddings, images; provider internals vary |
+| Spring Boot | 3.5.16 | Boot 3 auto-configuration |
+| Spring AI | 1.0.9 / 1.1.8 | Chat, streaming, embeddings, images |
+| LangChain4j | 1.0.0 / 1.18.0 | Chat, streaming, embeddings, images; provider internals vary |
 | langfuse-java | 0.2.x | Prompt management (optional) |
 | Langfuse Cloud | v3+ | OTLP ingestion |
 | Langfuse Self-hosted | v3.22.0+ | Requires OTLP support |
+
+`0.2.x` is the Boot 3 compatibility line. It does not support Boot 4 or Spring AI 2, which require a separate adapter migration. Spring Boot 3.5.16 is also the [last OSS release in the Boot 3 line](https://spring.io/blog/2026/06/25/spring-boot-3-5-16-available-now/), so production users should have either commercial support or a Boot 4 migration plan.
 
 ## Examples
 

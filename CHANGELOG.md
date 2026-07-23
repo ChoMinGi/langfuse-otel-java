@@ -18,6 +18,7 @@
 - Immutable operational snapshots through `LangfuseOtel.getStatus()` and optional Actuator/Micrometer signals for ownership, fail-safe fallback, standalone export failures, queue drops, and flush state
 - Maven Wrapper with a pinned distribution checksum
 - Reproducible archive metadata through a fixed Maven build output timestamp
+- A dependency-convergence gate for the reactor build
 - Contract tests for SDK ownership, scope restoration, safe content defaults, reactive context isolation, streaming lifecycle, and standalone OTLP transport security
 
 ### Changed
@@ -34,6 +35,8 @@
 - Release validation now requires tag/POM/docs/examples consistency plus the Java/framework and consumer gates; Central publishing stops for manual approval
 - Live Langfuse CI reports an explicit opt-in status and fails on missing credentials once enabled
 - Standalone hosts are validated and require HTTPS; the development-only HTTP opt-in is restricted to loopback hosts
+- The Boot 3 dependency baseline is now 3.5.16 with security-patched Spring AI 1.0.9/1.1.8, Jackson 2.21.5, and aligned Kotlin, OkHttp, SLF4J, Reactor, and Micrometer versions
+- The compatibility matrix now covers Spring AI 1.0.9 and 1.1.8; Spring AI 2 is deferred to a Boot 4 adapter line
 
 ### Fixed
 - Re-subscribing to a Spring AI stream no longer shares a span or output accumulator

@@ -11,11 +11,19 @@ import reactor.core.publisher.Mono;
 
 import java.security.Principal;
 
+/**
+ * Populates Reactor context with Langfuse authentication and session metadata.
+ */
 @Order(Ordered.LOWEST_PRECEDENCE - 100)
 public class LangfuseReactiveContextFilter implements WebFilter {
 
     private final LangfuseOtelProperties properties;
 
+    /**
+     * Creates a filter using the configured request-context capture policy.
+     *
+     * @param properties starter configuration
+     */
     public LangfuseReactiveContextFilter(LangfuseOtelProperties properties) {
         this.properties = properties;
     }

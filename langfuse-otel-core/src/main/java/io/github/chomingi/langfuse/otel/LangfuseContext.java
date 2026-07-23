@@ -34,12 +34,23 @@ public final class LangfuseContext {
 
     private LangfuseContext() {}
 
-    /** Returns the stable key used to store {@link LangfuseTraceContext} in a Reactor Context. */
+    /**
+     * Returns the stable key used to store {@link LangfuseTraceContext} in a Reactor Context.
+     *
+     * @return the Reactor context key
+     */
     public static Object reactorContextKey() {
         return REACTOR_CONTEXT_KEY;
     }
 
-    /** Adds Langfuse request metadata to an OpenTelemetry context. */
+    /**
+     * Adds Langfuse request metadata to an OpenTelemetry context.
+     *
+     * @param context source context
+     * @param traceContext metadata to store
+     * @return a context containing the metadata
+     * @throws IllegalArgumentException if either argument is {@code null}
+     */
     public static Context storeIn(Context context, LangfuseTraceContext traceContext) {
         if (context == null) {
             throw new IllegalArgumentException("context must not be null");
@@ -50,13 +61,22 @@ public final class LangfuseContext {
         return context.with(OTEL_CONTEXT_KEY, traceContext);
     }
 
-    /** Returns Langfuse request metadata stored in the supplied OpenTelemetry context, if any. */
+    /**
+     * Returns metadata stored in an OpenTelemetry context.
+     *
+     * @param context context to read; may be {@code null}
+     * @return stored metadata, or {@code null} when absent
+     */
     public static LangfuseTraceContext from(Context context) {
         return context == null ? null : context.get(OTEL_CONTEXT_KEY);
     }
 
     /**
      * Makes immutable Langfuse metadata current for synchronous work and restores the previous values on close.
+     *
+     * @param traceContext metadata to make current
+     * @return a scope that restores the previous metadata
+     * @throws IllegalArgumentException if {@code traceContext} is {@code null}
      */
     public static Scope makeCurrent(LangfuseTraceContext traceContext) {
         if (traceContext == null) {
@@ -103,36 +123,70 @@ public final class LangfuseContext {
         };
     }
 
+    /**
+     * Sets the legacy thread-local user identifier. This mutation is ignored while immutable
+     * metadata installed outside {@link #makeCurrent(LangfuseTraceContext)} is current.
+     *
+     * @param userId user identifier; may be {@code null}
+     */
     public static void setUserId(String userId) {
         if (!legacyMutationAllowed()) return;
         markLegacyOverride();
         USER_ID.set(userId);
     }
 
+    /**
+     * Returns the current user identifier.
+     *
+     * @return the user identifier, or {@code null}
+     */
     public static String getUserId() {
         if (hasLegacyOverride()) return USER_ID.get();
         LangfuseTraceContext traceContext = from(Context.current());
         return traceContext != null ? traceContext.getUserId() : USER_ID.get();
     }
 
+    /**
+     * Sets the legacy thread-local session identifier. This mutation is ignored while immutable
+     * metadata installed outside {@link #makeCurrent(LangfuseTraceContext)} is current.
+     *
+     * @param sessionId session identifier; may be {@code null}
+     */
     public static void setSessionId(String sessionId) {
         if (!legacyMutationAllowed()) return;
         markLegacyOverride();
         SESSION_ID.set(sessionId);
     }
 
+    /**
+     * Returns the current session identifier.
+     *
+     * @return the session identifier, or {@code null}
+     */
     public static String getSessionId() {
         if (hasLegacyOverride()) return SESSION_ID.get();
         LangfuseTraceContext traceContext = from(Context.current());
         return traceContext != null ? traceContext.getSessionId() : SESSION_ID.get();
     }
 
+    /**
+     * Sets the legacy thread-local trace tags. This mutation is ignored while immutable metadata
+     * installed outside {@link #makeCurrent(LangfuseTraceContext)} is current.
+     *
+     * @param tags trace tags; must not be {@code null}
+     * @throws NullPointerException if {@code tags} is {@code null}
+     */
     public static void setTags(String... tags) {
         if (!legacyMutationAllowed()) return;
         markLegacyOverride();
         TAGS.set(Arrays.asList(tags));
     }
 
+    /**
+     * Returns the current trace tags.
+     *
+     * @return trace tags, never {@code null}
+     */
     public static List<String> getTags() {
         if (hasLegacyOverride()) return getLocalTags();
         LangfuseTraceContext traceContext = from(Context.current());
@@ -141,19 +195,34 @@ public final class LangfuseContext {
         return tags != null ? tags : Collections.emptyList();
     }
 
+    /**
+     * Sets the legacy thread-local environment. This mutation is ignored while immutable metadata
+     * installed outside {@link #makeCurrent(LangfuseTraceContext)} is current.
+     *
+     * @param environment environment name; may be {@code null}
+     */
     public static void setEnvironment(String environment) {
         if (!legacyMutationAllowed()) return;
         markLegacyOverride();
         ENVIRONMENT.set(environment);
     }
 
+    /**
+     * Returns the current environment.
+     *
+     * @return the environment, or {@code null}
+     */
     public static String getEnvironment() {
         if (hasLegacyOverride()) return ENVIRONMENT.get();
         LangfuseTraceContext traceContext = from(Context.current());
         return traceContext != null ? traceContext.getEnvironment() : ENVIRONMENT.get();
     }
 
-    /** Returns an immutable snapshot of the current OTel or legacy thread-local values. */
+    /**
+     * Returns an immutable snapshot of the current OTel or legacy thread-local values.
+     *
+     * @return current request metadata
+     */
     public static LangfuseTraceContext current() {
         if (hasLegacyOverride()) return legacyCurrent();
         LangfuseTraceContext traceContext = from(Context.current());
@@ -170,6 +239,10 @@ public final class LangfuseContext {
                 .build();
     }
 
+    /**
+     * Clears legacy thread-local metadata. This mutation is ignored while immutable metadata
+     * installed outside {@link #makeCurrent(LangfuseTraceContext)} is current.
+     */
     public static void clear() {
         if (!legacyMutationAllowed()) return;
         markLegacyOverride();
@@ -183,7 +256,13 @@ public final class LangfuseContext {
         return Boolean.TRUE.equals(LEGACY_OVERRIDE.get());
     }
 
-    /** Applies immutable Langfuse request metadata directly to a library-created span. */
+    /**
+     * Applies immutable Langfuse request metadata directly to a library-created span.
+     *
+     * @param span destination span
+     * @param traceContext metadata to apply; {@code null} is ignored
+     * @throws IllegalArgumentException if {@code span} is {@code null}
+     */
     public static void applyTo(Span span, LangfuseTraceContext traceContext) {
         if (span == null) {
             throw new IllegalArgumentException("span must not be null");
@@ -203,7 +282,12 @@ public final class LangfuseContext {
         }
     }
 
-    /** Applies the current OTel or legacy Langfuse request metadata directly to a span. */
+    /**
+     * Applies the current OTel or legacy Langfuse request metadata directly to a span.
+     *
+     * @param span destination span
+     * @throws IllegalArgumentException if {@code span} is {@code null}
+     */
     public static void applyTo(Span span) {
         applyTo(span, current());
     }

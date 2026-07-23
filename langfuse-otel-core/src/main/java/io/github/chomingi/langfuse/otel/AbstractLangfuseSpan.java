@@ -8,6 +8,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 abstract class AbstractLangfuseSpan implements AutoCloseable {
 
+    /** Underlying OpenTelemetry span. */
     protected final Span span;
     private final Scope scope;
     private final Thread openingThread;
@@ -49,18 +50,35 @@ abstract class AbstractLangfuseSpan implements AutoCloseable {
         this.cleanable = registeredCleanable;
     }
 
+    /**
+     * Records the exception type and marks the span as failed.
+     *
+     * @param t exception to record; {@code null} is ignored
+     */
     public void recordException(Throwable t) {
         ExceptionRecorder.recordTypeOnly(span, t);
     }
 
+    /**
+     * Returns the underlying OpenTelemetry span.
+     *
+     * @return the underlying OpenTelemetry span
+     */
     public Span getSpan() {
         return span;
     }
 
+    /** Ends this scope; equivalent to {@link #close()}. */
     public void end() {
         close();
     }
 
+    /**
+     * Restores the parent context and ends the span.
+     *
+     * @throws IllegalStateException if called from a different thread or while another
+     * OpenTelemetry context is current
+     */
     @Override
     public void close() {
         if (closed.get()) {

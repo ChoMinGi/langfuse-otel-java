@@ -15,6 +15,9 @@ import org.springframework.ai.image.ImageResponse;
 
 import java.util.stream.Collectors;
 
+/**
+ * Spring AI image model decorator that records Langfuse client spans.
+ */
 public class TracingSpringAiImageModel implements ImageModel {
 
     private static final Logger log = LoggerFactory.getLogger(TracingSpringAiImageModel.class);
@@ -22,6 +25,12 @@ public class TracingSpringAiImageModel implements ImageModel {
     private final ImageModel delegate;
     private final LangfuseOtel langfuseOtel;
 
+    /**
+     * Creates a tracing decorator for a Spring AI image model.
+     *
+     * @param delegate model that performs image requests
+     * @param langfuseOtel tracing integration
+     */
     public TracingSpringAiImageModel(ImageModel delegate, LangfuseOtel langfuseOtel) {
         this.delegate = delegate;
         this.langfuseOtel = langfuseOtel;

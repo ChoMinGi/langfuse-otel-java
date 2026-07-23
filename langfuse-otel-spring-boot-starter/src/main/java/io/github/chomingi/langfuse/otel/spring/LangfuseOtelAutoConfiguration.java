@@ -26,6 +26,9 @@ import java.util.stream.Collectors;
 import static io.github.chomingi.langfuse.otel.spring.LangfuseOtelProperties.OpenTelemetryMode.AUTO;
 import static io.github.chomingi.langfuse.otel.spring.LangfuseOtelProperties.OpenTelemetryMode.EXTERNAL;
 
+/**
+ * Configures the Langfuse client and optional Spring integration components.
+ */
 @AutoConfiguration
 @EnableConfigurationProperties(LangfuseOtelProperties.class)
 @ConditionalOnProperty(prefix = "langfuse", name = "enabled", havingValue = "true", matchIfMissing = true)
@@ -33,6 +36,15 @@ public class LangfuseOtelAutoConfiguration {
 
     private static final Logger log = LoggerFactory.getLogger(LangfuseOtelAutoConfiguration.class);
 
+    /**
+     * Creates a Langfuse client from application properties and available extension beans.
+     *
+     * @param properties starter configuration
+     * @param openTelemetryProvider application OpenTelemetry beans
+     * @param contentRedactorProvider content redactor beans
+     * @param exceptionRedactorProvider exception redactor beans
+     * @return the configured tracing integration
+     */
     @Bean(destroyMethod = "close")
     @ConditionalOnMissingBean
     public LangfuseOtel langfuseOtel(LangfuseOtelProperties properties,
@@ -57,7 +69,7 @@ public class LangfuseOtelAutoConfiguration {
      * standalone path.
      *
      * @param properties standalone configuration properties
-     * @return the configured Langfuse client
+     * @return the configured tracing integration
      * @deprecated Prefer Spring auto-configuration or {@link LangfuseOtel#builder()}.
      */
     @Deprecated(since = "0.2.0", forRemoval = false)
@@ -137,6 +149,12 @@ public class LangfuseOtelAutoConfiguration {
                 .build();
     }
 
+    /**
+     * Creates the aspect that traces methods annotated with {@code @ObserveGeneration}.
+     *
+     * @param langfuseOtel tracing integration
+     * @return the generation observation aspect
+     */
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnBean(LangfuseOtel.class)
@@ -144,6 +162,12 @@ public class LangfuseOtelAutoConfiguration {
         return new ObserveGenerationAspect(langfuseOtel);
     }
 
+    /**
+     * Creates the servlet filter that propagates request-derived Langfuse context.
+     *
+     * @param properties starter configuration
+     * @return the servlet context filter
+     */
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnClass(name = "jakarta.servlet.Filter")
@@ -152,6 +176,12 @@ public class LangfuseOtelAutoConfiguration {
         return new LangfuseContextFilter(properties);
     }
 
+    /**
+     * Creates the WebFlux filter that propagates request-derived Langfuse context.
+     *
+     * @param properties starter configuration
+     * @return the reactive context filter
+     */
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnClass(name = "org.springframework.web.server.WebFilter")

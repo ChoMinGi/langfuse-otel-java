@@ -15,11 +15,19 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import java.io.IOException;
 import java.security.Principal;
 
+/**
+ * Populates Langfuse trace context from servlet authentication and session state.
+ */
 @Order(Ordered.LOWEST_PRECEDENCE - 100)
 public class LangfuseContextFilter extends OncePerRequestFilter {
 
     private final LangfuseOtelProperties properties;
 
+    /**
+     * Creates a filter using the configured request-context capture policy.
+     *
+     * @param properties starter configuration
+     */
     public LangfuseContextFilter(LangfuseOtelProperties properties) {
         this.properties = properties;
     }

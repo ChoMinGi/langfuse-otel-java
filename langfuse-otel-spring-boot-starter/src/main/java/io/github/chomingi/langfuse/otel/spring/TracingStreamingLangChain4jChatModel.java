@@ -41,6 +41,9 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
+/**
+ * LangChain4j streaming chat decorator that records one Langfuse span per request.
+ */
 public class TracingStreamingLangChain4jChatModel implements StreamingChatModel, ChatModel {
 
     private static final Logger log = LoggerFactory.getLogger(TracingStreamingLangChain4jChatModel.class);
@@ -48,6 +51,12 @@ public class TracingStreamingLangChain4jChatModel implements StreamingChatModel,
     private final Object delegate;
     private final LangfuseOtel langfuseOtel;
 
+    /**
+     * Creates a tracing decorator for a streaming or dual-mode LangChain4j chat model.
+     *
+     * @param delegate streaming chat model to invoke
+     * @param langfuseOtel tracing integration
+     */
     public TracingStreamingLangChain4jChatModel(Object delegate, LangfuseOtel langfuseOtel) {
         this.delegate = delegate;
         this.langfuseOtel = langfuseOtel;

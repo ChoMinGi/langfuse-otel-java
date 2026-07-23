@@ -17,6 +17,9 @@ import org.slf4j.LoggerFactory;
 import java.util.List;
 import java.util.stream.Collectors;
 
+/**
+ * LangChain4j embedding model decorator that records Langfuse client spans.
+ */
 public class TracingLangChain4jEmbeddingModel implements EmbeddingModel {
 
     private static final Logger log = LoggerFactory.getLogger(TracingLangChain4jEmbeddingModel.class);
@@ -24,6 +27,12 @@ public class TracingLangChain4jEmbeddingModel implements EmbeddingModel {
     private final EmbeddingModel delegate;
     private final LangfuseOtel langfuseOtel;
 
+    /**
+     * Creates a tracing decorator for a LangChain4j embedding model.
+     *
+     * @param delegate model that performs embedding requests
+     * @param langfuseOtel tracing integration
+     */
     public TracingLangChain4jEmbeddingModel(EmbeddingModel delegate, LangfuseOtel langfuseOtel) {
         this.delegate = delegate;
         this.langfuseOtel = langfuseOtel;

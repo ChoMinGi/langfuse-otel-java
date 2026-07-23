@@ -21,6 +21,9 @@ import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
+/**
+ * Spring AI embedding model decorator that records Langfuse client spans.
+ */
 public class TracingSpringAiEmbeddingModel implements EmbeddingModel {
 
     private static final Logger log = LoggerFactory.getLogger(TracingSpringAiEmbeddingModel.class);
@@ -28,6 +31,12 @@ public class TracingSpringAiEmbeddingModel implements EmbeddingModel {
     private final EmbeddingModel delegate;
     private final LangfuseOtel langfuseOtel;
 
+    /**
+     * Creates a tracing decorator for a Spring AI embedding model.
+     *
+     * @param delegate model that performs embedding requests
+     * @param langfuseOtel tracing integration
+     */
     public TracingSpringAiEmbeddingModel(EmbeddingModel delegate, LangfuseOtel langfuseOtel) {
         this.delegate = delegate;
         this.langfuseOtel = langfuseOtel;

@@ -88,17 +88,29 @@ public final class LangfuseOtelStatus {
         this.timedOutFlushCount = timedOutFlushCount;
     }
 
-    /** Returns who owns the OpenTelemetry lifecycle. */
+    /**
+     * Returns who owns the OpenTelemetry lifecycle.
+     *
+     * @return the ownership mode
+     */
     public LangfuseOtel.OpenTelemetryOwnership getOpenTelemetryOwnership() {
         return openTelemetryOwnership;
     }
 
-    /** Returns whether fail-safe construction produced a no-op instance. */
+    /**
+     * Returns whether fail-safe construction produced a no-op instance.
+     *
+     * @return {@code true} for a fail-safe no-op
+     */
     public boolean isNoopFallback() {
         return noopFallback;
     }
 
-    /** Returns the bounded reason for a fail-safe no-op fallback. */
+    /**
+     * Returns why fail-safe construction produced a no-op instance.
+     *
+     * @return the no-op reason
+     */
     public NoopReason getNoopReason() {
         return noopReason;
     }
@@ -106,12 +118,18 @@ public final class LangfuseOtelStatus {
     /**
      * Returns whether exporter, queue, and flush signals are managed by this instance.
      * External OpenTelemetry pipelines deliberately return {@code false}.
+     *
+     * @return {@code true} when operational signals are available
      */
     public boolean isOperationalSignalsAvailable() {
         return operationalSignalsAvailable;
     }
 
-    /** Returns the most recently completed standalone export state. */
+    /**
+     * Returns the most recently completed standalone export state.
+     *
+     * @return the export state
+     */
     public ExportState getExportState() {
         return exportState;
     }
@@ -119,6 +137,8 @@ public final class LangfuseOtelStatus {
     /**
      * Returns spans contained in standalone exporter calls reported as failed.
      * This counter is meaningful only when operational signals are available.
+     *
+     * @return cumulative spans in failed export calls
      */
     public long getFailedExportSpanCount() {
         return failedExportSpanCount;
@@ -127,14 +147,19 @@ public final class LangfuseOtelStatus {
     /**
      * Returns the cumulative number of spans dropped when the standalone queue was full.
      * This counter is meaningful only when operational signals are available.
+     *
+     * @return cumulative queue-dropped spans
      */
     public long getQueueDroppedSpanCount() {
         return queueDroppedSpanCount;
     }
 
     /**
-     * Returns whether a queue drop was observed after the latest successful export completion.
+     * Returns whether a queue drop was observed since startup or the latest successful export.
      * A later success shows pipeline progress; it cannot recover spans that were already dropped.
+     *
+     * @return {@code true} when a queue drop has occurred since startup or the latest successful
+     * export
      */
     public boolean hasQueueDropsSinceLastSuccessfulExport() {
         return queueDropsSinceLastSuccessfulExport;
@@ -143,6 +168,8 @@ public final class LangfuseOtelStatus {
     /**
      * Returns the most recent explicit standalone flush state.
      * Success means local SDK drain completion, not guaranteed remote delivery.
+     *
+     * @return the flush state
      */
     public FlushState getFlushState() {
         return flushState;
@@ -151,6 +178,8 @@ public final class LangfuseOtelStatus {
     /**
      * Returns explicit owned-pipeline flushes that failed or were interrupted.
      * External and no-op values are not observations of their pipelines.
+     *
+     * @return cumulative failed flushes
      */
     public long getFailedFlushCount() {
         return failedFlushCount;
@@ -159,6 +188,8 @@ public final class LangfuseOtelStatus {
     /**
      * Returns explicit owned-pipeline flushes that exceeded the local wait timeout.
      * External and no-op values are not observations of their pipelines.
+     *
+     * @return cumulative timed-out flushes
      */
     public long getTimedOutFlushCount() {
         return timedOutFlushCount;

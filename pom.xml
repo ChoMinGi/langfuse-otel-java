@@ -56,6 +56,8 @@
         <spotbugs-maven-plugin.version>4.10.3.0</spotbugs-maven-plugin.version>
         <license-maven-plugin.version>2.7.1</license-maven-plugin.version>
         <cyclonedx-maven-plugin.version>2.9.2</cyclonedx-maven-plugin.version>
+        <japicmp-maven-plugin.version>0.26.1</japicmp-maven-plugin.version>
+        <api.compatibility.baseline>0.1.1</api.compatibility.baseline>
         <jacoco.minimum.line.coverage>0.000</jacoco.minimum.line.coverage>
         <jacoco.minimum.branch.coverage>0.000</jacoco.minimum.branch.coverage>
         <test.excludedGroups>integration,e2e</test.excludedGroups>
@@ -255,6 +257,43 @@
                                 </rule>
                             </rules>
                         </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>com.github.siom79.japicmp</groupId>
+                <artifactId>japicmp-maven-plugin</artifactId>
+                <version>${japicmp-maven-plugin.version}</version>
+                <configuration>
+                    <oldVersion>
+                        <dependency>
+                            <groupId>${project.groupId}</groupId>
+                            <artifactId>${project.artifactId}</artifactId>
+                            <version>${api.compatibility.baseline}</version>
+                            <type>jar</type>
+                        </dependency>
+                    </oldVersion>
+                    <newVersion>
+                        <file>
+                            <path>${project.build.directory}/${project.build.finalName}.jar</path>
+                        </file>
+                    </newVersion>
+                    <parameter>
+                        <onlyModified>true</onlyModified>
+                        <accessModifier>protected</accessModifier>
+                        <ignoreMissingClasses>false</ignoreMissingClasses>
+                        <skipPomModules>true</skipPomModules>
+                        <breakBuildOnBinaryIncompatibleModifications>true</breakBuildOnBinaryIncompatibleModifications>
+                        <breakBuildOnSourceIncompatibleModifications>true</breakBuildOnSourceIncompatibleModifications>
+                    </parameter>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>check-api-compatibility</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>cmp</goal>
+                        </goals>
                     </execution>
                 </executions>
             </plugin>

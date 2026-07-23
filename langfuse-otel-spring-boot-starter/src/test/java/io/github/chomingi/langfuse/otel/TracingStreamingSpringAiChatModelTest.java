@@ -138,7 +138,7 @@ class TracingStreamingSpringAiChatModelTest {
     void nonFatalInvocationContextFailureEndsTheStartedSpanAndFallsBack() {
         AssemblyContextStreamingChatModel target = new AssemblyContextStreamingChatModel();
         ChatModel proxy = proxy(target);
-        FailingOnSecondWriteContext failingContext = new FailingOnSecondWriteContext();
+        FailingRecordingSpanContext failingContext = new FailingRecordingSpanContext();
         LangfuseTraceContext traceContext = LangfuseTraceContext.builder()
                 .userId("failing-context-user")
                 .build();
@@ -151,7 +151,7 @@ class TracingStreamingSpringAiChatModelTest {
                 .block();
 
         assertThat(responses).hasSize(1);
-        assertThat(failingContext.writes()).isEqualTo(2);
+        assertThat(failingContext.rejectedWrites()).isEqualTo(1);
         assertThat(target.assemblySpanId.get()).isEqualTo(
                 Span.getInvalid().getSpanContext().getSpanId());
         assertThat(otel.getSpans()).hasSize(1);
@@ -589,18 +589,18 @@ class TracingStreamingSpringAiChatModelTest {
         }
     }
 
-    static class FailingOnSecondWriteContext implements Context {
+    static class FailingRecordingSpanContext implements Context {
 
         private final Context delegate;
-        private final AtomicInteger writes;
+        private final AtomicInteger rejectedWrites;
 
-        FailingOnSecondWriteContext() {
+        FailingRecordingSpanContext() {
             this(Context.root(), new AtomicInteger());
         }
 
-        private FailingOnSecondWriteContext(Context delegate, AtomicInteger writes) {
+        private FailingRecordingSpanContext(Context delegate, AtomicInteger rejectedWrites) {
             this.delegate = delegate;
-            this.writes = writes;
+            this.rejectedWrites = rejectedWrites;
         }
 
         @Override
@@ -610,14 +610,16 @@ class TracingStreamingSpringAiChatModelTest {
 
         @Override
         public <V> Context with(ContextKey<V> key, V value) {
-            if (writes.incrementAndGet() > 1) {
+            if (value instanceof Span && ((Span) value).isRecording()) {
+                rejectedWrites.incrementAndGet();
                 throw new AssertionError("span context enrichment unavailable");
             }
-            return new FailingOnSecondWriteContext(delegate.with(key, value), writes);
+            return new FailingRecordingSpanContext(
+                    delegate.with(key, value), rejectedWrites);
         }
 
-        int writes() {
-            return writes.get();
+        int rejectedWrites() {
+            return rejectedWrites.get();
         }
     }
 

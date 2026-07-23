@@ -15,6 +15,9 @@ import org.slf4j.LoggerFactory;
 import java.util.List;
 import java.util.function.Supplier;
 
+/**
+ * LangChain4j image model decorator that records Langfuse client spans.
+ */
 public class TracingLangChain4jImageModel implements ImageModel {
 
     private static final Logger log = LoggerFactory.getLogger(TracingLangChain4jImageModel.class);
@@ -22,6 +25,12 @@ public class TracingLangChain4jImageModel implements ImageModel {
     private final ImageModel delegate;
     private final LangfuseOtel langfuseOtel;
 
+    /**
+     * Creates a tracing decorator for a LangChain4j image model.
+     *
+     * @param delegate model that performs image requests
+     * @param langfuseOtel tracing integration
+     */
     public TracingLangChain4jImageModel(ImageModel delegate, LangfuseOtel langfuseOtel) {
         this.delegate = delegate;
         this.langfuseOtel = langfuseOtel;

@@ -9,23 +9,44 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Role;
 
+/**
+ * Adds Langfuse tracing decorators to supported LangChain4j model beans.
+ */
 @AutoConfiguration(after = LangfuseOtelAutoConfiguration.class)
 @ConditionalOnClass(name = "dev.langchain4j.model.chat.ChatModel")
 @ConditionalOnBean(LangfuseOtel.class)
 public class LangChain4jAutoConfiguration {
 
+    /**
+     * Creates infrastructure that decorates LangChain4j chat models.
+     *
+     * @param langfuseOtelProvider provider for the tracing integration
+     * @return the chat model post-processor
+     */
     @Bean
     @Role(BeanDefinition.ROLE_INFRASTRUCTURE)
     public static LangChain4jChatModelBeanPostProcessor langChain4jChatModelBeanPostProcessor(ObjectProvider<LangfuseOtel> langfuseOtelProvider) {
         return new LangChain4jChatModelBeanPostProcessor(langfuseOtelProvider);
     }
 
+    /**
+     * Creates infrastructure that decorates LangChain4j embedding models.
+     *
+     * @param langfuseOtelProvider provider for the tracing integration
+     * @return the embedding model post-processor
+     */
     @Bean
     @Role(BeanDefinition.ROLE_INFRASTRUCTURE)
     public static LangChain4jEmbeddingModelBeanPostProcessor langChain4jEmbeddingModelBeanPostProcessor(ObjectProvider<LangfuseOtel> langfuseOtelProvider) {
         return new LangChain4jEmbeddingModelBeanPostProcessor(langfuseOtelProvider);
     }
 
+    /**
+     * Creates infrastructure that decorates LangChain4j image models.
+     *
+     * @param langfuseOtelProvider provider for the tracing integration
+     * @return the image model post-processor
+     */
     @Bean
     @Role(BeanDefinition.ROLE_INFRASTRUCTURE)
     public static LangChain4jImageModelBeanPostProcessor langChain4jImageModelBeanPostProcessor(ObjectProvider<LangfuseOtel> langfuseOtelProvider) {

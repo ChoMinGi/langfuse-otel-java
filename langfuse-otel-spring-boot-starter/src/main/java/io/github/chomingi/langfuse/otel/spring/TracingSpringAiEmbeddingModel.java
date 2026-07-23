@@ -18,8 +18,12 @@ import org.springframework.ai.embedding.EmbeddingResponseMetadata;
 import org.springframework.ai.chat.metadata.Usage;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
+/**
+ * Spring AI embedding model decorator that records Langfuse client spans.
+ */
 public class TracingSpringAiEmbeddingModel implements EmbeddingModel {
 
     private static final Logger log = LoggerFactory.getLogger(TracingSpringAiEmbeddingModel.class);
@@ -27,6 +31,12 @@ public class TracingSpringAiEmbeddingModel implements EmbeddingModel {
     private final EmbeddingModel delegate;
     private final LangfuseOtel langfuseOtel;
 
+    /**
+     * Creates a tracing decorator for a Spring AI embedding model.
+     *
+     * @param delegate model that performs embedding requests
+     * @param langfuseOtel tracing integration
+     */
     public TracingSpringAiEmbeddingModel(EmbeddingModel delegate, LangfuseOtel langfuseOtel) {
         this.delegate = delegate;
         this.langfuseOtel = langfuseOtel;
@@ -87,15 +97,19 @@ public class TracingSpringAiEmbeddingModel implements EmbeddingModel {
             InstrumentationFailureSupport.endQuietly(createdSpan);
             InstrumentationFailureSupport.rethrowIfFatal(failure);
             log.debug("Langfuse document embedding instrumentation setup failed, proceeding without tracing", failure);
-            return delegate.embed(document);
+            return Objects.requireNonNull(
+                    delegate.embed(document),
+                    "Spring AI EmbeddingModel delegate returned null from embed(Document)");
         }
 
         Span span = createdSpan;
         try {
-            float[] embedding = SpanScopeSupport.call(span, () -> delegate.embed(document));
+            float[] embedding = Objects.requireNonNull(
+                    SpanScopeSupport.call(span, () -> delegate.embed(document)),
+                    "Spring AI EmbeddingModel delegate returned null from embed(Document)");
             try {
-                langfuseOtel.recordOutput(span, embedding == null
-                        ? "0 embedding(s)" : "1 embedding (" + embedding.length + " dimensions)");
+                langfuseOtel.recordOutput(span,
+                        "1 embedding (" + embedding.length + " dimensions)");
             } catch (Throwable failure) {
                 InstrumentationFailureSupport.rethrowIfFatal(failure);
             }
@@ -125,14 +139,18 @@ public class TracingSpringAiEmbeddingModel implements EmbeddingModel {
             InstrumentationFailureSupport.endQuietly(createdSpan);
             InstrumentationFailureSupport.rethrowIfFatal(failure);
             log.debug("Langfuse bulk embedding instrumentation setup failed, proceeding without tracing", failure);
-            return delegate.embed(documents, options, batchingStrategy);
+            return Objects.requireNonNull(
+                    delegate.embed(documents, options, batchingStrategy),
+                    "Spring AI EmbeddingModel delegate returned null from bulk embed");
         }
 
         Span span = createdSpan;
         try {
-            List<float[]> embeddings = SpanScopeSupport.call(span,
-                    () -> delegate.embed(documents, options, batchingStrategy));
-            int embeddingCount = embeddings != null ? embeddings.size() : 0;
+            List<float[]> embeddings = Objects.requireNonNull(
+                    SpanScopeSupport.call(span,
+                            () -> delegate.embed(documents, options, batchingStrategy)),
+                    "Spring AI EmbeddingModel delegate returned null from bulk embed");
+            int embeddingCount = embeddings.size();
             try {
                 langfuseOtel.recordOutput(span, embeddingCount + " embedding(s)");
             } catch (Throwable failure) {

@@ -1,10 +1,12 @@
 # Migrating from 0.1.x to 0.2
 
-0.2 changes automatic instrumentation defaults to make production data boundaries and OpenTelemetry ownership explicit. Review these items before upgrading.
+Version 0.2 makes data capture and OpenTelemetry ownership explicit. Review the changes below
+before upgrading.
 
-## 1. Model content is no longer captured automatically
+## Model content is opt-in
 
-Spring AI, LangChain4j, streaming, embedding, image, and `@ObserveGeneration` wrappers now omit input and output unless enabled independently:
+Automatic Spring AI, LangChain4j, embedding, image, streaming, and `@ObserveGeneration` tracing no
+longer records input or output unless each direction is enabled:
 
 ```yaml
 langfuse:
@@ -14,11 +16,15 @@ langfuse:
     max-length: 8192
 ```
 
-Capture remains usable without a `ContentRedactor`, but zero beans means identity behavior: enabled content is exported unchanged except for the configured length limit. In production, provide exactly one reviewed, thread-safe redactor before enabling potentially sensitive capture. Multiple beans, redactor failures, or a `null` result fail closed and drop the affected content. Explicit core fluent calls to `.input(...)` and `.output(...)` remain intentional direct capture.
+Enabling capture without a `ContentRedactor` exports the selected values unchanged up to the
+configured limit. Production applications should install one reviewed, thread-safe redactor before
+capturing sensitive content. See [SECURITY.md](SECURITY.md) for fail-closed behavior and streaming
+limits. Explicit core `.input(...)` and `.output(...)` calls remain direct capture.
 
-## 2. Exception message and stack trace are opt-in
+## Exception details are opt-in
 
-Automatic instrumentation and direct wrapper `.recordException(...)` calls retain the exception type but omit message and stack trace by default. To enable details for automatic instrumentation:
+Automatic instrumentation and direct wrapper `.recordException(...)` calls keep the exception type
+but omit message and stack trace by default:
 
 ```yaml
 langfuse:
@@ -28,11 +34,10 @@ langfuse:
     max-length: 8192
 ```
 
-With zero `ExceptionRedactor` beans, enabled details use identity behavior and are exported unchanged except for the configured length limit. In production, provide exactly one reviewed, thread-safe redactor before enabling potentially sensitive details. Multiple beans, redactor failures, or a `null` result fail closed. Code using the core API can configure `ExceptionCapturePolicy` and call `LangfuseOtel.recordException(...)`.
+Use one reviewed `ExceptionRedactor` before enabling sensitive details. Code using the core API can
+configure `ExceptionCapturePolicy` and call `LangfuseOtel.recordException(...)`.
 
-## 3. Principal and HTTP session export are opt-in
-
-The starter no longer exports authenticated principal names or raw HTTP session IDs by default:
+## Principal and session export are opt-in
 
 ```yaml
 langfuse:
@@ -41,45 +46,50 @@ langfuse:
     capture-session-id: false
 ```
 
-Treat session IDs as credentials unless the application has explicitly defined a non-secret analytics identifier.
+The user value comes from `Principal#getName()`. Treat HTTP session IDs as credentials unless the
+application has defined them as non-secret analytics identifiers.
 
-## 4. Choose OpenTelemetry ownership deliberately
+## Choose OpenTelemetry ownership
 
-The default `langfuse.otel-mode=auto` reuses one unambiguous application `OpenTelemetry` bean. In that mode, `public-key`, `secret-key`, `host`, and `service-name` are ignored; the application SDK or Collector must already export OTLP traces to Langfuse.
-
-Use one of these settings when auto-selection is not the intended behavior:
+The default `langfuse.otel-mode=auto` reuses one unambiguous application `OpenTelemetry` bean. Its
+export pipeline must already route traces to Langfuse; standalone keys and host settings are not
+used in this mode.
 
 ```yaml
 langfuse:
-  otel-mode: external   # require exactly one application OpenTelemetry bean
-  # otel-mode: standalone  # create and own a dedicated Langfuse SDK/exporter
+  otel-mode: external     # require one application OpenTelemetry bean
+  # otel-mode: standalone # own a dedicated Langfuse SDK and exporter
 ```
 
-Without Spring, `LangfuseOtel.externalBuilder(openTelemetry)` is non-owning. Its `flush()` and `close()` methods do not affect the supplied SDK.
+Without Spring, `LangfuseOtel.externalBuilder(openTelemetry)` is non-owning, so `flush()` and
+`close()` do not affect the supplied SDK.
 
-Standalone hosts now require HTTPS and reject user-info, query, fragment, missing-host, and non-HTTP(S) URIs. A plaintext receiver requires the explicit development-only builder option `.allowInsecureHttpForDevelopment(true)` or Spring property `langfuse.allow-insecure-http-for-development=true`, and its host must still be `localhost` or a literal loopback address.
+## Operational and adapter changes
 
-Legacy `LangfuseContext.set*()` and `clear()` mutations can override immutable metadata only within `LangfuseContext.makeCurrent(...)`, which restores them on close. A scope created directly from `LangfuseContext.storeIn(...)` remains immutable and ignores legacy mutations, preventing executor-thread state from escaping the scope.
+- Applications with Actuator receive a `langfuse` health component and meters. Keep the component
+  out of liveness; include it in readiness only if trace-delivery failure should stop traffic.
+- Spring AI streams create state per subscription. An unsubscribed `Flux` creates no span, and
+  each re-subscription creates a new one.
+- Automatic model instrumentation preserves safely proxyable concrete types. Final or otherwise
+  non-proxyable model types remain unchanged and log a warning.
+- A model-method `@ObserveGeneration` annotation takes precedence over automatic instrumentation
+  for that bean.
+- Generic instrumentation cannot enter opaque provider-owned executors. Use
+  `ReactorContextPropagation` or `LangChain4jStreamingContext` at boundaries owned by the
+  integration. See [DESIGN.md](DESIGN.md#asynchronous-observation-and-context-lifecycle).
+- Standalone hosts require HTTPS. The development-only plaintext option accepts loopback hosts
+  only.
 
-## 5. Streaming lifecycle is subscription-scoped
-
-Spring AI streaming creates a separate span and bounded output accumulator for every subscription. Merely creating a `Flux` no longer creates a span, and re-subscribing no longer reuses prior trace state. Verify any code that relied on eager instrumentation side effects.
-
-When output capture is enabled, a raw stream that exceeds `content.max-length` is now omitted entirely. Shorter streams are redacted at completion and then length-limited. This fail-closed behavior avoids exporting a pre-redaction prefix when a sensitive pattern crosses the buffer boundary.
-
-## 6. Validate adapter compatibility
-
-0.2 remains a production preview. Automatic instrumentation now uses a class-based proxy for safely proxyable models, preserving provider concrete types and extension interfaces. Final provider classes, final model methods, and externally callable final extension methods cannot be safely intercepted or delegated without changing behavior, so they remain unchanged and emit an instrumentation warning. Existing JDK proxies retain only the interfaces already present on that proxy. When singleton circular references are explicitly enabled, the BeanPostProcessor promotes one instrumented early proxy as the final singleton so injected early and final references retain identity.
-
-Streaming-only LangChain4j beans are no longer synchronous `ChatModel` candidates in the automatic BeanPostProcessor path. The legacy manual `TracingStreamingLangChain4jChatModel` keeps both interfaces for binary compatibility. `@ObserveGeneration` now tracks `CompletionStage` completion and Reactor terminal signals; future identity is preserved and Reactor spans are created per subscription. Reactor Scheduler work scheduled under the active instrumented subscription and final raw-thread downstream signals are restored automatically. When provider-side operators sit above a raw-thread source, wrap that source with `ReactorContextPropagation.wrap(...)`. For LangChain4j provider scheduling, use `LangChain4jStreamingContext.wrap(...)`/`taskWrapping(...)` at submission time or retain a per-invocation `Snapshot` for later submission. A completely opaque provider executor still requires provider configuration or agent instrumentation.
-
-An explicit `@ObserveGeneration` on any Spring AI or LangChain4j model method now takes precedence for the entire model bean. Automatic BeanPostProcessor instrumentation is skipped for that bean so the two mechanisms do not produce duplicate spans; annotate every model entry point that should remain traced. Keep model annotations and automatic model instrumentation as alternative bean-level strategies; annotations on ordinary service beans continue to work independently.
+Legacy `LangfuseContext.set*()` and `clear()` mutations are scoped by
+`LangfuseContext.makeCurrent(...)`. An immutable context installed directly with `storeIn(...)`
+ignores those legacy mutations so they cannot escape through a reused executor thread.
 
 ## Upgrade checklist
 
-- Run `./mvnw -B -ntp clean verify` and compile application consumers against `0.2.0-SNAPSHOT`.
-- Decide `langfuse.otel-mode` and verify the selected exporter actually reaches Langfuse.
-- Approve each content, exception, principal, and session field before enabling it.
-- Exercise streaming complete, error, and cancellation paths under load.
-- Confirm provider-specific concrete injection and extension APIs resolve through the proxied bean, and alert on any non-proxyable-model warning.
-- Exercise annotated future and reactive methods through success, failure, cancellation, and re-subscription.
+- Run `./mvnw -B -ntp clean verify` and compile application consumers against `0.2.0`.
+- Choose `langfuse.otel-mode` and verify that the selected pipeline reaches Langfuse.
+- Review content, exception, principal, and session capture before enabling each field.
+- Exercise streaming completion, error, cancellation, and re-subscription.
+- Confirm provider-specific concrete injection still resolves and investigate any non-proxyable
+  model warning.
+- Add alerts for fail-safe fallback, export failures, queue drops, and flush failures.

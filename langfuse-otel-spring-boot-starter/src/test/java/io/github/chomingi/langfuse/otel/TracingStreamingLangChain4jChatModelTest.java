@@ -264,7 +264,7 @@ class TracingStreamingLangChain4jChatModelTest {
 
     @Test
     void activeStateStorageFailureIsNonFatalAndTheSpanStillEnds() {
-        FailingContext failingContext = new FailingContext(3);
+        FailingStateContext failingContext = new FailingStateContext();
         AtomicReference<ChatResponse> completedResponse = new AtomicReference<>();
         io.github.chomingi.langfuse.otel.spring.TracingStreamingLangChain4jChatModel proxy =
                 new io.github.chomingi.langfuse.otel.spring.TracingStreamingLangChain4jChatModel(
@@ -277,13 +277,13 @@ class TracingStreamingLangChain4jChatModelTest {
         }
 
         assertThat(completedResponse.get().aiMessage().text()).isEqualTo("HelloWorld");
-        assertThat(failingContext.writes).hasValue(3);
+        assertThat(failingContext.stateWrites).hasValue(1);
         assertThat(otel.getSpans()).hasSize(1);
     }
 
     @Test
     void fallbackStateStorageFailureIsNonFatalAndDoesNotRetryUnsafely() {
-        FailingContext failingContext = new FailingContext(2);
+        FailingStateContext failingContext = new FailingStateContext();
         AtomicReference<ChatResponse> completedResponse = new AtomicReference<>();
         io.github.chomingi.langfuse.otel.spring.TracingStreamingLangChain4jChatModel proxy =
                 new io.github.chomingi.langfuse.otel.spring.TracingStreamingLangChain4jChatModel(
@@ -296,7 +296,7 @@ class TracingStreamingLangChain4jChatModelTest {
         }
 
         assertThat(completedResponse.get().aiMessage().text()).isEqualTo("fallback response");
-        assertThat(failingContext.writes).hasValue(2);
+        assertThat(failingContext.stateWrites).hasValue(1);
         assertThat(otel.getSpans()).hasSize(1);
     }
 
@@ -1221,13 +1221,10 @@ class TracingStreamingLangChain4jChatModelTest {
                 langfuseOtel);
     }
 
-    static class FailingContext implements Context {
-        private final int failingWrite;
-        private final AtomicInteger writes = new AtomicInteger();
-
-        FailingContext(int failingWrite) {
-            this.failingWrite = failingWrite;
-        }
+    static class FailingStateContext implements Context {
+        private static final String STREAMING_STATE_KEY =
+                "langfuse-langchain4j-streaming-state";
+        private final AtomicInteger stateWrites = new AtomicInteger();
 
         @Override
         public <V> V get(ContextKey<V> key) {
@@ -1236,7 +1233,8 @@ class TracingStreamingLangChain4jChatModelTest {
 
         @Override
         public <V> Context with(ContextKey<V> key, V value) {
-            if (writes.incrementAndGet() == failingWrite) {
+            if (STREAMING_STATE_KEY.equals(key.toString())) {
+                stateWrites.incrementAndGet();
                 throw new IllegalStateException("context state storage unavailable");
             }
             return this;

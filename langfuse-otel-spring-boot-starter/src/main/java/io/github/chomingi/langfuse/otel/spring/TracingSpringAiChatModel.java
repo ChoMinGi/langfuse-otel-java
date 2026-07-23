@@ -27,6 +27,9 @@ import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
+/**
+ * Spring AI chat model decorator that records Langfuse generation spans.
+ */
 public class TracingSpringAiChatModel implements ChatModel {
 
     private static final Logger log = LoggerFactory.getLogger(TracingSpringAiChatModel.class);
@@ -34,6 +37,12 @@ public class TracingSpringAiChatModel implements ChatModel {
     private final ChatModel delegate;
     private final LangfuseOtel langfuseOtel;
 
+    /**
+     * Creates a tracing decorator for a Spring AI chat model.
+     *
+     * @param delegate model that performs chat requests
+     * @param langfuseOtel tracing integration
+     */
     public TracingSpringAiChatModel(ChatModel delegate, LangfuseOtel langfuseOtel) {
         this.delegate = delegate;
         this.langfuseOtel = langfuseOtel;

@@ -155,6 +155,18 @@ class TracingSpringAiEmbeddingModelTest {
     }
 
     @Test
+    void documentEmbeddingRejectsNullDelegateResult() {
+        EmbeddingModel proxy = proxy(new NullReturningSpringAiEmbeddingModel());
+
+        assertThatThrownBy(() -> proxy.embed(new Document("document embedding input")))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("Spring AI EmbeddingModel delegate returned null from embed(Document)");
+
+        assertThat(otel.getSpans()).hasSize(1);
+        assertThat(otel.getSpans().get(0).getStatus().getStatusCode().name()).isEqualTo("ERROR");
+    }
+
+    @Test
     void bulkDocumentEmbeddingPreservesProviderOverrideAndIsTraced() {
         BulkOverrideSpringAiEmbeddingModel target = new BulkOverrideSpringAiEmbeddingModel();
         EmbeddingModel proxy = proxy(target);
@@ -176,6 +188,20 @@ class TracingSpringAiEmbeddingModelTest {
                 .isEqualTo("[first, second]");
         assertThat(span.getAttributes().get(AttributeKey.stringKey("langfuse.observation.output")))
                 .isEqualTo("2 embedding(s)");
+    }
+
+    @Test
+    void bulkDocumentEmbeddingRejectsNullDelegateResult() {
+        EmbeddingModel proxy = proxy(new NullReturningSpringAiEmbeddingModel());
+        List<Document> documents = List.of(new Document("first"), new Document("second"));
+        BatchingStrategy batchingStrategy = input -> List.of(input);
+
+        assertThatThrownBy(() -> proxy.embed(documents, null, batchingStrategy))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("Spring AI EmbeddingModel delegate returned null from bulk embed");
+
+        assertThat(otel.getSpans()).hasSize(1);
+        assertThat(otel.getSpans().get(0).getStatus().getStatusCode().name()).isEqualTo("ERROR");
     }
 
     @Test
@@ -271,6 +297,19 @@ class TracingSpringAiEmbeddingModelTest {
 
         boolean bulkInvoked() {
             return bulkInvoked.get();
+        }
+    }
+
+    static class NullReturningSpringAiEmbeddingModel extends StubSpringAiEmbeddingModel {
+        @Override
+        public float[] embed(Document document) {
+            return null;
+        }
+
+        @Override
+        public List<float[]> embed(List<Document> documents, EmbeddingOptions options,
+                                   BatchingStrategy batchingStrategy) {
+            return null;
         }
     }
 

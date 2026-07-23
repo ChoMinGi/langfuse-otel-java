@@ -19,11 +19,15 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 public @interface ObserveGeneration {
 
+    /** @return the span name, or an empty string to use the method name */
     String name() default "";
 
+    /** @return the model identifier attached to the generation span */
     String model() default "";
 
+    /** @return the model provider or system attached to the generation span */
     String system() default "";
 
+    /** @return the generation operation name */
     String operation() default "chat";
 }

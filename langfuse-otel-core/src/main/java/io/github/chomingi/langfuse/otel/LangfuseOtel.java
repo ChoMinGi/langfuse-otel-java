@@ -5,6 +5,7 @@ import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.Tracer;
 import io.opentelemetry.exporter.otlp.http.trace.OtlpHttpSpanExporter;
 import io.opentelemetry.sdk.OpenTelemetrySdk;
+import io.opentelemetry.sdk.common.CompletableResultCode;
 import io.opentelemetry.sdk.resources.Resource;
 import io.opentelemetry.sdk.resources.ResourceBuilder;
 import io.opentelemetry.sdk.trace.SdkTracerProvider;
@@ -62,6 +63,7 @@ public class LangfuseOtel implements AutoCloseable {
     private final OpenTelemetryOwnership openTelemetryOwnership;
     private final ContentCapturePolicy contentCapturePolicy;
     private final ExceptionCapturePolicy exceptionCapturePolicy;
+    private final LangfuseOtelRuntime runtime;
 
     LangfuseOtel(SdkTracerProvider tracerProvider, OpenTelemetry openTelemetry,
                  Object langfuseClient, boolean noop) {
@@ -70,14 +72,20 @@ public class LangfuseOtel implements AutoCloseable {
                         ? OpenTelemetryOwnership.OWNED
                         : (noop ? OpenTelemetryOwnership.NONE : OpenTelemetryOwnership.EXTERNAL),
                 ContentCapturePolicy.captureAll(),
-                ExceptionCapturePolicy.typeOnly());
+                ExceptionCapturePolicy.typeOnly(),
+                LangfuseOtelRuntime.unmonitored(
+                        tracerProvider != null,
+                        noop
+                                ? LangfuseOtelStatus.NoopReason.INITIALIZATION_FAILURE
+                                : LangfuseOtelStatus.NoopReason.NONE));
     }
 
     private LangfuseOtel(SdkTracerProvider ownedTracerProvider, OpenTelemetry openTelemetry,
                          Object langfuseClient, boolean noop,
                          OpenTelemetryOwnership openTelemetryOwnership,
                          ContentCapturePolicy contentCapturePolicy,
-                         ExceptionCapturePolicy exceptionCapturePolicy) {
+                         ExceptionCapturePolicy exceptionCapturePolicy,
+                         LangfuseOtelRuntime runtime) {
         this.ownedTracerProvider = ownedTracerProvider;
         this.tracer = openTelemetry.getTracer(TRACER_NAME, LIB_VERSION);
         this.langfuseClient = langfuseClient;
@@ -85,19 +93,32 @@ public class LangfuseOtel implements AutoCloseable {
         this.openTelemetryOwnership = openTelemetryOwnership;
         this.contentCapturePolicy = Objects.requireNonNull(contentCapturePolicy, "contentCapturePolicy");
         this.exceptionCapturePolicy = Objects.requireNonNull(exceptionCapturePolicy, "exceptionCapturePolicy");
+        this.runtime = Objects.requireNonNull(runtime, "runtime");
     }
 
     private static LangfuseOtel createNoop(ContentCapturePolicy contentCapturePolicy,
-                                            ExceptionCapturePolicy exceptionCapturePolicy) {
+                                            ExceptionCapturePolicy exceptionCapturePolicy,
+                                            LangfuseOtelStatus.NoopReason reason) {
         return new LangfuseOtel(null, OpenTelemetry.noop(), null, true,
-                OpenTelemetryOwnership.NONE, contentCapturePolicy, exceptionCapturePolicy);
+                OpenTelemetryOwnership.NONE, contentCapturePolicy, exceptionCapturePolicy,
+                LangfuseOtelRuntime.unmonitored(false, reason));
     }
 
+    /**
+     * Returns the optional Langfuse Java client retained by this instance. Fail-safe no-op
+     * instances return {@code null}.
+     *
+     * @return the client, or {@code null}
+     */
     public Object getLangfuseClient() {
         return langfuseClient;
     }
 
-    /** Creates a new builder for configuring the Langfuse OTel integration. */
+    /**
+     * Creates a builder for a standalone OpenTelemetry pipeline.
+     *
+     * @return a new builder
+     */
     public static Builder builder() {
         return new Builder();
     }
@@ -109,6 +130,8 @@ public class LangfuseOtel implements AutoCloseable {
      * Standalone transport settings such as API keys, host, and service name are ignored.
      *
      * @param openTelemetry the application-owned OpenTelemetry instance
+     * @return a builder using the supplied instance
+     * @throws NullPointerException if {@code openTelemetry} is {@code null}
      */
     public static Builder externalBuilder(OpenTelemetry openTelemetry) {
         Builder builder = new Builder();
@@ -121,64 +144,130 @@ public class LangfuseOtel implements AutoCloseable {
         return version != null ? version : "dev";
     }
 
+    /**
+     * Returns this integration's tracer.
+     *
+     * @return the tracer, including for no-op instances
+     */
     public Tracer getTracer() {
         return tracer;
     }
 
+    /**
+     * Returns whether construction fell back to a no-op instance.
+     *
+     * @return {@code true} for a no-op instance
+     */
     public boolean isNoop() {
         return noop;
     }
 
-    /** Returns the lifecycle ownership mode for the OpenTelemetry instance in use. */
+    /**
+     * Returns the lifecycle ownership mode for the OpenTelemetry instance in use.
+     *
+     * @return the ownership mode
+     */
     public OpenTelemetryOwnership getOpenTelemetryOwnership() {
         return openTelemetryOwnership;
     }
 
-    /** Returns whether this instance created and owns its OpenTelemetry SDK. */
+    /**
+     * Returns whether this instance created and owns its OpenTelemetry SDK.
+     *
+     * @return {@code true} when this instance owns the SDK
+     */
     public boolean ownsOpenTelemetry() {
         return openTelemetryOwnership == OpenTelemetryOwnership.OWNED;
     }
 
-    /** Returns the policy applied only to content recorded by automatic instrumentation. */
+    /**
+     * Returns an immutable snapshot of ownership, fallback, exporter, queue, and flush state.
+     * Exporter and queue signals are deliberately not inferred for application-owned pipelines.
+     *
+     * @return the current operational snapshot
+     */
+    public LangfuseOtelStatus getStatus() {
+        return runtime.snapshot(openTelemetryOwnership, noop);
+    }
+
+    /**
+     * Returns the policy applied only to content recorded by automatic instrumentation.
+     *
+     * @return the content capture policy
+     */
     public ContentCapturePolicy getContentCapturePolicy() {
         return contentCapturePolicy;
     }
 
-    /** Returns the policy applied to exceptions recorded by automatic instrumentation. */
+    /**
+     * Returns the policy applied to exceptions recorded by automatic instrumentation.
+     *
+     * @return the exception capture policy
+     */
     public ExceptionCapturePolicy getExceptionCapturePolicy() {
         return exceptionCapturePolicy;
     }
 
-    /** Safely records automatic-instrumentation input according to the configured policy. */
+    /**
+     * Safely records automatic-instrumentation input according to the configured policy.
+     *
+     * @param span destination span; {@code null} is ignored
+     * @param input input value
+     */
     public void recordInput(Span span, Object input) {
         recordContent(span, ContentCaptureType.INPUT, LangfuseAttributes.OBSERVATION_INPUT, input);
     }
 
-    /** Safely records automatic-instrumentation output according to the configured policy. */
+    /**
+     * Safely records automatic-instrumentation output according to the configured policy.
+     *
+     * @param span destination span; {@code null} is ignored
+     * @param output output value
+     */
     public void recordOutput(Span span, Object output) {
         recordContent(span, ContentCaptureType.OUTPUT, LangfuseAttributes.OBSERVATION_OUTPUT, output);
     }
 
-    /** Safely records generation input according to the automatic content policy. */
+    /**
+     * Safely records generation input according to the automatic content policy.
+     *
+     * @param generation destination generation; {@code null} is ignored
+     * @param input input value
+     */
     public void recordInput(LangfuseGeneration generation, Object input) {
         if (generation != null) {
             recordInput(generation.getSpan(), input);
         }
     }
 
-    /** Safely records generation output according to the automatic content policy. */
+    /**
+     * Safely records generation output according to the automatic content policy.
+     *
+     * @param generation destination generation; {@code null} is ignored
+     * @param output output value
+     */
     public void recordOutput(LangfuseGeneration generation, Object output) {
         if (generation != null) {
             recordOutput(generation.getSpan(), output);
         }
     }
 
-    /** Safely records an automatic-instrumentation exception according to the configured policy. */
+    /**
+     * Safely records an automatic-instrumentation exception according to the configured policy.
+     *
+     * @param span destination span; {@code null} is ignored
+     * @param throwable exception to record; {@code null} is ignored
+     */
     public void recordException(Span span, Throwable throwable) {
         ExceptionRecorder.record(span, throwable, exceptionCapturePolicy);
     }
 
-    /** Safely records a generation exception according to the automatic exception policy. */
+    /**
+     * Safely records a generation exception according to the automatic exception policy.
+     *
+     * @param generation destination generation; {@code null} is ignored
+     * @param throwable exception to record; {@code null} is ignored
+     */
     public void recordException(LangfuseGeneration generation, Throwable throwable) {
         if (generation != null) {
             recordException(generation.getSpan(), throwable);
@@ -199,12 +288,23 @@ public class LangfuseOtel implements AutoCloseable {
         }
     }
 
-    /** Creates a new trace. Caller must close the returned trace (try-with-resources or {@code end()}). */
+    /**
+     * Creates a synchronous, thread-bound trace scope. The caller must close it on the creating
+     * thread, after its children, using try-with-resources or {@code end()}.
+     *
+     * @param name trace name
+     * @return the new trace
+     */
     public LangfuseTrace trace(String name) {
         return new LangfuseTrace(tracer, name);
     }
 
-    /** Creates a trace, executes the action, and automatically closes it. Exceptions propagate after recording. */
+    /**
+     * Creates a trace, runs an action, and closes the trace.
+     *
+     * @param name trace name
+     * @param action action to run; runtime exceptions propagate after recording
+     */
     public void trace(String name, Consumer<LangfuseTrace> action) {
         try (LangfuseTrace trace = new LangfuseTrace(tracer, name)) {
             try {
@@ -216,11 +316,40 @@ public class LangfuseOtel implements AutoCloseable {
         }
     }
 
-    /** Flushes only the internally owned SDK; external and no-op modes intentionally do nothing. */
+    /**
+     * Requests a local flush only for the internally owned SDK; external and no-op modes do nothing.
+     * Local flush completion does not guarantee that the remote endpoint accepted every span.
+     */
     public void flush() {
         if (openTelemetryOwnership == OpenTelemetryOwnership.OWNED && ownedTracerProvider != null) {
-            ownedTracerProvider.forceFlush().join(10, TimeUnit.SECONDS);
+            long sequence = runtime.beginFlush();
+            try {
+                LangfuseOtelStatus.FlushState state = awaitFlush(
+                        ownedTracerProvider.forceFlush(), 10, TimeUnit.SECONDS);
+                runtime.completeFlush(sequence, state);
+            } catch (RuntimeException | Error e) {
+                runtime.completeFlush(sequence, LangfuseOtelStatus.FlushState.FAILED);
+                throw e;
+            }
         }
+    }
+
+    static LangfuseOtelStatus.FlushState awaitFlush(CompletableResultCode result,
+                                                     long timeout,
+                                                     TimeUnit unit) {
+        if (result == null) {
+            return LangfuseOtelStatus.FlushState.FAILED;
+        }
+        result.join(timeout, unit);
+        if (!result.isDone()) {
+            if (Thread.currentThread().isInterrupted()) {
+                return LangfuseOtelStatus.FlushState.FAILED;
+            }
+            return LangfuseOtelStatus.FlushState.TIMED_OUT;
+        }
+        return result.isSuccess()
+                ? LangfuseOtelStatus.FlushState.SUCCEEDED
+                : LangfuseOtelStatus.FlushState.FAILED;
     }
 
     /** Shuts down only the internally owned SDK; the application retains external lifecycle control. */
@@ -231,6 +360,7 @@ public class LangfuseOtel implements AutoCloseable {
         }
     }
 
+    /** Configures a Langfuse OpenTelemetry integration. */
     public static class Builder {
 
         private String publicKey;
@@ -248,65 +378,154 @@ public class LangfuseOtel implements AutoCloseable {
 
         private Builder() {}
 
+        /**
+         * Sets the Langfuse public API key for the standalone exporter.
+         *
+         * @param publicKey public API key
+         * @return this builder
+         */
         public Builder publicKey(String publicKey) { this.publicKey = publicKey; return this; }
+
+        /**
+         * Sets the Langfuse secret API key for the standalone exporter.
+         *
+         * @param secretKey secret API key
+         * @return this builder
+         */
         public Builder secretKey(String secretKey) { this.secretKey = secretKey; return this; }
+
+        /**
+         * Sets the Langfuse base URL. HTTPS is required by default.
+         *
+         * @param host absolute HTTP(S) base URL
+         * @return this builder
+         */
         public Builder host(String host) { this.host = host; return this; }
+
+        /**
+         * Sets the OpenTelemetry service name.
+         *
+         * @param serviceName service name
+         * @return this builder
+         */
         public Builder serviceName(String serviceName) { this.serviceName = serviceName; return this; }
+
+        /**
+         * Sets the deployment environment resource attribute.
+         *
+         * @param environment environment name
+         * @return this builder
+         */
         public Builder environment(String environment) { this.environment = environment; return this; }
+
+        /**
+         * Sets the release resource attribute.
+         *
+         * @param release release identifier
+         * @return this builder
+         */
         public Builder release(String release) { this.release = release; return this; }
+
+        /**
+         * Supplies an optional Langfuse Java client for prompt helpers.
+         *
+         * @param langfuseClient client instance
+         * @return this builder
+         */
         public Builder langfuseClient(Object langfuseClient) { this.langfuseClient = langfuseClient; return this; }
+
+        /**
+         * Controls whether invalid configuration or initialization failure yields a no-op instance.
+         *
+         * @param failSafe whether to fall back to no-op mode
+         * @return this builder
+         */
         public Builder failSafe(boolean failSafe) { this.failSafe = failSafe; return this; }
+
         /**
          * Allows a plaintext HTTP standalone endpoint on {@code localhost} or a literal loopback
          * address for local development only.
          * Production endpoints should always use HTTPS because API credentials are sent using
          * the HTTP {@code Authorization} header.
+         *
+         * @param allow whether local loopback HTTP is allowed
+         * @return this builder
          */
         public Builder allowInsecureHttpForDevelopment(boolean allow) {
             this.allowInsecureHttpForDevelopment = allow;
             return this;
         }
+        /**
+         * Sets the policy for automatically captured model content.
+         *
+         * @param contentCapturePolicy capture policy
+         * @return this builder
+         * @throws NullPointerException if {@code contentCapturePolicy} is {@code null}
+         */
         public Builder contentCapturePolicy(ContentCapturePolicy contentCapturePolicy) {
             this.contentCapturePolicy = Objects.requireNonNull(contentCapturePolicy, "contentCapturePolicy");
             return this;
         }
+        /**
+         * Sets the policy for automatically captured exceptions.
+         *
+         * @param exceptionCapturePolicy capture policy
+         * @return this builder
+         * @throws NullPointerException if {@code exceptionCapturePolicy} is {@code null}
+         */
         public Builder exceptionCapturePolicy(ExceptionCapturePolicy exceptionCapturePolicy) {
             this.exceptionCapturePolicy = Objects.requireNonNull(exceptionCapturePolicy, "exceptionCapturePolicy");
             return this;
         }
 
+        /**
+         * Builds the integration.
+         *
+         * @return an active integration, or a no-op instance when fail-safe construction recovers
+         * @throws RuntimeException if initialization fails while fail-safe construction is disabled
+         */
         public LangfuseOtel build() {
             if (externalOpenTelemetry != null) {
                 try {
                     return new LangfuseOtel(null, externalOpenTelemetry, langfuseClient, false,
-                            OpenTelemetryOwnership.EXTERNAL, contentCapturePolicy, exceptionCapturePolicy);
+                            OpenTelemetryOwnership.EXTERNAL, contentCapturePolicy, exceptionCapturePolicy,
+                            LangfuseOtelRuntime.unmonitored(false, LangfuseOtelStatus.NoopReason.NONE));
                 } catch (RuntimeException e) {
                     if (failSafe) {
                         log.warn("Failed to initialize Langfuse with external OpenTelemetry. Running in no-op mode.", e);
-                        return LangfuseOtel.createNoop(contentCapturePolicy, exceptionCapturePolicy);
+                        return LangfuseOtel.createNoop(contentCapturePolicy, exceptionCapturePolicy,
+                                LangfuseOtelStatus.NoopReason.INITIALIZATION_FAILURE);
                     }
                     throw e;
                 }
             }
 
-            // failSafe=true: never crash the host app on misconfiguration (DESIGN.md #3)
+            // The default fail-safe mode keeps configuration errors from crashing the host application.
             if (publicKey == null || publicKey.isEmpty() || secretKey == null || secretKey.isEmpty()) {
                 if (failSafe) {
                     log.warn("Langfuse API keys not configured. Running in no-op mode — traces will not be sent.");
-                    return LangfuseOtel.createNoop(contentCapturePolicy, exceptionCapturePolicy);
+                    return LangfuseOtel.createNoop(contentCapturePolicy, exceptionCapturePolicy,
+                            LangfuseOtelStatus.NoopReason.MISSING_CREDENTIALS);
                 }
                 throw new IllegalArgumentException("publicKey and secretKey are required");
             }
 
+            OtlpHttpSpanExporter exporter = null;
+            SdkTracerProvider tracerProvider = null;
             try {
                 String endpoint = buildOtlpEndpoint(host, allowInsecureHttpForDevelopment);
                 String authHeader = "Basic " + Base64.getEncoder()
                         .encodeToString((publicKey + ":" + secretKey).getBytes(StandardCharsets.UTF_8));
 
-                OtlpHttpSpanExporter exporter = OtlpHttpSpanExporter.builder()
+                LangfuseOtelRuntime runtime = LangfuseOtelRuntime.managed();
+                LangfuseOtelRuntimeMeterProvider runtimeMeterProvider =
+                        new LangfuseOtelRuntimeMeterProvider(runtime);
+
+                exporter = OtlpHttpSpanExporter.builder()
                         .setEndpoint(endpoint)
                         .addHeader("Authorization", authHeader)
                         .addHeader("x-langfuse-ingestion-version", "4")
+                        .setMeterProvider(runtimeMeterProvider)
                         .build();
 
                 ResourceBuilder resourceBuilder = Resource.builder()
@@ -319,10 +538,12 @@ public class LangfuseOtel implements AutoCloseable {
                 }
                 Resource resource = Resource.getDefault().merge(resourceBuilder.build());
 
-                SdkTracerProvider tracerProvider = SdkTracerProvider.builder()
+                tracerProvider = SdkTracerProvider.builder()
                         .setResource(resource)
                         .addSpanProcessor(new LangfuseContextSpanProcessor())
-                        .addSpanProcessor(BatchSpanProcessor.builder(exporter).build())
+                        .addSpanProcessor(BatchSpanProcessor.builder(exporter)
+                                .setMeterProvider(runtimeMeterProvider)
+                                .build())
                         .build();
 
                 OpenTelemetrySdk otel = OpenTelemetrySdk.builder()
@@ -330,13 +551,28 @@ public class LangfuseOtel implements AutoCloseable {
                         .build();
 
                 return new LangfuseOtel(tracerProvider, otel, langfuseClient, false,
-                        OpenTelemetryOwnership.OWNED, contentCapturePolicy, exceptionCapturePolicy);
+                        OpenTelemetryOwnership.OWNED, contentCapturePolicy, exceptionCapturePolicy, runtime);
             } catch (Exception e) {
+                cleanUpFailedBuild(tracerProvider, exporter);
                 if (failSafe) {
                     log.warn("Failed to initialize Langfuse OTel. Running in no-op mode.", e);
-                    return LangfuseOtel.createNoop(contentCapturePolicy, exceptionCapturePolicy);
+                    return LangfuseOtel.createNoop(contentCapturePolicy, exceptionCapturePolicy,
+                            LangfuseOtelStatus.NoopReason.INITIALIZATION_FAILURE);
                 }
                 throw e;
+            }
+        }
+
+        private static void cleanUpFailedBuild(SdkTracerProvider tracerProvider,
+                                               OtlpHttpSpanExporter exporter) {
+            try {
+                if (tracerProvider != null) {
+                    tracerProvider.shutdown().join(10, TimeUnit.SECONDS);
+                } else if (exporter != null) {
+                    exporter.shutdown().join(10, TimeUnit.SECONDS);
+                }
+            } catch (RuntimeException ignored) {
+                // Preserve the initialization failure that caused this cleanup.
             }
         }
 

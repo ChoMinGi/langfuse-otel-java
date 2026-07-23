@@ -21,6 +21,9 @@ import org.slf4j.LoggerFactory;
 import java.util.List;
 import java.util.Set;
 
+/**
+ * LangChain4j chat model decorator that records Langfuse generation spans.
+ */
 public class TracingLangChain4jChatModel implements ChatModel {
 
     private static final Logger log = LoggerFactory.getLogger(TracingLangChain4jChatModel.class);
@@ -28,6 +31,12 @@ public class TracingLangChain4jChatModel implements ChatModel {
     private final ChatModel delegate;
     private final LangfuseOtel langfuseOtel;
 
+    /**
+     * Creates a tracing decorator for a LangChain4j chat model.
+     *
+     * @param delegate model that performs chat requests
+     * @param langfuseOtel tracing integration
+     */
     public TracingLangChain4jChatModel(ChatModel delegate, LangfuseOtel langfuseOtel) {
         this.delegate = delegate;
         this.langfuseOtel = langfuseOtel;

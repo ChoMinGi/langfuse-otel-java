@@ -19,6 +19,9 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ExecutionException;
 
+/**
+ * Aspect that traces methods marked with {@link ObserveGeneration}.
+ */
 @Aspect
 public class ObserveGenerationAspect {
 
@@ -26,10 +29,22 @@ public class ObserveGenerationAspect {
 
     private final LangfuseOtel langfuseOtel;
 
+    /**
+     * Creates an observation aspect backed by the tracing integration.
+     *
+     * @param langfuseOtel tracing integration
+     */
     public ObserveGenerationAspect(LangfuseOtel langfuseOtel) {
         this.langfuseOtel = langfuseOtel;
     }
 
+    /**
+     * Traces an annotated invocation and preserves its synchronous or asynchronous result.
+     *
+     * @param joinPoint annotated method invocation
+     * @return the original invocation result or its traced reactive wrapper
+     * @throws Throwable when the invoked method fails
+     */
     @Around("@annotation(io.github.chomingi.langfuse.otel.spring.annotation.ObserveGeneration)")
     public Object observe(ProceedingJoinPoint joinPoint) throws Throwable {
         ObservationDescriptor descriptor;

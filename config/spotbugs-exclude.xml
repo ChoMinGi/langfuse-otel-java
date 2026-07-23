@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<FindBugsFilter>
+    <!--
+      These null checks intentionally contain failures from user-extensible Java APIs.
+      Removing them would allow a non-conforming toString()/Throwable implementation
+      to break instrumentation in the host application.
+    -->
+    <Match>
+        <Class name="io.github.chomingi.langfuse.otel.ContentCapturePolicy"/>
+        <Method name="capture"/>
+        <Bug pattern="RCN_REDUNDANT_NULLCHECK_OF_NONNULL_VALUE"/>
+    </Match>
+    <Match>
+        <Class name="io.github.chomingi.langfuse.otel.ExceptionRecorder"/>
+        <Method name="safeStackTrace"/>
+        <Bug pattern="RCN_REDUNDANT_NULLCHECK_OF_NONNULL_VALUE"/>
+    </Match>
+
+    <!--
+      LangfuseOtel exposes no public or protected constructor. Its package-private
+      delegating constructor and private constructor cannot be used for a finalizer
+      attack by a consumer subclass, so CT_CONSTRUCTOR_THROW is not applicable.
+    -->
+    <Match>
+        <Class name="io.github.chomingi.langfuse.otel.LangfuseOtel"/>
+        <Bug pattern="CT_CONSTRUCTOR_THROW"/>
+    </Match>
+
+    <!-- Spring configuration properties are intentionally mutable singleton state. -->
+    <Match>
+        <Class name="io.github.chomingi.langfuse.otel.spring.LangfuseOtelProperties"/>
+        <Method name="getContent"/>
+        <Bug pattern="EI_EXPOSE_REP"/>
+    </Match>
+    <Match>
+        <Class name="io.github.chomingi.langfuse.otel.spring.LangfuseOtelProperties"/>
+        <Method name="getException"/>
+        <Bug pattern="EI_EXPOSE_REP"/>
+    </Match>
+    <Match>
+        <Class name="io.github.chomingi.langfuse.otel.spring.LangfuseOtelProperties"/>
+        <Method name="getContext"/>
+        <Bug pattern="EI_EXPOSE_REP"/>
+    </Match>
+    <Match>
+        <Class name="io.github.chomingi.langfuse.otel.spring.LangfuseContextFilter"/>
+        <Bug pattern="EI_EXPOSE_REP2"/>
+    </Match>
+    <Match>
+        <Class name="io.github.chomingi.langfuse.otel.spring.LangfuseReactiveContextFilter"/>
+        <Bug pattern="EI_EXPOSE_REP2"/>
+    </Match>
+
+    <!--
+      Adapter code tolerates nulls from provider implementations and neighboring
+      framework versions even where their current annotations promise non-null.
+    -->
+    <Match>
+        <Class name="io.github.chomingi.langfuse.otel.spring.LangfuseReactiveContextFilter"/>
+        <Bug pattern="RCN_REDUNDANT_NULLCHECK_OF_NONNULL_VALUE"/>
+    </Match>
+    <Match>
+        <Class name="io.github.chomingi.langfuse.otel.spring.ModelSpanNameSupport"/>
+        <Method name="resolve"/>
+        <Bug pattern="RCN_REDUNDANT_NULLCHECK_OF_NONNULL_VALUE"/>
+    </Match>
+    <Match>
+        <Class name="io.github.chomingi.langfuse.otel.spring.TracingLangChain4jEmbeddingModel"/>
+        <Method name="setResponseAttributes"/>
+        <Bug pattern="RCN_REDUNDANT_NULLCHECK_OF_NONNULL_VALUE"/>
+    </Match>
+    <Match>
+        <Class name="io.github.chomingi.langfuse.otel.spring.TracingLangChain4jImageModel"/>
+        <Method name="generate"/>
+        <Bug pattern="RCN_REDUNDANT_NULLCHECK_OF_NONNULL_VALUE"/>
+    </Match>
+    <Match>
+        <Class name="io.github.chomingi.langfuse.otel.spring.TracingSpringAiChatModel"/>
+        <Method name="setRequestAttributes"/>
+        <Bug pattern="NP_NULL_ON_SOME_PATH_FROM_RETURN_VALUE"/>
+    </Match>
+    <Match>
+        <Class name="io.github.chomingi.langfuse.otel.spring.TracingSpringAiChatModel"/>
+        <Method name="setRequestAttributesOnSpan"/>
+        <Bug pattern="NP_NULL_ON_SOME_PATH_FROM_RETURN_VALUE"/>
+    </Match>
+    <Match>
+        <Class name="io.github.chomingi.langfuse.otel.spring.TracingSpringAiChatModel"/>
+        <Method name="setStreamResponseAttributesOnSpan"/>
+        <Bug pattern="RCN_REDUNDANT_NULLCHECK_OF_NONNULL_VALUE"/>
+    </Match>
+    <Match>
+        <Class name="io.github.chomingi.langfuse.otel.spring.TracingSpringAiEmbeddingModel"/>
+        <Method name="setBulkRequestAttributes"/>
+        <Bug pattern="NP_NULL_ON_SOME_PATH_FROM_RETURN_VALUE"/>
+    </Match>
+    <Match>
+        <Class name="io.github.chomingi.langfuse.otel.spring.TracingSpringAiEmbeddingModel"/>
+        <Method name="setRequestAttributes"/>
+        <Bug pattern="NP_NULL_ON_SOME_PATH_FROM_RETURN_VALUE"/>
+    </Match>
+    <Match>
+        <Class name="io.github.chomingi.langfuse.otel.spring.TracingSpringAiEmbeddingModel"/>
+        <Method name="setResponseAttributes"/>
+        <Bug pattern="RCN_REDUNDANT_NULLCHECK_OF_NONNULL_VALUE"/>
+    </Match>
+    <Match>
+        <Class name="io.github.chomingi.langfuse.otel.spring.TracingSpringAiImageModel"/>
+        <Method name="setRequestAttributes"/>
+        <Bug pattern="NP_NULL_ON_SOME_PATH_FROM_RETURN_VALUE"/>
+    </Match>
+    <Match>
+        <Class name="io.github.chomingi.langfuse.otel.spring.TracingSpringAiImageModel"/>
+        <Method name="setResponseAttributes"/>
+        <Bug pattern="RCN_REDUNDANT_NULLCHECK_OF_NONNULL_VALUE"/>
+    </Match>
+</FindBugsFilter>

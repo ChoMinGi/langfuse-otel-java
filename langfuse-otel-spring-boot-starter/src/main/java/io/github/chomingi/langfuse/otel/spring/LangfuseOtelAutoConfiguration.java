@@ -14,8 +14,8 @@ import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 
@@ -26,6 +26,9 @@ import java.util.stream.Collectors;
 import static io.github.chomingi.langfuse.otel.spring.LangfuseOtelProperties.OpenTelemetryMode.AUTO;
 import static io.github.chomingi.langfuse.otel.spring.LangfuseOtelProperties.OpenTelemetryMode.EXTERNAL;
 
+/**
+ * Configures the Langfuse client and optional Spring integration components.
+ */
 @AutoConfiguration
 @EnableConfigurationProperties(LangfuseOtelProperties.class)
 @ConditionalOnProperty(prefix = "langfuse", name = "enabled", havingValue = "true", matchIfMissing = true)
@@ -33,19 +36,56 @@ public class LangfuseOtelAutoConfiguration {
 
     private static final Logger log = LoggerFactory.getLogger(LangfuseOtelAutoConfiguration.class);
 
+    /**
+     * Creates a Langfuse client from application properties and available extension beans.
+     *
+     * @param properties starter configuration
+     * @param openTelemetryProvider application OpenTelemetry beans
+     * @param contentRedactorProvider content redactor beans
+     * @param exceptionRedactorProvider exception redactor beans
+     * @return the configured tracing integration
+     */
     @Bean(destroyMethod = "close")
     @ConditionalOnMissingBean
     public LangfuseOtel langfuseOtel(LangfuseOtelProperties properties,
                                      ObjectProvider<OpenTelemetry> openTelemetryProvider,
                                      ObjectProvider<ContentRedactor> contentRedactorProvider,
                                      ObjectProvider<ExceptionRedactor> exceptionRedactorProvider) {
+        List<ContentRedactor> contentRedactors = contentRedactorProvider.orderedStream()
+                .collect(Collectors.toList());
+        List<ExceptionRedactor> exceptionRedactors = exceptionRedactorProvider.orderedStream()
+                .collect(Collectors.toList());
+        List<OpenTelemetry> externalOpenTelemetryBeans = openTelemetryProvider.orderedStream()
+                .collect(Collectors.toList());
+        OpenTelemetry externalOpenTelemetry = openTelemetryProvider.getIfUnique();
+
+        return createLangfuseOtel(properties, contentRedactors, exceptionRedactors,
+                externalOpenTelemetryBeans, externalOpenTelemetry);
+    }
+
+    /**
+     * Compatibility bridge for callers that directly invoked the 0.1.x auto-configuration factory.
+     * This direct call does not discover Spring beans; {@code AUTO} mode therefore uses the
+     * standalone path.
+     *
+     * @param properties standalone configuration properties
+     * @return the configured tracing integration
+     * @deprecated Prefer Spring auto-configuration or {@link LangfuseOtel#builder()}.
+     */
+    @Deprecated(since = "0.2.0", forRemoval = false)
+    public LangfuseOtel langfuseOtel(LangfuseOtelProperties properties) {
+        return createLangfuseOtel(properties, List.of(), List.of(), List.of(), null);
+    }
+
+    private LangfuseOtel createLangfuseOtel(LangfuseOtelProperties properties,
+                                            List<ContentRedactor> contentRedactors,
+                                            List<ExceptionRedactor> exceptionRedactors,
+                                            List<OpenTelemetry> externalOpenTelemetryBeans,
+                                            OpenTelemetry externalOpenTelemetry) {
         ContentCapturePolicy.Builder capturePolicyBuilder = ContentCapturePolicy.builder()
                 .captureInput(properties.getContent().isCaptureInput())
                 .captureOutput(properties.getContent().isCaptureOutput())
                 .maxLength(properties.getContent().getMaxLength());
-
-        List<ContentRedactor> contentRedactors = contentRedactorProvider.orderedStream()
-                .collect(Collectors.toList());
         if (contentRedactors.size() == 1) {
             capturePolicyBuilder.redactor(contentRedactors.get(0));
         } else if (contentRedactors.size() > 1) {
@@ -57,8 +97,6 @@ public class LangfuseOtelAutoConfiguration {
                 .captureMessage(properties.getException().isCaptureMessage())
                 .captureStackTrace(properties.getException().isCaptureStackTrace())
                 .maxLength(properties.getException().getMaxLength());
-        List<ExceptionRedactor> exceptionRedactors = exceptionRedactorProvider.orderedStream()
-                .collect(Collectors.toList());
         if (exceptionRedactors.size() == 1) {
             exceptionPolicyBuilder.redactor(exceptionRedactors.get(0));
         } else if (exceptionRedactors.size() > 1) {
@@ -66,9 +104,6 @@ public class LangfuseOtelAutoConfiguration {
             exceptionPolicyBuilder.redactor((type, content) -> null);
         }
 
-        List<OpenTelemetry> externalOpenTelemetryBeans = openTelemetryProvider.orderedStream()
-                .collect(Collectors.toList());
-        OpenTelemetry externalOpenTelemetry = openTelemetryProvider.getIfUnique();
         LangfuseOtelProperties.OpenTelemetryMode otelMode = properties.getOtelMode();
         if (otelMode == null) {
             throw new IllegalStateException("langfuse.otel-mode must not be null");
@@ -114,6 +149,12 @@ public class LangfuseOtelAutoConfiguration {
                 .build();
     }
 
+    /**
+     * Creates the aspect that traces methods annotated with {@code @ObserveGeneration}.
+     *
+     * @param langfuseOtel tracing integration
+     * @return the generation observation aspect
+     */
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnBean(LangfuseOtel.class)
@@ -121,17 +162,30 @@ public class LangfuseOtelAutoConfiguration {
         return new ObserveGenerationAspect(langfuseOtel);
     }
 
+    /**
+     * Creates the servlet filter that propagates request-derived Langfuse context.
+     *
+     * @param properties starter configuration
+     * @return the servlet context filter
+     */
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnClass(name = "jakarta.servlet.Filter")
+    @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
     public LangfuseContextFilter langfuseContextFilter(LangfuseOtelProperties properties) {
         return new LangfuseContextFilter(properties);
     }
 
+    /**
+     * Creates the WebFlux filter that propagates request-derived Langfuse context.
+     *
+     * @param properties starter configuration
+     * @return the reactive context filter
+     */
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnClass(name = "org.springframework.web.server.WebFilter")
-    @ConditionalOnMissingClass("jakarta.servlet.Filter")
+    @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.REACTIVE)
     public LangfuseReactiveContextFilter langfuseReactiveContextFilter(LangfuseOtelProperties properties) {
         return new LangfuseReactiveContextFilter(properties);
     }

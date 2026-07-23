@@ -5,10 +5,10 @@
 If you discover a security vulnerability, please report it responsibly:
 
 1. **Do NOT open a public issue.**
-2. Use [GitHub's private vulnerability reporting](https://github.com/ChoMinGi/langfuse-otel-java/security/advisories/new) or email the maintainer directly.
+2. Use [GitHub's private vulnerability reporting](https://github.com/ChoMinGi/langfuse-otel-java/security/advisories/new).
 3. Include a description of the vulnerability, steps to reproduce, and potential impact.
 
-We will respond within 48 hours and work to release a fix promptly.
+We aim to acknowledge reports within 72 hours and provide an initial severity assessment within seven days. These are best-effort targets, not a service-level agreement; the remediation timeline depends on impact and release risk.
 
 ## Scope
 
@@ -22,8 +22,8 @@ This library transmits LLM trace data to Langfuse via OTLP/HTTP. The following d
 | Principal name | Only when HTTP context user capture is explicitly enabled | Keep `langfuse.context.capture-user-id=false` (default) |
 | HTTP session ID | Only when HTTP context session capture is explicitly enabled | Keep `langfuse.context.capture-session-id=false` (default) |
 | Exception message and stack trace | Only when each exception detail is explicitly enabled | Keep `langfuse.exception.capture-message/stack-trace=false` (default) |
-| Token counts | All model calls | Always sent if available (not sensitive) |
-| Model parameters | All model calls | Always sent if available (not sensitive) |
+| Token counts | All model calls | Sent when available |
+| Model parameters | All model calls | Sent when available |
 
 Automatic content capture is metadata-only by default. Enabling it does not require or install an application redactor: with zero `ContentRedactor` beans, the identity redactor exports enabled content unchanged except for truncation to `langfuse.content.max-length` (default `8192`). Exactly one bean processes content before truncation. Multiple beans fail closed and drop automatic content; a redactor failure or `null` result also drops the affected value. Treat one reviewed, thread-safe redactor as mandatory in production whenever captured content may be sensitive.
 
@@ -53,5 +53,7 @@ The standalone transport contract test also verifies that cross-origin redirects
 
 | Version | Supported |
 |---------|-----------|
-| 0.2.x   | Production preview |
-| 0.1.x   | Security fixes |
+| 0.2.x   | Production preview; maintained from 0.2.0 |
+| 0.1.x   | Security fixes until 0.2.0 is released |
+
+When `0.3.0` moves the starter to Spring Boot 4 and Spring AI 2, `0.2.x` will remain in maintenance for six months. That window covers critical vulnerabilities and regressions owned by this library; it does not extend the support lifecycle of Spring Boot 3 or other upstream dependencies.

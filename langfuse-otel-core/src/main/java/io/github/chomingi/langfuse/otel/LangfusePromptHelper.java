@@ -9,6 +9,12 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+/**
+ * Fetches and compiles a Langfuse text prompt for a generation.
+ *
+ * <p>Unknown placeholders are retained. Compilation records the prompt name, version, and
+ * compiled input on the linked generation.</p>
+ */
 public class LangfusePromptHelper {
 
     private static final Pattern VARIABLE_PATTERN = Pattern.compile("\\{\\{\\s*([\\w.-]+)\\s*}}");
@@ -24,11 +30,24 @@ public class LangfusePromptHelper {
         this.generation = generation;
     }
 
+    /**
+     * Supplies a prompt variable.
+     *
+     * @param key variable name
+     * @param value replacement value
+     * @return this helper
+     */
     public LangfusePromptHelper variable(String key, String value) {
         variables.put(key, value);
         return this;
     }
 
+    /**
+     * Fetches and compiles the configured text prompt.
+     *
+     * @return compiled prompt text
+     * @throws IllegalStateException if the fetched prompt is not a text prompt
+     */
     public String compile() {
         Prompt prompt = client.prompts().get(promptName);
 

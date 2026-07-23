@@ -1,7 +1,6 @@
 package io.github.chomingi.langfuse.otel;
 
 import io.opentelemetry.api.trace.Span;
-import io.opentelemetry.context.Scope;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -15,19 +14,17 @@ final class SpanGuard {
 
     private SpanGuard() {}
 
-    static Cleaner.Cleanable register(Object owner, Span span, Scope scope, String spanName, AtomicBoolean closed) {
-        return CLEANER.register(owner, new CleanAction(span, scope, spanName, closed));
+    static Cleaner.Cleanable register(Object owner, Span span, String spanName, AtomicBoolean closed) {
+        return CLEANER.register(owner, new CleanAction(span, spanName, closed));
     }
 
     private static class CleanAction implements Runnable {
         private final Span span;
-        private final Scope scope;
         private final String spanName;
         private final AtomicBoolean closed;
 
-        CleanAction(Span span, Scope scope, String spanName, AtomicBoolean closed) {
+        CleanAction(Span span, String spanName, AtomicBoolean closed) {
             this.span = span;
-            this.scope = scope;
             this.spanName = spanName;
             this.closed = closed;
         }
@@ -40,15 +37,7 @@ final class SpanGuard {
                          + "cannot be restored by the Cleaner. Use try-with-resources, callback API, or call "
                          + "end() explicitly.", spanName);
             }
-            try {
-                // OTel Scope is thread-affine. Cleaners run on a different thread and therefore
-                // cannot restore the originating thread's Context safely.
-                if (explicitlyClosed) {
-                    scope.close();
-                }
-            } finally {
-                span.end();
-            }
+            span.end();
         }
     }
 }

@@ -1,0 +1,101 @@
+name: Quality and supply chain
+
+on:
+  workflow_call:
+    inputs:
+      checkout_ref:
+        description: Commit or ref to audit
+        required: false
+        type: string
+  workflow_dispatch:
+  schedule:
+    - cron: '17 2 * * 1'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quality-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: static analysis, licenses, SBOM, vulnerabilities
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ inputs.checkout_ref || github.sha }}
+          persist-credentials: false
+
+      - name: Set up Java 17
+        uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9 # v4.8.0
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: maven
+
+      - name: Build quality evidence
+        run: >-
+          ./mvnw -B -ntp -Pquality
+          -DskipTests
+          -Djacoco.skip=true
+          -Dmaven.javadoc.skip=true
+          clean verify
+
+      - name: Validate quality evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          test -s target/bom.json
+          test -s target/generated-sources/license/THIRD-PARTY.txt
+          test -s langfuse-otel-core/target/spotbugsXml.xml
+          test -s langfuse-otel-spring-boot-starter/target/spotbugsXml.xml
+
+          jq -e '
+            .bomFormat == "CycloneDX"
+            and .specVersion == "1.6"
+            and .metadata.component.type == "library"
+            and ((.components // []) | length > 0)
+            and ((.dependencies // []) | length > 0)
+          ' target/bom.json > /dev/null
+
+      - name: Audit all dependency vulnerabilities
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: sbom
+          scan-ref: target/bom.json
+          scanners: vuln
+          format: json
+          output: target/trivy-vulnerabilities.json
+          exit-code: '0'
+          severity: UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL
+          list-all-pkgs: true
+          hide-progress: true
+          timeout: 10m
+          version: v0.72.0
+
+      - name: Reject high and critical dependency vulnerabilities
+        run: |
+          jq -e '
+            [
+              .Results[]?.Vulnerabilities[]?
+              | select(.Severity == "HIGH" or .Severity == "CRITICAL")
+            ]
+            | length == 0
+          ' target/trivy-vulnerabilities.json > /dev/null
+
+      - name: Retain quality evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: quality-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            target/bom.json
+            target/generated-sources/license/THIRD-PARTY.txt
+            target/trivy-vulnerabilities.json
+            langfuse-otel-core/target/spotbugsXml.xml
+            langfuse-otel-spring-boot-starter/target/spotbugsXml.xml
+          if-no-files-found: warn
+          retention-days: 14

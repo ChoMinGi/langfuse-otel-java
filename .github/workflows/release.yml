@@ -326,11 +326,18 @@ jobs:
       - name: Verify LangChain4j consumer
         run: ./mvnw -B -ntp -f examples/langchain4j-example/pom.xml -DskipTests verify
 
+  quality:
+    name: release quality and supply chain
+    needs: [preflight]
+    uses: ./.github/workflows/quality.yml
+    with:
+      checkout_ref: ${{ needs.preflight.outputs.release_sha }}
+
   release-gate:
     name: release quality gate
     runs-on: ubuntu-latest
     if: always()
-    needs: [preflight, verify, core, starter, consumer-smoke]
+    needs: [preflight, verify, core, starter, consumer-smoke, quality]
     permissions: {}
     steps:
       - name: Require every release candidate gate
@@ -341,11 +348,12 @@ jobs:
           CORE_RESULT: ${{ needs.core.result }}
           STARTER_RESULT: ${{ needs.starter.result }}
           CONSUMER_RESULT: ${{ needs.consumer-smoke.result }}
+          QUALITY_RESULT: ${{ needs.quality.result }}
         run: |
           set -euo pipefail
           failed=false
 
-          for gate in PREFLIGHT VERIFY CORE STARTER CONSUMER; do
+          for gate in PREFLIGHT VERIFY CORE STARTER CONSUMER QUALITY; do
             result_variable="${gate}_RESULT"
             result="${!result_variable}"
             echo "$gate: $result"

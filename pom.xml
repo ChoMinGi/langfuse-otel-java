@@ -48,10 +48,14 @@
         <jackson.version>2.21.5</jackson.version>
         <kotlin.version>1.9.25</kotlin.version>
         <okhttp.version>4.12.0</okhttp.version>
+        <netty.version>4.1.136.Final</netty.version>
         <assertj.version>3.27.7</assertj.version>
         <spring-ai.version>1.0.9</spring-ai.version>
         <langchain4j.version>1.0.0</langchain4j.version>
         <jacoco.version>0.8.15</jacoco.version>
+        <spotbugs-maven-plugin.version>4.10.3.0</spotbugs-maven-plugin.version>
+        <license-maven-plugin.version>2.7.1</license-maven-plugin.version>
+        <cyclonedx-maven-plugin.version>2.9.2</cyclonedx-maven-plugin.version>
         <jacoco.minimum.line.coverage>0.000</jacoco.minimum.line.coverage>
         <jacoco.minimum.branch.coverage>0.000</jacoco.minimum.branch.coverage>
         <test.excludedGroups>integration,e2e</test.excludedGroups>
@@ -77,6 +81,13 @@
                 <groupId>com.squareup.okhttp3</groupId>
                 <artifactId>okhttp-bom</artifactId>
                 <version>${okhttp.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>io.netty</groupId>
+                <artifactId>netty-bom</artifactId>
+                <version>${netty.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
@@ -113,6 +124,31 @@
                             <rules>
                                 <dependencyConvergence/>
                             </rules>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.cyclonedx</groupId>
+                <artifactId>cyclonedx-maven-plugin</artifactId>
+                <version>${cyclonedx-maven-plugin.version}</version>
+                <inherited>false</inherited>
+                <executions>
+                    <execution>
+                        <id>generate-aggregate-sbom</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>makeAggregateBom</goal>
+                        </goals>
+                        <configuration>
+                            <projectType>library</projectType>
+                            <schemaVersion>1.6</schemaVersion>
+                            <includeBomSerialNumber>false</includeBomSerialNumber>
+                            <includeTestScope>false</includeTestScope>
+                            <outputFormat>json</outputFormat>
+                            <outputName>bom</outputName>
+                            <outputReactorProjects>false</outputReactorProjects>
+                            <skipAttach>false</skipAttach>
                         </configuration>
                     </execution>
                 </executions>
@@ -226,6 +262,83 @@
     </build>
 
     <profiles>
+        <profile>
+            <id>quality</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>com.github.spotbugs</groupId>
+                        <artifactId>spotbugs-maven-plugin</artifactId>
+                        <version>${spotbugs-maven-plugin.version}</version>
+                        <configuration>
+                            <effort>Max</effort>
+                            <threshold>Medium</threshold>
+                            <includeTests>false</includeTests>
+                            <failOnError>true</failOnError>
+                            <noClassOk>true</noClassOk>
+                            <xmlOutput>true</xmlOutput>
+                            <excludeFilterFile>${maven.multiModuleProjectDirectory}/config/spotbugs-exclude.xml</excludeFilterFile>
+                        </configuration>
+                        <executions>
+                            <execution>
+                                <id>check-static-analysis</id>
+                                <phase>verify</phase>
+                                <goals>
+                                    <goal>check</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>license-maven-plugin</artifactId>
+                        <version>${license-maven-plugin.version}</version>
+                        <inherited>false</inherited>
+                        <executions>
+                            <execution>
+                                <id>check-aggregate-dependency-licenses</id>
+                                <phase>verify</phase>
+                                <goals>
+                                    <goal>aggregate-add-third-party</goal>
+                                </goals>
+                                <configuration>
+                                    <includeTransitiveDependencies>true</includeTransitiveDependencies>
+                                    <excludeTransitiveDependencies>true</excludeTransitiveDependencies>
+                                    <includeOptional>true</includeOptional>
+                                    <excludedScopes>test</excludedScopes>
+                                    <failOnMissing>true</failOnMissing>
+                                    <failOnBlacklist>true</failOnBlacklist>
+                                    <force>true</force>
+                                    <useRepositoryMissingFiles>false</useRepositoryMissingFiles>
+                                    <deployMissingFile>false</deployMissingFile>
+                                    <thirdPartyFilename>THIRD-PARTY.txt</thirdPartyFilename>
+                                    <includedLicenses>
+                                        <includedLicense>Apache 2.0</includedLicense>
+                                        <includedLicense>Apache License 2.0</includedLicense>
+                                        <includedLicense>Apache License, Version 2.0</includedLicense>
+                                        <includedLicense>Apache-2.0</includedLicense>
+                                        <includedLicense>The Apache License, Version 2.0</includedLicense>
+                                        <includedLicense>The Apache Software License, Version 2.0</includedLicense>
+                                        <includedLicense>BSD licence</includedLicense>
+                                        <includedLicense>BSD-2-Clause</includedLicense>
+                                        <includedLicense>BSD-3-Clause</includedLicense>
+                                        <includedLicense>The BSD License</includedLicense>
+                                        <includedLicense>EPL 2.0</includedLicense>
+                                        <includedLicense>EPL-2.0</includedLicense>
+                                        <includedLicense>Eclipse Public License - v 2.0</includedLicense>
+                                        <includedLicense>Eclipse Public License v2.0</includedLicense>
+                                        <includedLicense>MIT</includedLicense>
+                                        <includedLicense>MIT License</includedLicense>
+                                        <includedLicense>MIT-0</includedLicense>
+                                        <includedLicense>Public Domain, per Creative Commons CC0</includedLicense>
+                                    </includedLicenses>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
         <profile>
             <id>release</id>
             <build>

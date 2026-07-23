@@ -1,10 +1,6 @@
-## Summary
+## What changed
 
 <!-- What does this PR do and why? -->
-
-## Changes
-
--
 
 ## Testing
 
@@ -12,10 +8,7 @@
 
 ## Checklist
 
-- [ ] Compiles without errors (`mvn compile`)
-- [ ] All unit tests pass (`mvn test`)
-- [ ] New functionality has test coverage
-- [ ] Core module stays Java 11 compatible
-- [ ] No hardcoded API keys or secrets
-- [ ] Tracing wrappers handle setup failures gracefully (no app-breaking exceptions)
-- [ ] Streaming instrumentation uses raw `Span` without `makeCurrent()` (see DESIGN.md #13)
+- [ ] `./mvnw -B -ntp clean verify` passes
+- [ ] Tests cover the changed behavior
+- [ ] Public API or user-facing behavior is documented
+- [ ] No credentials or captured model data are included

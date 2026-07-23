@@ -500,7 +500,7 @@ public class LangfuseOtel implements AutoCloseable {
                 }
             }
 
-            // failSafe=true: never crash the host app on misconfiguration (DESIGN.md #3)
+            // The default fail-safe mode keeps configuration errors from crashing the host application.
             if (publicKey == null || publicKey.isEmpty() || secretKey == null || secretKey.isEmpty()) {
                 if (failSafe) {
                     log.warn("Langfuse API keys not configured. Running in no-op mode — traces will not be sent.");

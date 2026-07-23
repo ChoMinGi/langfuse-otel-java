@@ -1,109 +1,81 @@
 # Contributing
 
-Thanks for your interest in contributing to langfuse-otel-java!
+Thanks for contributing to langfuse-otel-java.
 
-## Development Setup
+## Development setup
 
-### Prerequisites
+Use Java 17 or newer. The Maven Wrapper pins the Maven version used by CI, so a system Maven
+installation is not required. On Windows, replace `./mvnw` with `mvnw.cmd`.
 
-- Java 17+
-- A Langfuse account (cloud or self-hosted) for integration tests
-
-The repository Maven Wrapper pins the Maven distribution used by CI, so a system Maven installation is not required. On Windows, replace `./mvnw` with `mvnw.cmd`.
-
-### Build
-
-```bash
-./mvnw -B -ntp compile
-```
-
-### Run Tests
-
-Unit tests (no external dependencies):
+For a fast unit-test run:
 
 ```bash
 ./mvnw -B -ntp test
 ```
 
-Before opening a PR, run the full verification build:
+Before opening a pull request:
 
 ```bash
 ./mvnw -B -ntp clean verify
 ```
 
-This enforces the module coverage baselines. HTML reports are written to `langfuse-otel-core/target/site/jacoco/index.html` and `langfuse-otel-spring-boot-starter/target/site/jacoco/index.html`.
+`clean verify` runs unit and packaged-JAR tests, coverage checks, warning-free Javadocs, and
+binary/source API compatibility against `0.1.1`. Coverage reports are written under each module's
+`target/site/jacoco` directory.
 
-Integration tests (requires Langfuse API keys):
+The slower quality profile adds static analysis and dependency-license checks while producing the
+CycloneDX SBOM used by CI:
+
+```bash
+./mvnw -B -ntp -Pquality -DskipTests -Djacoco.skip=true \
+  -Dmaven.javadoc.skip=true clean verify
+```
+
+Live integration tests require Langfuse credentials:
 
 ```bash
 export LANGFUSE_PUBLIC_KEY=pk-lf-...
 export LANGFUSE_SECRET_KEY=sk-lf-...
 export LANGFUSE_HOST=https://cloud.langfuse.com
 
-./mvnw -B -ntp test -pl langfuse-otel-core -am -DexcludedGroups= -Dgroups=integration
+./mvnw -B -ntp test -pl langfuse-otel-core -am \
+  -DexcludedGroups= -Dgroups=integration
 ```
 
-CI only runs these live tests when the repository variable `LANGFUSE_INTEGRATION_ENABLED` is explicitly set to `true`. When enabled, missing public/secret keys fail the integration status job instead of silently reporting a successful test run.
+CI runs live export tests only when `LANGFUSE_INTEGRATION_ENABLED=true`. Once enabled, missing
+credentials fail the integration status job instead of silently skipping it.
 
-### Project Structure
+## Repository layout
 
-```
-langfuse-otel-java/
-├── langfuse-otel-core/                  # Core library (Java 11+)
-│   └── io.github.chomingi.langfuse.otel
-│       ├── LangfuseOtel                 # Main entry point (Builder)
-│       ├── LangfuseTrace                # Trace wrapper
-│       ├── LangfuseGeneration           # LLM generation wrapper
-│       ├── LangfuseSpan                 # General span wrapper
-│       ├── LangfuseContext              # OTel/legacy synchronous context bridge
-│       ├── LangfuseTraceContext         # immutable async request metadata
-│       ├── LangfuseAttributes           # OTel attribute constants
-│       └── LangfusePromptHelper         # Prompt integration
-│
-├── langfuse-otel-spring-boot-starter/   # Spring Boot starter (Java 17+)
-│   └── io.github.chomingi.langfuse.otel.spring
-│       ├── LangfuseOtelAutoConfiguration
-│       ├── LangfuseOtelProperties
-│       ├── SpringAiAutoConfiguration    # Registers Spring AI BeanPostProcessors
-│       ├── LangChain4jAutoConfiguration # Registers LangChain4j BeanPostProcessors
-│       ├── TracingSpringAiChatModel     # ChatModel wrapper (sync + streaming)
-│       ├── TracingSpringAiEmbeddingModel
-│       ├── TracingSpringAiImageModel
-│       ├── TracingLangChain4jChatModel
-│       ├── TracingStreamingLangChain4jChatModel
-│       ├── TracingLangChain4jEmbeddingModel
-│       ├── TracingLangChain4jImageModel
-│       ├── LangfuseContextFilter        # HTTP context propagation
-│       └── annotation/
-│           ├── ObserveGeneration         # @ObserveGeneration
-│           └── ObserveGenerationAspect
-│
-└── examples/                            # Example applications
-    ├── spring-ai-example/
-    └── langchain4j-example/
-```
+| Path | Purpose |
+|------|---------|
+| `langfuse-otel-core` | Framework-neutral Java 11 tracing API and standalone exporter |
+| `langfuse-otel-spring-boot-starter` | Java 17 Spring AI and LangChain4j auto-configuration |
+| `examples` | Consumer builds for both supported adapters |
 
 ## Guidelines
 
-- Open an issue before starting work on a new feature
-- Keep PRs focused — one feature/fix per PR
-- Add tests for new functionality
-- Follow existing code style (no Lombok, no excessive comments)
-- Core module must stay Java 11 compatible
-- Spring Boot starter targets Java 17+
+- Open an issue before starting a new feature.
+- Keep pull requests focused and add tests for changed behavior.
+- Keep the core module compatible with Java 11 and the starter with Java 17.
+- Follow the existing style: no Lombok and no comments that repeat the code.
+- Do not commit credentials or captured model data.
 
-## Adding a New Auto-Instrumentation
+## Adding 0.2.x auto-instrumentation
 
-To add support for a new model type or framework:
+The current Boot 3 adapter line uses tracing decorators and type-preserving Spring proxies:
 
-1. Create a `Tracing*Model.java` wrapper implementing the model interface (Decorator pattern)
-2. Create a `*BeanPostProcessor.java` to wrap beans at initialization
-3. Register the BeanPostProcessor in the appropriate `*AutoConfiguration.java`
-4. Add the framework as an `<optional>` dependency in `pom.xml` if not already present
-5. Add unit tests with stub models and `OpenTelemetryExtension`
+1. Add a `Tracing*Model` decorator for the framework model interface.
+2. Register it through the appropriate auto-configuration and shared model post-processor.
+3. Keep framework dependencies optional.
+4. Preserve provider extension methods and concrete injection where proxying is safe.
+5. Cover success, setup failure, delegate failure, and any asynchronous terminal paths.
 
-For streaming models, create state per subscription and use raw OTel `Span` (without `makeCurrent()`) to avoid thread-context corruption across async callbacks. Propagate request metadata with Reactor/OTel Context. See DESIGN.md #13 and #17.
+Streaming adapters create state per subscription or invocation and use raw OpenTelemetry spans
+with short-lived scopes at callback boundaries. See the
+[asynchronous lifecycle design](DESIGN.md#asynchronous-observation-and-context-lifecycle).
 
 ## Releasing
 
-Maintainers must follow [RELEASING.md](RELEASING.md). In particular, a Maven Central `VALIDATED` candidate is not public, and a Central upload job must never be rerun without first checking the Publisher Portal.
+Maintainers must follow [RELEASING.md](RELEASING.md). A Maven Central `VALIDATED` candidate is not
+public, and a Central upload job must not be rerun before checking the Publisher Portal.

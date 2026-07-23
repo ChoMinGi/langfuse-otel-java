@@ -197,13 +197,11 @@ class LangfuseOtelTransportSecurityTest {
     }
 
     @Test
-    void crossOriginRedirectDoesNotForwardBasicAuthorization() throws Exception {
+    void crossOriginRedirectIsNotFollowed() throws Exception {
         AtomicReference<CapturedRequest> redirectedRequest = new AtomicReference<>();
-        CountDownLatch redirectReceived = new CountDownLatch(1);
         HttpServer target = startServer(exchange -> {
             redirectedRequest.set(CapturedRequest.from(exchange));
             sendEmptyProtobufResponse(exchange, 200);
-            redirectReceived.countDown();
         });
 
         AtomicReference<String> sourceAuthorization = new AtomicReference<>();
@@ -223,10 +221,8 @@ class LangfuseOtelTransportSecurityTest {
                 langfuse.flush();
             }
 
-            assertThat(redirectReceived.await(5, TimeUnit.SECONDS)).isTrue();
             assertThat(sourceAuthorization.get()).isEqualTo(EXPECTED_AUTHORIZATION);
-            assertThat(redirectedRequest.get()).isNotNull();
-            assertThat(redirectedRequest.get().authorization).isNull();
+            assertThat(redirectedRequest.get()).isNull();
         } finally {
             source.stop(0);
             target.stop(0);

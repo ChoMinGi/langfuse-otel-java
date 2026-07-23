@@ -80,6 +80,20 @@ try (LangfuseOtel langfuse = LangfuseOtel.builder()
 
 With the default `langfuse.otel-mode=auto`, the starter reuses exactly one application `OpenTelemetry` bean when available. It does not create an exporter and never flushes or shuts down the application-owned SDK. Configure that SDK or an OpenTelemetry Collector to export traces to Langfuse. If Langfuse keys are also configured, the starter warns that they are ignored in external mode.
 
+For an OTLP/HTTP exporter configured through standard environment variables:
+
+```bash
+export AUTH_STRING="$(printf '%s' "${LANGFUSE_PUBLIC_KEY}:${LANGFUSE_SECRET_KEY}" | base64 | tr -d '\n')"
+export OTEL_EXPORTER_OTLP_ENDPOINT="https://cloud.langfuse.com/api/public/otel"
+export OTEL_EXPORTER_OTLP_PROTOCOL="http/protobuf"
+export OTEL_EXPORTER_OTLP_HEADERS="Authorization=Basic ${AUTH_STRING},x-langfuse-ingestion-version=4"
+```
+
+Configure equivalent endpoint and headers when building the SDK or Collector directly. The
+ingestion-version header enables real-time v4 ingestion; without it, directly ingested traces can
+be delayed. See Langfuse's [OpenTelemetry guide](https://langfuse.com/integrations/native/opentelemetry)
+for other regions, self-hosting, and signal-specific settings.
+
 Set `langfuse.otel-mode=external` to require one application bean, or `standalone` to force a dedicated Langfuse SDK/exporter. Ambiguous external bean configurations fail at startup instead of silently selecting the wrong telemetry pipeline.
 
 Without Spring, select the same non-owning mode explicitly:
@@ -224,7 +238,23 @@ Exception detail capture follows the same rule with `ExceptionRedactor`. See
 
 Integrates with [langfuse-java](https://github.com/langfuse/langfuse-java) for prompt versioning:
 
+```xml
+<dependency>
+    <groupId>com.langfuse</groupId>
+    <artifactId>langfuse-java</artifactId>
+    <version>0.2.0</version>
+</dependency>
+```
+
+The prompt client is optional and is not pulled in transitively. Create it with the same Langfuse
+credentials and host before using the helper:
+
 ```java
+LangfuseClient langfuseClient = LangfuseClient.builder()
+        .credentials("pk-lf-...", "sk-lf-...")
+        .url("https://cloud.langfuse.com")
+        .build();
+
 trace.generation("llm", gen -> {
     String compiled = gen.prompt(langfuseClient, "my-prompt")
             .variable("domain", "HR")

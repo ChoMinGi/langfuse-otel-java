@@ -7,9 +7,8 @@ implementation details belong in code, tests, and Javadocs.
 
 The library creates Langfuse-compatible OpenTelemetry spans instead of calling the ingestion API
 directly. This lets an application route the same trace through its existing SDK or Collector.
-Langfuse also recommends OpenTelemetry for Java tracing
-([langfuse-java #2](https://github.com/langfuse/langfuse-java/issues/2#issuecomment-2706738123),
-[#24](https://github.com/langfuse/langfuse-java/issues/24#issuecomment-2698403123)).
+Langfuse documents this path in its
+[OpenTelemetry integration guide](https://langfuse.com/integrations/native/opentelemetry).
 
 ## Fail-safe observability
 
@@ -109,4 +108,4 @@ components. HTTPS is required by default because OTLP authentication uses a Basi
 to `localhost` or a literal loopback address.
 
 Contract tests cover the final OTLP path, authentication and ingestion headers, serialized spans,
-and cross-origin redirect credential stripping.
+and redirect refusal.

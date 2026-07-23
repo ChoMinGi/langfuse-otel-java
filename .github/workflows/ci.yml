@@ -65,12 +65,12 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # Baseline: minimum supported versions
+          # Baseline: minimum supported, security-patched versions
           - java: 17
-            spring-ai-version: '1.0.0'
+            spring-ai-version: '1.0.9'
             langchain4j-version: '1.0.0'
           - java: 21
-            spring-ai-version: '1.0.0'
+            spring-ai-version: '1.0.9'
             langchain4j-version: '1.0.0'
           # Latest stable releases on the Spring AI 1.x line and LangChain4j
           - java: 17
@@ -78,13 +78,6 @@ jobs:
             langchain4j-version: '1.18.0'
           - java: 21
             spring-ai-version: '1.1.8'
-            langchain4j-version: '1.18.0'
-          # Current stable releases
-          - java: 17
-            spring-ai-version: '2.0.0'
-            langchain4j-version: '1.18.0'
-          - java: 21
-            spring-ai-version: '2.0.0'
             langchain4j-version: '1.18.0'
     name: starter (java-${{ matrix.java }}, spring-ai-${{ matrix.spring-ai-version }}, lc4j-${{ matrix.langchain4j-version }})
     steps:

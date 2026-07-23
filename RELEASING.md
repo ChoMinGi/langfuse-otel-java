@@ -27,7 +27,7 @@ Run the same offline gates locally:
 
 ```bash
 ./mvnw -B -ntp clean verify
-./mvnw -B -ntp -DskipTests install
+./mvnw -B -ntp -DskipTests -Djacoco.skip=true install
 ./mvnw -B -ntp -f examples/spring-ai-example/pom.xml -DskipTests verify
 ./mvnw -B -ntp -f examples/langchain4j-example/pom.xml -DskipTests verify
 ```

@@ -318,7 +318,7 @@ jobs:
           cache: maven
 
       - name: Install release artifacts locally
-        run: ./mvnw -B -ntp -DskipTests install
+        run: ./mvnw -B -ntp -DskipTests -Djacoco.skip=true install
 
       - name: Verify Spring AI consumer
         run: ./mvnw -B -ntp -f examples/spring-ai-example/pom.xml -DskipTests verify

@@ -18,12 +18,16 @@ body:
         1. Configure with...
         2. Call...
         3. Observe...
+    validations:
+      required: true
 
   - type: textarea
     id: expected
     attributes:
       label: Expected behavior
       placeholder: What you expected to happen.
+    validations:
+      required: true
 
   - type: dropdown
     id: module
@@ -41,12 +45,16 @@ body:
     attributes:
       label: Library version
       placeholder: "0.1.1 or commit SHA"
+    validations:
+      required: true
 
   - type: input
     id: java-version
     attributes:
       label: Java version
       placeholder: "17"
+    validations:
+      required: true
 
   - type: dropdown
     id: framework
@@ -57,3 +65,21 @@ body:
         - LangChain4j
         - None (standalone)
         - Other
+    validations:
+      required: true
+
+  - type: input
+    id: framework-versions
+    attributes:
+      label: Framework versions
+      description: Include Spring Boot and Spring AI or LangChain4j versions, or enter "n/a".
+      placeholder: "Spring Boot 3.5.16, Spring AI 1.1.8"
+    validations:
+      required: true
+
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Relevant configuration and logs
+      description: Remove API keys, credentials, model content, and other sensitive data.
+      render: shell

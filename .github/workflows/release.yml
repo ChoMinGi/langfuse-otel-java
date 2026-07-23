@@ -129,10 +129,13 @@ jobs:
             fi
           done
 
-          for example in examples/spring-ai-example examples/langchain4j-example; do
-            example_version="$(./mvnw -q -f "$example/pom.xml" -DforceStdout help:evaluate -Dexpression=langfuse-otel.version)"
-            if [[ "$example_version" != "$pom_version" ]]; then
-              echo "::error::$example uses langfuse-otel version $example_version instead of $pom_version."
+          for consumer in \
+            examples/spring-ai-example \
+            examples/langchain4j-example \
+            consumer-tests/core-prompt-consumer; do
+            consumer_version="$(./mvnw -q -f "$consumer/pom.xml" -DforceStdout help:evaluate -Dexpression=langfuse-otel.version)"
+            if [[ "$consumer_version" != "$pom_version" ]]; then
+              echo "::error::$consumer uses langfuse-otel version $consumer_version instead of $pom_version."
               exit 1
             fi
           done
@@ -325,6 +328,9 @@ jobs:
 
       - name: Verify LangChain4j consumer
         run: ./mvnw -B -ntp -f examples/langchain4j-example/pom.xml -DskipTests verify
+
+      - name: Verify core and prompt client compatibility
+        run: ./mvnw -B -ntp -f consumer-tests/core-prompt-consumer/pom.xml verify
 
   quality:
     name: release quality and supply chain

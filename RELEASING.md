@@ -19,7 +19,8 @@ Use `0.2.0` below as an example. Prepare these changes as one commit on a releas
 merge it through the normal `main` protections:
 
 1. Change the root and both module parent versions from `0.2.0-SNAPSHOT` to `0.2.0`.
-2. Change `langfuse-otel.version` in both example POMs to `0.2.0`.
+2. Change `langfuse-otel.version` in both example POMs and
+   `consumer-tests/core-prompt-consumer/pom.xml` to `0.2.0`.
 3. Replace the README snapshot notice and both dependency snippets with `0.2.0`.
 4. Move the changelog content to a dated `## [0.2.0] - YYYY-MM-DD` heading. Keep a separate empty `## [Unreleased]` section for future work.
 5. Set `project.build.outputTimestamp` once to a stable UTC timestamp for the release commit. Do not derive it from the current build time.
@@ -33,6 +34,7 @@ Run the Maven gates locally:
 ./mvnw -B -ntp -DskipTests -Djacoco.skip=true install
 ./mvnw -B -ntp -f examples/spring-ai-example/pom.xml -DskipTests verify
 ./mvnw -B -ntp -f examples/langchain4j-example/pom.xml -DskipTests verify
+./mvnw -B -ntp -f consumer-tests/core-prompt-consumer/pom.xml verify
 ```
 
 The release workflow also scans the generated SBOM and rejects High or Critical vulnerability
@@ -55,7 +57,7 @@ Before Central credentials are available, the workflow verifies:
 - `clean verify`, including coverage, warning-free Javadocs, and binary/source compatibility with
   `0.1.1`;
 - SpotBugs, dependency-license, CycloneDX SBOM, and High/Critical vulnerability gates;
-- core Java 11/17/21, the blocking Spring AI/LangChain4j matrix, and both consumer builds.
+- core Java 11/17/21, the blocking Spring AI/LangChain4j matrix, and all consumer checks.
 
 The `central-validation` environment is entered only after every gate succeeds. The deploy job builds and signs once, uploads a candidate named `io.github.chomingi:langfuse-otel-java:<version>`, waits for `VALIDATED`, and stops. The following job has the only `contents:write` permission and creates a draft GitHub release without checking out or building repository code.
 

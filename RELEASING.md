@@ -19,7 +19,7 @@ Use `0.2.0` below as an example. Prepare these changes as one commit on a releas
 merge it through the normal `main` protections:
 
 1. Change the root and both module parent versions from `0.2.0-SNAPSHOT` to `0.2.0`.
-2. Change `langfuse-otel.version` in both example POMs and both
+2. Change `langfuse-otel.version` in both example POMs and all
    `consumer-tests` project POMs to `0.2.0`.
 3. Replace the README snapshot notice and both dependency snippets with `0.2.0`.
 4. Move the changelog content to a dated `## [0.2.0] - YYYY-MM-DD` heading. Keep a separate empty `## [Unreleased]` section for future work.
@@ -36,6 +36,8 @@ Run the Maven gates locally:
 ./mvnw -B -ntp -f examples/langchain4j-example/pom.xml -DskipTests verify
 ./mvnw -B -ntp -f consumer-tests/spring-boot-consumer/pom.xml verify
 ./mvnw -B -ntp -f consumer-tests/spring-boot-consumer/pom.xml -Dspring-ai.version=1.1.8 clean verify
+./mvnw -B -ntp -f consumer-tests/langchain4j-spring-boot-consumer/pom.xml verify
+./mvnw -B -ntp -f consumer-tests/langchain4j-spring-boot-consumer/pom.xml -Dlangchain4j.version=1.18.0 clean verify
 ./mvnw -B -ntp -f consumer-tests/core-prompt-consumer/pom.xml verify
 ```
 

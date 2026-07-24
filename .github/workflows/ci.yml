@@ -136,6 +136,14 @@ jobs:
           ./mvnw -B -ntp -f consumer-tests/spring-boot-consumer/pom.xml
           -Dspring-ai.version=1.1.8 clean verify
 
+      - name: Verify Spring Boot consumer startup (LangChain4j 1.0.0)
+        run: ./mvnw -B -ntp -f consumer-tests/langchain4j-spring-boot-consumer/pom.xml verify
+
+      - name: Verify Spring Boot consumer startup (LangChain4j 1.18.0)
+        run: >-
+          ./mvnw -B -ntp -f consumer-tests/langchain4j-spring-boot-consumer/pom.xml
+          -Dlangchain4j.version=1.18.0 clean verify
+
       - name: Verify core and prompt client compatibility
         run: ./mvnw -B -ntp -f consumer-tests/core-prompt-consumer/pom.xml verify
 

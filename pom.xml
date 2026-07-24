@@ -5,7 +5,7 @@
 
     <groupId>io.github.chomingi</groupId>
     <artifactId>langfuse-otel-java</artifactId>
-    <version>0.2.0-SNAPSHOT</version>
+    <version>0.2.0</version>
     <packaging>pom</packaging>
 
     <name>langfuse-otel-java</name>
@@ -40,7 +40,7 @@
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <project.build.outputTimestamp>2026-07-19T00:00:00Z</project.build.outputTimestamp>
+        <project.build.outputTimestamp>2026-07-23T16:38:13Z</project.build.outputTimestamp>
         <otel.version>1.62.0</otel.version>
         <otel.proto.version>1.3.2-alpha</otel.proto.version>
         <slf4j.version>2.0.18</slf4j.version>

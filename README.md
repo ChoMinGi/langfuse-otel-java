@@ -22,7 +22,7 @@ or own a dedicated Langfuse exporter.
 
 ## Quick Start
 
-`0.2.0-SNAPSHOT` is the current production-preview development line. Build it locally with `./mvnw clean install`; use `0.1.1` when resolving only from Maven Central until 0.2.0 is released.
+`0.2.0` is the current production-preview release line.
 
 ### Spring Boot (Dedicated Exporter Quick Start)
 
@@ -30,7 +30,7 @@ or own a dedicated Langfuse exporter.
 <dependency>
     <groupId>io.github.chomingi</groupId>
     <artifactId>langfuse-otel-spring-boot-starter</artifactId>
-    <version>0.2.0-SNAPSHOT</version>
+    <version>0.2.0</version>
 </dependency>
 ```
 
@@ -56,7 +56,7 @@ Standalone endpoints must use HTTPS. For a loopback development receiver only, p
 <dependency>
     <groupId>io.github.chomingi</groupId>
     <artifactId>langfuse-otel-core</artifactId>
-    <version>0.2.0-SNAPSHOT</version>
+    <version>0.2.0</version>
 </dependency>
 ```
 
@@ -331,7 +331,8 @@ Keep this component out of liveness. Add it to readiness only when losing Langfu
 - Custom concrete publisher subtypes are returned unchanged when a compatible wrapper type cannot
   be preserved.
 
-Remaining production work is tracked in [ROADMAP.md](ROADMAP.md); `0.2.0-SNAPSHOT` is not the final production release.
+`0.2.x` remains a production-preview line. Work for later releases is tracked in
+[ROADMAP.md](ROADMAP.md).
 
 ## Compatibility
 

@@ -1,6 +1,8 @@
 # Changelog
 
-## [Unreleased] - 0.2.0 Production Preview
+## [Unreleased]
+
+## [0.2.0] - 2026-07-24
 
 ### Added
 
@@ -27,6 +29,8 @@
 - The Boot 3 line now uses Spring Boot 3.5.16, Spring AI 1.0.9, OpenTelemetry 1.62.0, and Netty
   4.1.136.Final; CI also covers Spring AI 1.1.8 and LangChain4j 1.18.0
 - `0.2.x` remains the Boot 3/Spring AI 1 line; Boot 4/Spring AI 2 moves to `0.3.x`
+- The standalone exporter now uses the JDK HTTP sender, avoiding OkHttp and Kotlin classpath
+  conflicts with the optional `langfuse-java` prompt client
 - Maven Central publication stops at `VALIDATED` for manual approval before the GitHub release is
   published
 

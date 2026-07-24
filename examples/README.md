@@ -1,7 +1,7 @@
 # Examples
 
 These are standalone consumer projects rather than modules in the main Maven build. Install the
-current snapshot from the repository root, then provide test credentials:
+current repository artifacts from the repository root, then provide test credentials:
 
 ```bash
 ./mvnw -B -ntp -DskipTests -Djacoco.skip=true install

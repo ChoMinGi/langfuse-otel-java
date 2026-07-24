@@ -66,6 +66,9 @@ Without Spring, `LangfuseOtel.externalBuilder(openTelemetry)` is non-owning, so 
 
 ## Operational and adapter changes
 
+- Rely on starter auto-discovery instead of explicitly importing or excluding
+  `LangfuseOtelAutoConfiguration`. Use `langfuse.enabled=false` to disable the integration. Version
+  0.2 separates core and web auto-configuration so servlet and WebFlux dependencies remain optional.
 - Applications with Actuator receive a `langfuse` health component and meters. Keep the component
   out of liveness; include it in readiness only if trace-delivery failure should stop traffic.
 - Spring AI streams create state per subscription. An unsubscribed `Flux` creates no span, and

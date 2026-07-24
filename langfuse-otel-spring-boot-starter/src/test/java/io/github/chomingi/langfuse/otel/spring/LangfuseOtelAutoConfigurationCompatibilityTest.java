@@ -29,14 +29,22 @@ class LangfuseOtelAutoConfigurationCompatibilityTest {
     }
 
     @Test
-    void legacyFactoryDescriptorDoesNotRegisterASecondBeanFactory() throws NoSuchMethodException {
+    void legacyFacadePreservesFactoriesWithoutRegisteringBeanMethods() throws NoSuchMethodException {
         Method legacyFactory = LangfuseOtelAutoConfiguration.class
                 .getMethod("langfuseOtel", LangfuseOtelProperties.class);
+        Method servletFactory = LangfuseOtelAutoConfiguration.class
+                .getMethod("langfuseContextFilter", LangfuseOtelProperties.class);
+        Method reactiveFactory = LangfuseOtelAutoConfiguration.class
+                .getMethod("langfuseReactiveContextFilter", LangfuseOtelProperties.class);
 
         assertThat(legacyFactory.getReturnType()).isEqualTo(LangfuseOtel.class);
         assertThat(legacyFactory.isAnnotationPresent(Deprecated.class)).isTrue();
-        assertThat(legacyFactory.isAnnotationPresent(Bean.class)).isFalse();
+        assertThat(servletFactory.getReturnType()).isEqualTo(LangfuseContextFilter.class);
+        assertThat(reactiveFactory.getReturnType()).isEqualTo(LangfuseReactiveContextFilter.class);
         assertThat(Arrays.stream(LangfuseOtelAutoConfiguration.class.getDeclaredMethods())
+                .filter(method -> method.isAnnotationPresent(Bean.class)))
+                .isEmpty();
+        assertThat(Arrays.stream(LangfuseOtelCoreAutoConfiguration.class.getDeclaredMethods())
                 .filter(method -> method.getName().equals("langfuseOtel"))
                 .filter(method -> method.isAnnotationPresent(Bean.class)))
                 .singleElement()

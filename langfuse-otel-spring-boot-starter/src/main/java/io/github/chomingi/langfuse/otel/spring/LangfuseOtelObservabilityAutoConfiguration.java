@@ -12,7 +12,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /** Adds optional Actuator and Micrometer signals for the Langfuse OTel runtime. */
-@AutoConfiguration(after = LangfuseOtelAutoConfiguration.class)
+@AutoConfiguration(after = LangfuseOtelCoreAutoConfiguration.class)
 public class LangfuseOtelObservabilityAutoConfiguration {
 
     @Configuration(proxyBeanMethods = false)

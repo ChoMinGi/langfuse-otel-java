@@ -12,7 +12,7 @@ import org.springframework.context.annotation.Role;
 /**
  * Adds Langfuse tracing decorators to supported LangChain4j model beans.
  */
-@AutoConfiguration(after = LangfuseOtelAutoConfiguration.class)
+@AutoConfiguration(after = LangfuseOtelCoreAutoConfiguration.class)
 @ConditionalOnClass(name = "dev.langchain4j.model.chat.ChatModel")
 @ConditionalOnBean(LangfuseOtel.class)
 public class LangChain4jAutoConfiguration {

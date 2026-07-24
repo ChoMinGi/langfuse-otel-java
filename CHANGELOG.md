@@ -50,6 +50,7 @@
 - Annotated future and Reactor methods end at the real terminal event without duplicate model spans
 - Spring AI document and bulk embedding adapters reject invalid `null` delegate results and record
   the tracing error
+- Non-web Spring Boot applications start without optional servlet or WebFlux classes
 - Consumer artifact installation no longer runs a zero-test JaCoCo coverage check
 
 ## [0.1.1] - 2026-05-12

@@ -82,7 +82,7 @@ class MockEndToEndTest {
     void allBeanPostProcessorsAreRegistered() {
         new ApplicationContextRunner()
                 .withConfiguration(AutoConfigurations.of(
-                        LangfuseOtelAutoConfiguration.class,
+                        LangfuseOtelCoreAutoConfiguration.class,
                         SpringAiAutoConfiguration.class,
                         LangChain4jAutoConfiguration.class))
                 .withPropertyValues(

@@ -12,7 +12,7 @@ import org.springframework.context.annotation.Role;
 /**
  * Adds Langfuse tracing decorators to supported Spring AI model beans.
  */
-@AutoConfiguration(after = LangfuseOtelAutoConfiguration.class)
+@AutoConfiguration(after = LangfuseOtelCoreAutoConfiguration.class)
 @ConditionalOnClass(name = "org.springframework.ai.chat.model.ChatModel")
 @ConditionalOnBean(LangfuseOtel.class)
 public class SpringAiAutoConfiguration {

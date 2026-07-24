@@ -22,7 +22,7 @@ class LangfuseOtelObservabilityAutoConfigurationTest {
 
     private final ApplicationContextRunner baseRunner = new ApplicationContextRunner()
             .withConfiguration(AutoConfigurations.of(
-                    LangfuseOtelAutoConfiguration.class,
+                    LangfuseOtelCoreAutoConfiguration.class,
                     LangfuseOtelObservabilityAutoConfiguration.class));
 
     private final ApplicationContextRunner standaloneRunner = baseRunner.withPropertyValues(
@@ -150,7 +150,7 @@ class LangfuseOtelObservabilityAutoConfigurationTest {
     void bootMetricsAutoConfigurationBindsMetersAutomatically() {
         new ApplicationContextRunner()
                 .withConfiguration(AutoConfigurations.of(
-                        LangfuseOtelAutoConfiguration.class,
+                        LangfuseOtelCoreAutoConfiguration.class,
                         LangfuseOtelObservabilityAutoConfiguration.class,
                         MetricsAutoConfiguration.class,
                         SimpleMetricsExportAutoConfiguration.class))
@@ -169,7 +169,7 @@ class LangfuseOtelObservabilityAutoConfigurationTest {
     void standardMetricsDisablePropertyIsHonored() {
         new ApplicationContextRunner()
                 .withConfiguration(AutoConfigurations.of(
-                        LangfuseOtelAutoConfiguration.class,
+                        LangfuseOtelCoreAutoConfiguration.class,
                         LangfuseOtelObservabilityAutoConfiguration.class,
                         MetricsAutoConfiguration.class,
                         SimpleMetricsExportAutoConfiguration.class))

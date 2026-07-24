@@ -192,6 +192,21 @@ class LangfuseOtelObservabilityAutoConfigurationTest {
     }
 
     @Test
+    void disablingLangfuseRemovesOperationalBeansForUserLangfuseBean() {
+        LangfuseOtel userLangfuse = LangfuseOtel.externalBuilder(OpenTelemetry.noop()).build();
+
+        baseRunner
+                .withPropertyValues("langfuse.enabled=false")
+                .withBean(LangfuseOtel.class, () -> userLangfuse,
+                        beanDefinition -> beanDefinition.setDestroyMethodName(""))
+                .run(context -> {
+                    assertThat(context).hasSingleBean(LangfuseOtel.class);
+                    assertThat(context).doesNotHaveBean("langfuseHealthIndicator");
+                    assertThat(context).doesNotHaveBean("langfuseOtelMeterBinder");
+                });
+    }
+
+    @Test
     void namedUserBeansTakePrecedence() {
         HealthIndicator userHealth = () -> Health.up().withDetail("source", "user").build();
         MeterBinder userBinder = registry -> {};

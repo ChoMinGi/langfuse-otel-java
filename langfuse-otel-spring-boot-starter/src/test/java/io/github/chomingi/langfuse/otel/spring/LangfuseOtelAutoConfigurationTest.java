@@ -56,6 +56,21 @@ class LangfuseOtelAutoConfigurationTest {
     }
 
     @Test
+    void disabledStarterDoesNotRegisterModelPostProcessorsForUserLangfuseBean() {
+        LangfuseOtel userLangfuse = LangfuseOtel.externalBuilder(OpenTelemetry.noop()).build();
+
+        baseContextRunner
+                .withPropertyValues("langfuse.enabled=false")
+                .withBean(LangfuseOtel.class, () -> userLangfuse,
+                        beanDefinition -> beanDefinition.setDestroyMethodName(""))
+                .run(context -> {
+                    assertThat(context).hasSingleBean(LangfuseOtel.class);
+                    assertThat(context).doesNotHaveBean(ObserveGenerationAspect.class);
+                    assertThat(context).doesNotHaveBean(AbstractModelBeanPostProcessor.class);
+                });
+    }
+
+    @Test
     void contentCaptureUsesSafeDefaults() {
         contextRunner.run(context -> {
             LangfuseOtel langfuse = context.getBean(LangfuseOtel.class);

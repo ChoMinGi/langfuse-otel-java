@@ -1,4 +1,5 @@
 langfuse:
+  otel-mode: standalone # this example owns a dedicated Langfuse exporter
   public-key: ${LANGFUSE_PUBLIC_KEY:}
   secret-key: ${LANGFUSE_SECRET_KEY:}
   host: ${LANGFUSE_HOST:https://cloud.langfuse.com}

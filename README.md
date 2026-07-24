@@ -6,7 +6,7 @@ OpenTelemetry-based Langfuse tracing for Java, Spring AI, and LangChain4j.
 
 [![CI](https://github.com/ChoMinGi/langfuse-otel-java/actions/workflows/ci.yml/badge.svg)](https://github.com/ChoMinGi/langfuse-otel-java/actions)
 [![Java Core 11%2B / Starter 17%2B](https://img.shields.io/badge/Java-core%2011%2B%20%7C%20starter%2017%2B-blue)](https://openjdk.org/)
-[![Spring Boot 3.x](https://img.shields.io/badge/Spring%20Boot-3.x-green)](https://spring.io/projects/spring-boot)
+[![Spring Boot 3.5.16 tested](https://img.shields.io/badge/Spring%20Boot-3.5.16%20tested-green)](https://spring.io/projects/spring-boot)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![OpenTelemetry](https://img.shields.io/badge/OpenTelemetry-enabled-blueviolet)](https://opentelemetry.io/)
 
@@ -22,7 +22,13 @@ or own a dedicated Langfuse exporter.
 
 ## Quick Start
 
-`0.2.0` is the current production-preview release line.
+> **Release status:** `0.2.0` is the current production-preview release candidate and is not yet
+> available from Maven Central. The latest public coordinates are
+> `io.github.chomingi:langfuse-otel-core:0.1.1` and
+> `io.github.chomingi:langfuse-otel-spring-boot-starter:0.1.1`; use the
+> [0.1.1 documentation](https://github.com/ChoMinGi/langfuse-otel-java/tree/v0.1.1) with those
+> artifacts. To evaluate the `0.2.0` configuration below before publication, check out this
+> revision and run `./mvnw -B -ntp -DskipTests -Djacoco.skip=true install` first.
 
 ### Spring Boot (Dedicated Exporter Quick Start)
 
@@ -33,6 +39,10 @@ or own a dedicated Langfuse exporter.
     <version>0.2.0</version>
 </dependency>
 ```
+
+Spring AI and LangChain4j are optional integrations. The starter does not choose an LLM framework
+or provider for the application, so keep the framework and provider dependency that supplies your
+model bean. The example projects use OpenAI, but no provider client is pulled in transitively.
 
 ```yaml
 # application.yml
@@ -78,7 +88,15 @@ try (LangfuseOtel langfuse = LangfuseOtel.builder()
 
 ### Existing OpenTelemetry SDK (Production Recommended)
 
-With the default `langfuse.otel-mode=auto`, the starter reuses exactly one application `OpenTelemetry` bean when available. It does not create an exporter and never flushes or shuts down the application-owned SDK. Configure that SDK or an OpenTelemetry Collector to export traces to Langfuse. If Langfuse keys are also configured, the starter warns that they are ignored in external mode.
+With the default `langfuse.otel-mode=auto`, the starter reuses an application `OpenTelemetry` bean
+when Spring can select one unambiguously: either it is the only bean or one candidate is marked
+`@Primary`. With no application bean, `auto` creates the standalone pipeline. Multiple candidates
+without a primary bean fail at startup.
+
+When an application bean is selected, the starter does not create an exporter and never flushes or
+shuts down the application-owned SDK. Configure that SDK or an OpenTelemetry Collector to export
+traces to Langfuse. If Langfuse keys are also configured, the starter warns that they are ignored
+for the selected external pipeline.
 
 For an OTLP/HTTP exporter configured through standard environment variables:
 
@@ -94,7 +112,10 @@ ingestion-version header enables real-time v4 ingestion; without it, directly in
 be delayed. See Langfuse's [OpenTelemetry guide](https://langfuse.com/integrations/native/opentelemetry)
 for other regions, self-hosting, and signal-specific settings.
 
-Set `langfuse.otel-mode=external` to require one application bean, or `standalone` to force a dedicated Langfuse SDK/exporter. Ambiguous external bean configurations fail at startup instead of silently selecting the wrong telemetry pipeline.
+Set `langfuse.otel-mode=external` to require one unambiguously selectable application bean, or
+`standalone` to force a dedicated Langfuse SDK/exporter. `external` fails when no bean can be
+selected; both `auto` and `external` reject ambiguous candidates instead of silently choosing a
+telemetry pipeline.
 
 Without Spring, select the same non-owning mode explicitly:
 
@@ -341,12 +362,19 @@ Keep this component out of liveness. Add it to readiness only when losing Langfu
 | Java | 11+ | Core module |
 | Java | 17+ | Spring Boot starter |
 | OpenTelemetry SDK | 1.62.0 | Via BOM |
-| Spring Boot | 3.5.16 | Boot 3 auto-configuration |
-| Spring AI | 1.0.9 / 1.1.8 | Chat, streaming, embeddings, images |
-| LangChain4j | 1.0.0 / 1.18.0 | Chat, streaming, embeddings, images; provider internals vary |
+| Spring Boot | 3.5.16 | Non-web external and standalone consumer startup |
+| Spring AI | 1.0.9 / 1.1.8 | Chat consumer smoke; adapter tests also cover streaming, embeddings, and images |
+| LangChain4j | 1.0.0 / 1.18.0 | Chat consumer smoke; adapter tests also cover streaming, embeddings, and images |
 | langfuse-java | 0.2.0 | Prompt management (optional) |
 | Langfuse Cloud | v3+ | OTLP ingestion |
 | Langfuse Self-hosted | v3.22.0+ | Requires OTLP support |
+
+The blocking consumer smoke tests start a non-web Spring Boot 3.5.16 application on Java 17 and
+invoke a framework `ChatModel` for both listed Spring AI and LangChain4j versions. External mode
+verifies the resulting span with an application-owned SDK; standalone mode verifies the OTLP path,
+authentication and ingestion headers, service resource, and model attributes against a loopback
+receiver. The broader adapter behavior is covered by the Java 17/21 starter test matrix. Provider
+clients and other Spring Boot 3 minor releases are not part of that runtime smoke.
 
 `0.2.x` is the Spring Boot 3 and Spring AI 1 line. `0.3.x` will move the same starter
 coordinates to Spring Boot 4 and Spring AI 2; the core module remains framework-neutral. See

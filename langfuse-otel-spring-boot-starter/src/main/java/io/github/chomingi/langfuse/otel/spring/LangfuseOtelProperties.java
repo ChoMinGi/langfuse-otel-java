@@ -84,9 +84,12 @@ public class LangfuseOtelProperties {
 
     /** Defines whether the starter creates or reuses an OpenTelemetry instance. */
     public enum OpenTelemetryMode {
-        /** Reuse exactly one application OpenTelemetry bean, otherwise create a standalone SDK. */
+        /**
+         * Reuse an unambiguously selectable application OpenTelemetry bean, otherwise create a
+         * standalone SDK.
+         */
         AUTO,
-        /** Require and reuse exactly one application OpenTelemetry bean. */
+        /** Require and reuse an unambiguously selectable application OpenTelemetry bean. */
         EXTERNAL,
         /** Always create and own a dedicated Langfuse OpenTelemetry SDK. */
         STANDALONE

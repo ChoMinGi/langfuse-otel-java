@@ -1,8 +1,6 @@
 # Changelog
 
-## [Unreleased]
-
-## [0.2.0] - 2026-07-24
+## [0.2.0] - Unreleased
 
 ### Added
 
@@ -18,6 +16,8 @@
   compatibility, warning-free Javadocs, framework matrices, and consumer builds
 - Standalone OTLP transport contract coverage for payloads, hierarchy, headers, endpoint safety,
   and redirect credential handling
+- Independent Spring AI and LangChain4j consumer smokes for application-owned and standalone
+  OpenTelemetry pipelines
 
 ### Changed
 
@@ -52,6 +52,8 @@
   the tracing error
 - Non-web Spring Boot applications start without optional servlet or WebFlux classes
 - Consumer artifact installation no longer runs a zero-test JaCoCo coverage check
+- `langfuse.enabled=false` now disables model instrumentation and operational signals even when an
+  application supplies its own `LangfuseOtel` bean
 
 ## [0.1.1] - 2026-05-12
 

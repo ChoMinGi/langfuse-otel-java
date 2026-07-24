@@ -21,10 +21,13 @@ merge it through the normal `main` protections:
 1. Change the root and both module parent versions from `0.2.0-SNAPSHOT` to `0.2.0`.
 2. Change `langfuse-otel.version` in both example POMs and all
    `consumer-tests` project POMs to `0.2.0`.
-3. Replace the README snapshot notice and both dependency snippets with `0.2.0`.
-4. Move the changelog content to a dated `## [0.2.0] - YYYY-MM-DD` heading. Keep a separate empty `## [Unreleased]` section for future work.
+3. Replace the README release-candidate block with final release wording and confirm both dependency
+   snippets use `0.2.0`.
+4. Replace `Unreleased` in the `## [0.2.0]` changelog heading with the actual `YYYY-MM-DD` release
+   date. Add a separate empty `## [Unreleased]` section above it for future work.
 5. Set `project.build.outputTimestamp` once to a stable UTC timestamp for the release commit. Do not derive it from the current build time.
-6. Review `SECURITY.md`, compatibility claims, and migration notes for the release version.
+6. Review `SECURITY.md`, compatibility claims, and migration notes for the release version. Change
+   the supported-version table from release-candidate status to public maintenance.
 
 Run the Maven gates locally:
 
@@ -78,15 +81,22 @@ The `central-validation` environment is entered only after every gate succeeds. 
 
 ## Verify public resolution
 
-Avoid a warm local Maven cache. Resolve both public artifacts into a new temporary repository:
+Avoid a warm local Maven cache. Resolve both public artifacts into a new temporary repository, then
+run the two framework consumer projects against that same repository:
 
 ```bash
 release_m2="$(mktemp -d)"
 ./mvnw -B -ntp -U -Dmaven.repo.local="$release_m2" org.apache.maven.plugins:maven-dependency-plugin:3.8.1:get -Dartifact=io.github.chomingi:langfuse-otel-core:0.2.0
 ./mvnw -B -ntp -U -Dmaven.repo.local="$release_m2" org.apache.maven.plugins:maven-dependency-plugin:3.8.1:get -Dartifact=io.github.chomingi:langfuse-otel-spring-boot-starter:0.2.0
+./mvnw -B -ntp -U -Dmaven.repo.local="$release_m2" -f consumer-tests/spring-boot-consumer/pom.xml clean verify
+./mvnw -B -ntp -U -Dmaven.repo.local="$release_m2" -f consumer-tests/langchain4j-spring-boot-consumer/pom.xml clean verify
 ```
 
-Central synchronization can take time. Retry resolution without rebuilding or re-uploading the release. Retain the temporary repository until both commands succeed so its contents can be inspected if necessary.
+Do not install the reactor into `release_m2`; these runs must consume the artifacts published by
+Central. They start non-web Spring Boot applications, invoke Spring AI and LangChain4j chat models,
+and verify both application-owned spans and standalone OTLP requests. Central synchronization can
+take time. Retry the commands without rebuilding or re-uploading the release, and retain the
+temporary repository until they succeed so its contents can be inspected if necessary.
 
 ## Publish the GitHub draft
 
@@ -98,8 +108,10 @@ gh release edit v0.2.0 --draft=false --latest
 ```
 
 Finally, move `main` to the next development version, update the example and consumer-test
-`langfuse-otel.version` properties and README consistently, restore the changelog's `Unreleased`
-section, and advance `api.compatibility.baseline` to the released version.
+`langfuse-otel.version` properties, restore the changelog's `Unreleased` section, and advance
+`api.compatibility.baseline` to the released version. Keep the README Quick Start dependency
+snippets on the latest version available from Maven Central. If the README also mentions the
+development version, label it separately as unpublished and require a local install.
 
 ## Failure and retry policy
 

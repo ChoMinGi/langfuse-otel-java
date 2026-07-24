@@ -57,7 +57,7 @@ used in this mode.
 
 ```yaml
 langfuse:
-  otel-mode: external     # require one application OpenTelemetry bean
+  otel-mode: external     # require an unambiguously selectable application OpenTelemetry bean
   # otel-mode: standalone # own a dedicated Langfuse SDK and exporter
 ```
 

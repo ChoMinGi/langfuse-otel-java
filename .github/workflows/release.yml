@@ -199,9 +199,11 @@ jobs:
             esac
           done
 
-          echo "release_tag=$release_tag" >> "$GITHUB_OUTPUT"
-          echo "release_sha=$release_sha" >> "$GITHUB_OUTPUT"
-          echo "version=$pom_version" >> "$GITHUB_OUTPUT"
+          {
+            echo "release_tag=$release_tag"
+            echo "release_sha=$release_sha"
+            echo "version=$pom_version"
+          } >> "$GITHUB_OUTPUT"
 
           {
             echo "### Release preflight"

@@ -119,7 +119,7 @@ jobs:
           java-version: 17
           cache: maven
 
-      - name: Install snapshot artifacts
+      - name: Install reactor artifacts locally
         run: ./mvnw -B -ntp -DskipTests -Djacoco.skip=true install
 
       - name: Compile Spring AI consumer

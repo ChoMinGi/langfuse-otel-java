@@ -19,8 +19,8 @@ Use `0.2.0` below as an example. Prepare these changes as one commit on a releas
 merge it through the normal `main` protections:
 
 1. Change the root and both module parent versions from `0.2.0-SNAPSHOT` to `0.2.0`.
-2. Change `langfuse-otel.version` in both example POMs and
-   `consumer-tests/core-prompt-consumer/pom.xml` to `0.2.0`.
+2. Change `langfuse-otel.version` in both example POMs and both
+   `consumer-tests` project POMs to `0.2.0`.
 3. Replace the README snapshot notice and both dependency snippets with `0.2.0`.
 4. Move the changelog content to a dated `## [0.2.0] - YYYY-MM-DD` heading. Keep a separate empty `## [Unreleased]` section for future work.
 5. Set `project.build.outputTimestamp` once to a stable UTC timestamp for the release commit. Do not derive it from the current build time.
@@ -34,6 +34,8 @@ Run the Maven gates locally:
 ./mvnw -B -ntp -DskipTests -Djacoco.skip=true install
 ./mvnw -B -ntp -f examples/spring-ai-example/pom.xml -DskipTests verify
 ./mvnw -B -ntp -f examples/langchain4j-example/pom.xml -DskipTests verify
+./mvnw -B -ntp -f consumer-tests/spring-boot-consumer/pom.xml verify
+./mvnw -B -ntp -f consumer-tests/spring-boot-consumer/pom.xml -Dspring-ai.version=1.1.8 clean verify
 ./mvnw -B -ntp -f consumer-tests/core-prompt-consumer/pom.xml verify
 ```
 
@@ -93,9 +95,9 @@ gh release view v0.2.0 --json isDraft,url
 gh release edit v0.2.0 --draft=false --latest
 ```
 
-Finally, move `main` to the next development version, update both example properties and README
-consistently, restore the changelog's `Unreleased` section, and advance
-`api.compatibility.baseline` to the released version.
+Finally, move `main` to the next development version, update the example and consumer-test
+`langfuse-otel.version` properties and README consistently, restore the changelog's `Unreleased`
+section, and advance `api.compatibility.baseline` to the released version.
 
 ## Failure and retry policy
 

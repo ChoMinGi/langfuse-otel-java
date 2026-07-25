@@ -112,6 +112,11 @@ ingestion-version header enables real-time v4 ingestion; without it, directly in
 be delayed. See Langfuse's [OpenTelemetry guide](https://langfuse.com/integrations/native/opentelemetry)
 for other regions, self-hosting, and signal-specific settings.
 
+Version 0.2 emits observation-first attributes for Langfuse v4. Trace roots and generic steps are
+`span` observations, chat/image calls and `@ObserveGeneration` are `generation` observations, and
+embedding calls are `embedding` observations. Root `.input(...)` and `.output(...)` write the v4
+observation fields as well as the legacy trace fields for compatibility.
+
 Set `langfuse.otel-mode=external` to require one unambiguously selectable application bean, or
 `standalone` to force a dedicated Langfuse SDK/exporter. `external` fails when no bean can be
 selected; both `auto` and `external` reject ambiguous candidates instead of silently choosing a
@@ -128,11 +133,17 @@ try (LangfuseOtel langfuse = LangfuseOtel.externalBuilder(openTelemetry).build()
 
 The original `builder()` remains the standalone mode: it creates and owns a dedicated SDK and Langfuse OTLP exporter.
 
+The library applies Langfuse context directly to spans it creates. It cannot add a processor to an
+already-built external SDK, so raw application or third-party spans need their own baggage/span
+processor or explicit attributes if they must carry the same trace-wide fields.
+
 ---
 
 ## What Gets Traced
 
-With the Spring Boot starter, the following models are **automatically instrumented** — no code changes required.
+The Spring Boot starter instruments calls made through eligible Spring-managed proxies that
+implement the supported interfaces below. Objects constructed with `new`, direct provider-SDK
+calls, and calls that bypass the Spring proxy are outside this boundary.
 
 ### Spring AI
 
@@ -140,7 +151,7 @@ With the Spring Boot starter, the following models are **automatically instrumen
 |-------|---------|-----------|
 | `ChatModel` | `call(Prompt)` | `chat` |
 | `ChatModel` | `stream(Prompt)` | `chat` (with TTFT) |
-| `EmbeddingModel` | `call(EmbeddingRequest)` | `embeddings` |
+| `EmbeddingModel` | `call(EmbeddingRequest)`, document and bulk `embed(...)` | `embeddings` |
 | `ImageModel` | `call(ImagePrompt)` | `image_generation` |
 
 Reactor scheduler transitions and downstream signals are bridged automatically. Provider adapters
@@ -156,7 +167,7 @@ boundary.
 | `ChatModel` | `chat(ChatRequest)` | `chat` |
 | `StreamingChatModel` | `chat(ChatRequest, Handler)` | `chat` (with TTFT) |
 | `EmbeddingModel` | `embedAll(...)`, `embed(...)` | `embeddings` |
-| `ImageModel` | `generate(...)` | `image_generation` |
+| `ImageModel` | `generate(...)`, `edit(...)` | `image_generation` |
 
 Streaming callbacks and model listeners restore the wrapper observation and immutable request
 metadata. Provider adapters that control task submission can use
@@ -183,7 +194,7 @@ limit.
 
 ### @ObserveGeneration Annotation
 
-Trace any method as an LLM generation — useful for custom LLM integrations:
+Trace a proxy-interceptable Spring method as an LLM generation:
 
 ```java
 @Service
@@ -198,7 +209,9 @@ public class LLMService {
 `@ObserveGeneration` covers synchronous methods, `CompletionStage`, and Reactor `Mono`/`Flux`.
 Stages retain their identity, and Reactor creates one observation per subscription. On a model
 bean, explicit annotations take precedence over automatic instrumentation so the same call is not
-traced twice.
+traced twice. The method must be reached through its Spring proxy: self-invocation and private or
+final methods are not advised. Ordering relative to other around advice, such as
+`@Transactional`, is not guaranteed.
 
 ### Request Context Propagation
 
@@ -216,6 +229,12 @@ try (Scope ignored = LangfuseContext.makeCurrent(metadata)) {
 
 Spring MVC and WebFlux filters can also extract Principal and HTTP session metadata after explicit
 opt-in. The legacy `LangfuseContext.set*()` methods remain available for synchronous code.
+
+Trace name, user/session IDs, tags, metadata, version, release, and environment are copied when a
+library-created descendant starts. Set fluent trace-wide values before creating children when all
+observations must agree; already-started spans are not backfilled. While a `LangfuseTrace` is
+active, its trace-local carrier is authoritative, so nested `storeIn(...)` or `makeCurrent(...)`
+metadata does not replace that trace. Use the trace fluent setters for intentional updates.
 
 ### Content Capture and Redaction
 
@@ -347,7 +366,15 @@ Keep this component out of liveness. Add it to readiness only when losing Langfu
 
 - Generic instrumentation cannot enter opaque provider-owned executors. Integrations that own a
   raw source or scheduling boundary must use the supplied context adapters.
+- During active instrumented Reactor subscriptions, a keyed `Schedulers.onScheduleHook` is
+  process-global. Every Reactor scheduled task in the JVM performs a small decorator lookup during
+  that window; unrelated tasks receive no Langfuse context, and the hook is removed after the last
+  lease ends.
+- Async observations are terminal-driven and have no library timeout. A publisher, stage, or
+  LangChain4j provider that never completes, errors, or is cancelled can leave its observation
+  open; configure provider/application timeouts and cancellation.
 - Final or otherwise non-proxyable model types are left unchanged and logged as uninstrumented.
+  Annotation-based tracing also cannot advise self-invocation or private/final methods.
 - `0.2.x` is JVM-only; Spring AOT and GraalVM native-image support are not claimed.
 - Custom concrete publisher subtypes are returned unchanged when a compatible wrapper type cannot
   be preserved.
@@ -366,8 +393,8 @@ Keep this component out of liveness. Add it to readiness only when losing Langfu
 | Spring AI | 1.0.9 / 1.1.8 | Chat consumer smoke; adapter tests also cover streaming, embeddings, and images |
 | LangChain4j | 1.0.0 / 1.18.0 | Chat consumer smoke; adapter tests also cover streaming, embeddings, and images |
 | langfuse-java | 0.2.0 | Prompt management (optional) |
-| Langfuse Cloud | v3+ | OTLP ingestion |
-| Langfuse Self-hosted | v3.22.0+ | Requires OTLP support |
+| Langfuse Cloud | Managed service | Current OTLP v4 ingestion and Observations API v2 |
+| Langfuse Self-hosted | v3.22.0+ | OTLP endpoint minimum; v4 is required for observation-first API v2 read-back |
 
 The blocking consumer smoke tests start a non-web Spring Boot 3.5.16 application on Java 17 and
 invoke a framework `ChatModel` for both listed Spring AI and LangChain4j versions. External mode
@@ -383,8 +410,8 @@ coordinates to Spring Boot 4 and Spring AI 2; the core module remains framework-
 ## Examples
 
 See the [examples](./examples) directory:
-- [Spring AI + OpenAI](./examples/spring-ai-example) — zero-code tracing
-- [LangChain4j + OpenAI](./examples/langchain4j-example) — zero-code tracing
+- [Spring AI + OpenAI](./examples/spring-ai-example) — automatic Spring bean tracing
+- [LangChain4j + OpenAI](./examples/langchain4j-example) — automatic Spring bean tracing
 
 ## Contributing
 

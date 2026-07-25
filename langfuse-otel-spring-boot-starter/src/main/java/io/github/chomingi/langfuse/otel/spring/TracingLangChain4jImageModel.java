@@ -43,6 +43,7 @@ public class TracingLangChain4jImageModel implements ImageModel {
             createdSpan = langfuseOtel.getTracer().spanBuilder(resolveSpanName())
                     .setParent(Context.current())
                     .setSpanKind(SpanKind.CLIENT)
+                    .setAttribute(LangfuseAttributes.OBSERVATION_TYPE, "generation")
                     .setAttribute(LangfuseAttributes.GEN_AI_OPERATION_NAME, "image_generation")
                     .setAttribute(LangfuseAttributes.GEN_AI_SYSTEM, "langchain4j")
                     .startSpan();
@@ -79,6 +80,7 @@ public class TracingLangChain4jImageModel implements ImageModel {
             createdSpan = langfuseOtel.getTracer().spanBuilder(resolveSpanName())
                     .setParent(Context.current())
                     .setSpanKind(SpanKind.CLIENT)
+                    .setAttribute(LangfuseAttributes.OBSERVATION_TYPE, "generation")
                     .setAttribute(LangfuseAttributes.GEN_AI_OPERATION_NAME, "image_generation")
                     .setAttribute(LangfuseAttributes.GEN_AI_SYSTEM, "langchain4j")
                     .startSpan();
@@ -125,6 +127,7 @@ public class TracingLangChain4jImageModel implements ImageModel {
             createdSpan = langfuseOtel.getTracer().spanBuilder(resolveSpanName())
                     .setParent(Context.current())
                     .setSpanKind(SpanKind.CLIENT)
+                    .setAttribute(LangfuseAttributes.OBSERVATION_TYPE, "generation")
                     .setAttribute(LangfuseAttributes.GEN_AI_OPERATION_NAME, "image_generation")
                     .setAttribute(LangfuseAttributes.GEN_AI_SYSTEM, "langchain4j")
                     .startSpan();

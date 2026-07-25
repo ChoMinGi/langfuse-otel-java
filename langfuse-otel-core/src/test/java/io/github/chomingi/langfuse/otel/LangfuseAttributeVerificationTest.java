@@ -38,6 +38,8 @@ class LangfuseAttributeVerificationTest {
         SpanData span = spans.get(0);
         assertThat(span.getName()).isEqualTo("test-gen");
         assertThat(span.getKind()).isEqualTo(SpanKind.CLIENT);
+        assertThat(span.getAttributes().get(AttributeKey.stringKey("langfuse.observation.type")))
+                .isEqualTo("generation");
         assertThat(span.getAttributes().get(AttributeKey.stringKey("gen_ai.operation.name"))).isEqualTo("chat");
         assertThat(span.getAttributes().get(AttributeKey.stringKey("gen_ai.request.model"))).isEqualTo("gpt-4o");
         assertThat(span.getAttributes().get(AttributeKey.stringKey("gen_ai.system"))).isEqualTo("openai");
@@ -76,10 +78,16 @@ class LangfuseAttributeVerificationTest {
         SpanData span = otel.getSpans().get(otel.getSpans().size() - 1);
         assertThat(span.getName()).isEqualTo("test-trace");
         assertThat(span.getKind()).isEqualTo(SpanKind.INTERNAL);
+        assertThat(span.getAttributes().get(AttributeKey.stringKey("langfuse.observation.type")))
+                .isEqualTo("span");
         assertThat(span.getAttributes().get(AttributeKey.stringKey("langfuse.trace.name"))).isEqualTo("test-trace");
         assertThat(span.getAttributes().get(AttributeKey.stringKey("user.id"))).isEqualTo("user-1");
         assertThat(span.getAttributes().get(AttributeKey.stringKey("session.id"))).isEqualTo("sess-1");
         assertThat(span.getAttributes().get(AttributeKey.stringArrayKey("langfuse.trace.tags"))).containsExactly("prod", "v2");
+        assertThat(span.getAttributes().get(AttributeKey.stringKey("langfuse.observation.input")))
+                .isEqualTo("trace-input");
+        assertThat(span.getAttributes().get(AttributeKey.stringKey("langfuse.observation.output")))
+                .isEqualTo("trace-output");
         assertThat(span.getAttributes().get(AttributeKey.stringKey("langfuse.trace.input"))).isEqualTo("trace-input");
         assertThat(span.getAttributes().get(AttributeKey.stringKey("langfuse.trace.output"))).isEqualTo("trace-output");
         assertThat(span.getAttributes().get(AttributeKey.stringKey("langfuse.trace.metadata.custom"))).isEqualTo("value");
@@ -94,6 +102,8 @@ class LangfuseAttributeVerificationTest {
         SpanData spanData = otel.getSpans().get(otel.getSpans().size() - 1);
         assertThat(spanData.getName()).isEqualTo("test-span");
         assertThat(spanData.getKind()).isEqualTo(SpanKind.INTERNAL);
+        assertThat(spanData.getAttributes().get(AttributeKey.stringKey("langfuse.observation.type")))
+                .isEqualTo("span");
         assertThat(spanData.getAttributes().get(AttributeKey.stringKey("langfuse.observation.input"))).isEqualTo("span-input");
         assertThat(spanData.getAttributes().get(AttributeKey.stringKey("langfuse.observation.output"))).isEqualTo("span-output");
     }

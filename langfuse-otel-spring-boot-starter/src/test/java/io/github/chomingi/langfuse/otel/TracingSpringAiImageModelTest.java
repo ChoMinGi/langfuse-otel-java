@@ -35,6 +35,8 @@ class TracingSpringAiImageModelTest {
         assertThat(otel.getSpans()).hasSize(1);
 
         SpanData span = otel.getSpans().get(0);
+        assertThat(span.getAttributes().get(
+                AttributeKey.stringKey(LangfuseAttributes.OBSERVATION_TYPE))).isEqualTo("generation");
         assertThat(span.getAttributes().get(AttributeKey.stringKey("gen_ai.operation.name")))
                 .isEqualTo("image_generation");
         assertThat(span.getAttributes().get(AttributeKey.stringKey("gen_ai.system"))).isEqualTo("spring-ai");

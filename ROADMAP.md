@@ -9,14 +9,16 @@ This file tracks release-level work. Completed implementation details live in
 The code and build now cover the release scope:
 
 - explicit application-owned or standalone OpenTelemetry, with safe transport and privacy defaults
-- isolated Spring AI/Reactor and LangChain4j streaming lifecycles
+- per-subscription Spring AI/Reactor and LangChain4j lifecycles with terminal-race guards
 - type-preserving model instrumentation and completion-aware `@ObserveGeneration`
 - local status plus optional Actuator health and metrics
 - reproducible artifacts and the release gates documented in [RELEASING.md](RELEASING.md)
 
-Two checks must run against the exact release commit:
+Three checks must run against the exact release commit:
 
 - [ ] Run the Java and framework compatibility matrix.
+- [ ] Export the exact release SHA canary and verify its hierarchy, root I/O, types, and trace-wide
+  fields through Langfuse Observations API v2.
 - [ ] Complete Central validation and manual publication, verify public dependency resolution, then
   publish the generated GitHub draft.
 
@@ -28,7 +30,6 @@ Two checks must run against the exact release commit:
 
 ## Before 1.0 RC
 
-- Validate trace hierarchy and attributes through the real Langfuse API.
 - Run outage, queue-saturation, shutdown, performance, and soak tests, including leak checks.
 - Add Spring AOT/GraalVM runtime hints and a native-image matrix before claiming native support.
 - Freeze the supported Java and framework matrix.

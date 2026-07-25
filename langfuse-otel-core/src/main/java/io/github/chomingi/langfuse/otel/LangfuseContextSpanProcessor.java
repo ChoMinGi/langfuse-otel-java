@@ -11,9 +11,12 @@ class LangfuseContextSpanProcessor implements SpanProcessor {
     @Override
     public void onStart(Context parentContext, ReadWriteSpan span) {
         boolean currentParent = parentContext == Context.current();
-        LangfuseTraceContext traceContext = currentParent && LangfuseContext.hasLegacyOverride()
-                ? LangfuseContext.legacyCurrent()
-                : LangfuseContext.from(parentContext);
+        LangfuseTraceState traceState = LangfuseContext.traceStateFrom(parentContext);
+        LangfuseTraceContext traceContext = traceState != null
+                ? traceState.snapshot()
+                : currentParent && LangfuseContext.hasLegacyOverride()
+                        ? LangfuseContext.legacyCurrent()
+                        : LangfuseContext.from(parentContext);
         if (traceContext == null && currentParent
                 && Span.fromContext(parentContext).getSpanContext().isValid()) {
             traceContext = LangfuseContext.legacyCurrent();

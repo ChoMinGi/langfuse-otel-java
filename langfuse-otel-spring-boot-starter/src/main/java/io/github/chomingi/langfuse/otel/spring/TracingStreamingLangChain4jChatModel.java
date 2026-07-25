@@ -193,6 +193,7 @@ public class TracingStreamingLangChain4jChatModel implements StreamingChatModel,
             span = langfuseOtel.getTracer().spanBuilder(resolveSpanName())
                     .setParent(parent)
                     .setSpanKind(SpanKind.CLIENT)
+                    .setAttribute(LangfuseAttributes.OBSERVATION_TYPE, "generation")
                     .setAttribute(LangfuseAttributes.GEN_AI_OPERATION_NAME, "chat")
                     .setAttribute(LangfuseAttributes.GEN_AI_SYSTEM, "langchain4j")
                     .startSpan();

@@ -45,6 +45,7 @@ public class TracingLangChain4jEmbeddingModel implements EmbeddingModel {
             createdSpan = langfuseOtel.getTracer().spanBuilder(resolveSpanName())
                     .setParent(Context.current())
                     .setSpanKind(SpanKind.CLIENT)
+                    .setAttribute(LangfuseAttributes.OBSERVATION_TYPE, "embedding")
                     .setAttribute(LangfuseAttributes.GEN_AI_OPERATION_NAME, "embeddings")
                     .setAttribute(LangfuseAttributes.GEN_AI_SYSTEM, "langchain4j")
                     .startSpan();

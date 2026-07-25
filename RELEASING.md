@@ -47,10 +47,135 @@ Run the Maven gates locally:
 The release workflow also scans the generated SBOM and rejects High or Critical vulnerability
 findings.
 
-Merge the release commit into `main` and wait for required main CI checks. Create a signed annotated tag only after that commit is present on `main`; the signing key must be registered with GitHub so the tag signature is reported as verified:
+Merge the release commit into `main` and wait for required main CI checks.
+
+## Verify the exact release commit in Langfuse
+
+Run the release canary from a clean checkout of the same commit now at `origin/main`. It exports one
+root, one generic child, and one generation with unique I/O and trace-wide fields. The canary uses
+strict construction and fails unless the local export and flush both succeed.
 
 ```bash
-git tag -s v0.2.0 -m "Release 0.2.0"
+git fetch origin main
+test -z "$(git status --porcelain)"
+release_sha="$(git rev-parse HEAD)"
+test "$release_sha" = "$(git rev-parse origin/main)"
+release_short_sha="$(git rev-parse --short=12 HEAD)"
+
+export LANGFUSE_CANARY_COMMIT="$release_sha"
+LANGFUSE_CANARY_MARKER="v0.2.0-${release_short_sha}-$(date -u +%Y%m%dT%H%M%SZ)"
+export LANGFUSE_CANARY_MARKER
+canary_from="$(date -u +%Y-%m-%dT%H:%M:%S.000Z)"
+
+./mvnw -B -ntp -pl langfuse-otel-core -am test \
+  -Dtest.excludedGroups= \
+  -Dgroups=release-canary \
+  -DfailIfNoTests=true \
+  -Dtest=LangfuseV4CanaryIntegrationTest \
+  -Dlangfuse.canary.release=0.2.0
+
+canary_to="$(date -u +%Y-%m-%dT%H:%M:%S.999Z)"
+canary_name="langfuse-otel-java-v4-canary-${LANGFUSE_CANARY_MARKER}"
+```
+
+`LANGFUSE_PUBLIC_KEY` and `LANGFUSE_SECRET_KEY` must already be present in the environment;
+`LANGFUSE_HOST` is optional. Do not enable shell tracing while credentials are set.
+
+Read the root back through Observations API v2, then fetch all rows by its `traceId`. The temporary
+curl configuration keeps credentials out of the command line:
+
+```bash
+canary_host="${LANGFUSE_HOST:-https://cloud.langfuse.com}"
+canary_host="${canary_host%/}"
+canary_curl_config="$(mktemp)"
+canary_root_json="$(mktemp)"
+canary_trace_json="$(mktemp)"
+chmod 600 "$canary_curl_config" "$canary_root_json" "$canary_trace_json"
+trap 'rm -f "$canary_curl_config" "$canary_root_json" "$canary_trace_json"' EXIT
+printf 'user = "%s:%s"\n' "$LANGFUSE_PUBLIC_KEY" "$LANGFUSE_SECRET_KEY" > "$canary_curl_config"
+
+trace_id=""
+for _ in 1 2 3 4 5 6 7 8 9 10 11 12; do
+  if curl --config "$canary_curl_config" --fail --silent --show-error --get \
+      "${canary_host}/api/public/v2/observations" \
+      --data-urlencode "name=${canary_name}" \
+      --data-urlencode "fields=core,basic,io,metadata,trace_context" \
+      --data-urlencode "fromStartTime=${canary_from}" \
+      --data-urlencode "toStartTime=${canary_to}" \
+      --data-urlencode "limit=10" > "$canary_root_json"; then
+    trace_id="$(jq -r 'if (.data | length) == 1 then .data[0].traceId else empty end' \
+      "$canary_root_json")"
+  fi
+  test -n "$trace_id" && break
+  sleep 5
+done
+test -n "$trace_id"
+
+canary_child="${canary_name}-child"
+canary_generation="${canary_name}-generation"
+verify_canary() {
+  jq -e \
+    --arg root "$canary_name" \
+    --arg child "$canary_child" \
+    --arg generation "$canary_generation" \
+    --arg marker "$LANGFUSE_CANARY_MARKER" \
+    --arg sha "$LANGFUSE_CANARY_COMMIT" \
+    --arg release "0.2.0" '
+      def row($name): .data[] | select(.name == $name);
+      (row($root)) as $root_row |
+      ((.data | length) == 3) and
+      ((.meta.cursor // null) == null) and
+      (([.data[].name] | sort) == ([$root, $child, $generation] | sort)) and
+      ($root_row.type == "SPAN") and
+      ($root_row.parentObservationId == null) and
+      ($root_row.input == ("root-input-" + $marker)) and
+      ($root_row.output == ("root-output-" + $marker)) and
+      ((row($child).type == "SPAN") and
+        (row($child).parentObservationId == $root_row.id) and
+        (row($child).input == ("child-input-" + $marker)) and
+        (row($child).output == ("child-output-" + $marker))) and
+      ((row($generation).type == "GENERATION") and
+        (row($generation).parentObservationId == $root_row.id) and
+        (row($generation).input == ("generation-input-" + $marker)) and
+        (row($generation).output == ("generation-output-" + $marker))) and
+      ([.data[].userId] | all(. == ("canary-user-" + $marker))) and
+      ([.data[].sessionId] | all(. == ("canary-session-" + $marker))) and
+      ([.data[].version] | all(. == $sha)) and
+      ([.data[].release] | all(. == $release)) and
+      ([.data[].environment] | all(. == "release-canary")) and
+      ([.data[].traceName] | all(. == $root)) and
+      ([.data[].tags] | all((sort) == (["release-canary", $marker] | sort))) and
+      ([.data[].metadata.canary_marker] | all(. == $marker))
+    ' "$canary_trace_json"
+}
+
+for _ in 1 2 3 4 5 6 7 8 9 10 11 12; do
+  if curl --config "$canary_curl_config" --fail --silent --show-error --get \
+      "${canary_host}/api/public/v2/observations" \
+      --data-urlencode "traceId=${trace_id}" \
+      --data-urlencode "fields=core,basic,io,metadata,trace_context" \
+      --data-urlencode "fromStartTime=${canary_from}" \
+      --data-urlencode "toStartTime=${canary_to}" \
+      --data-urlencode "limit=10" > "$canary_trace_json" &&
+      verify_canary > /dev/null; then
+    break
+  fi
+  sleep 5
+done
+verify_canary
+```
+
+Retain the `traceId` and canary marker in the release audit record. Any failed assertion blocks the
+tag.
+
+Create a signed annotated tag only after this read-back succeeds. The signing key must be
+registered with GitHub so the tag signature is reported as verified:
+
+```bash
+git fetch origin main
+test "$(git rev-parse HEAD)" = "$release_sha"
+test "$(git rev-parse origin/main)" = "$release_sha"
+git tag -s -m "Release 0.2.0" v0.2.0 "$release_sha"
 git push origin v0.2.0
 ```
 

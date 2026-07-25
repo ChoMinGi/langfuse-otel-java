@@ -113,11 +113,11 @@ public class TracingSpringAiChatModel implements ChatModel {
                 createdSpan = langfuseOtel.getTracer().spanBuilder(resolveSpanName())
                         .setParent(parentContext)
                         .setSpanKind(SpanKind.CLIENT)
+                        .setAttribute(LangfuseAttributes.OBSERVATION_TYPE, "generation")
                         .setAttribute(LangfuseAttributes.GEN_AI_OPERATION_NAME, "chat")
                         .setAttribute(LangfuseAttributes.GEN_AI_SYSTEM, "spring-ai")
                         .startSpan();
-                LangfuseContext.applyTo(createdSpan,
-                        traceContext != null ? traceContext : LangfuseContext.current());
+                LangfuseContext.applyFrom(createdSpan, parentContext);
                 setRequestAttributesOnSpan(createdSpan, prompt, capturePolicy);
                 spanEnded = new AtomicBoolean(false);
                 accumulated = capturePolicy.isOutputCaptureEnabled()

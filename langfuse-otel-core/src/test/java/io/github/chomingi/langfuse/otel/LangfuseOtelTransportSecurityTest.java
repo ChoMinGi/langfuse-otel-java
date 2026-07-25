@@ -81,12 +81,20 @@ class LangfuseOtelTransportSecurityTest {
 
         try {
             try (LangfuseOtel langfuse = standaloneBuilder(loopbackHost(receiver))
+                    .environment("resource-environment")
+                    .release("resource-release")
                     .allowInsecureHttpForDevelopment(true)
                     .build()) {
                 langfuse.trace("contract-trace", trace -> {
                     trace.userId("user-42")
                             .sessionId("session-7")
-                            .tags("contract", "0.2");
+                            .tags("contract", "0.2")
+                            .metadata("tenant", "acme")
+                            .version("prompt-v3")
+                            .release("trace-release")
+                            .environment("trace-environment")
+                            .input("trace-question")
+                            .output("trace-answer");
                     trace.span("retrieve-context", span -> {
                         span.input("question")
                                 .metadata("source", "catalog");
@@ -106,6 +114,14 @@ class LangfuseOtelTransportSecurityTest {
             assertThat(resourceSpans)
                     .extracting(group -> stringAttribute(group.getResource().getAttributesList(), "service.name"))
                     .containsOnly("transport-contract-test");
+            assertThat(resourceSpans)
+                    .extracting(group -> stringAttribute(
+                            group.getResource().getAttributesList(), LangfuseAttributes.ENVIRONMENT))
+                    .containsOnly("resource-environment");
+            assertThat(resourceSpans)
+                    .extracting(group -> stringAttribute(
+                            group.getResource().getAttributesList(), LangfuseAttributes.RELEASE))
+                    .containsOnly("resource-release");
 
             List<Span> spans = spans(resourceSpans);
             assertThat(spans)
@@ -129,18 +145,51 @@ class LangfuseOtelTransportSecurityTest {
             assertThat(retrieval.getKind()).isEqualTo(Span.SpanKind.SPAN_KIND_INTERNAL);
             assertThat(generation.getKind()).isEqualTo(Span.SpanKind.SPAN_KIND_CLIENT);
 
-            assertThat(stringAttribute(trace, LangfuseAttributes.TRACE_NAME)).isEqualTo("contract-trace");
-            assertThat(stringAttribute(trace, LangfuseAttributes.TRACE_USER_ID)).isEqualTo("user-42");
-            assertThat(stringAttribute(trace, LangfuseAttributes.TRACE_SESSION_ID)).isEqualTo("session-7");
-            assertThat(stringArrayAttribute(trace, LangfuseAttributes.TRACE_TAGS))
-                    .containsExactly("contract", "0.2");
+            for (Span observation : spans) {
+                assertThat(stringAttribute(observation, LangfuseAttributes.TRACE_NAME))
+                        .isEqualTo("contract-trace");
+                assertThat(stringAttribute(observation, LangfuseAttributes.TRACE_USER_ID))
+                        .isEqualTo("user-42");
+                assertThat(stringAttribute(observation, LangfuseAttributes.TRACE_SESSION_ID))
+                        .isEqualTo("session-7");
+                assertThat(stringArrayAttribute(observation, LangfuseAttributes.TRACE_TAGS))
+                        .containsExactly("contract", "0.2");
+                assertThat(stringAttribute(
+                        observation, LangfuseAttributes.TRACE_METADATA + ".tenant"))
+                        .isEqualTo("acme");
+                assertThat(stringAttribute(observation, LangfuseAttributes.VERSION))
+                        .isEqualTo("prompt-v3");
+                assertThat(stringAttribute(observation, LangfuseAttributes.RELEASE))
+                        .isEqualTo("trace-release");
+                assertThat(stringAttribute(observation, LangfuseAttributes.ENVIRONMENT))
+                        .isEqualTo("trace-environment");
+            }
 
+            assertThat(stringAttribute(trace, LangfuseAttributes.OBSERVATION_TYPE)).isEqualTo("span");
+            assertThat(stringAttribute(trace, LangfuseAttributes.OBSERVATION_INPUT))
+                    .isEqualTo("trace-question");
+            assertThat(stringAttribute(trace, LangfuseAttributes.OBSERVATION_OUTPUT))
+                    .isEqualTo("trace-answer");
+            assertThat(stringAttribute(trace, LangfuseAttributes.TRACE_INPUT))
+                    .isEqualTo("trace-question");
+            assertThat(stringAttribute(trace, LangfuseAttributes.TRACE_OUTPUT))
+                    .isEqualTo("trace-answer");
             assertThat(stringAttribute(retrieval, LangfuseAttributes.OBSERVATION_INPUT))
                     .isEqualTo("question");
+            assertThat(hasAttribute(retrieval, LangfuseAttributes.OBSERVATION_OUTPUT)).isFalse();
+            assertThat(hasAttribute(generation, LangfuseAttributes.OBSERVATION_INPUT)).isFalse();
+            assertThat(hasAttribute(generation, LangfuseAttributes.OBSERVATION_OUTPUT)).isFalse();
+            for (Span child : List.of(retrieval, generation)) {
+                assertThat(hasAttribute(child, LangfuseAttributes.TRACE_INPUT)).isFalse();
+                assertThat(hasAttribute(child, LangfuseAttributes.TRACE_OUTPUT)).isFalse();
+            }
+
             assertThat(stringAttribute(retrieval, LangfuseAttributes.OBSERVATION_METADATA + ".source"))
                     .isEqualTo("catalog");
 
             assertThat(stringAttribute(generation, LangfuseAttributes.GEN_AI_OPERATION_NAME)).isEqualTo("chat");
+            assertThat(stringAttribute(generation, LangfuseAttributes.OBSERVATION_TYPE))
+                    .isEqualTo("generation");
             assertThat(stringAttribute(generation, LangfuseAttributes.GEN_AI_REQUEST_MODEL))
                     .isEqualTo("gpt-4o-mini");
             assertThat(longAttribute(generation, LangfuseAttributes.GEN_AI_USAGE_TOTAL_TOKENS)).isEqualTo(19);
@@ -336,6 +385,11 @@ class LangfuseOtelTransportSecurityTest {
                 .map(KeyValue::getValue)
                 .findFirst()
                 .orElseThrow(() -> new AssertionError("Missing OTLP attribute: " + key));
+    }
+
+    private static boolean hasAttribute(Span span, String key) {
+        return span.getAttributesList().stream()
+                .anyMatch(attribute -> attribute.getKey().equals(key));
     }
 
     @FunctionalInterface

@@ -64,6 +64,22 @@ langfuse:
 Without Spring, `LangfuseOtel.externalBuilder(openTelemetry)` is non-owning, so `flush()` and
 `close()` do not affect the supplied SDK.
 
+## Use the v4 OTLP contract
+
+Standalone mode sends `x-langfuse-ingestion-version: 4` automatically. External SDKs and
+Collectors must add that header to their trace exporter for real-time v4 ingestion and
+Observations API v2 read-back.
+
+Trace roots and generic steps now identify as `span`, chat/image and annotated calls as
+`generation`, and embeddings as `embedding`. Root input/output use
+`langfuse.observation.input/output` and are also written to the legacy
+`langfuse.trace.input/output` attributes during migration.
+
+Trace name, user/session IDs, tags, metadata, version, release, and environment are copied when
+library-created or owned-pipeline descendants start. Set them before creating children when every
+observation must agree; prior spans are not backfilled. A supplied external SDK cannot be modified
+after construction, so raw application or third-party spans need application-owned propagation.
+
 ## Operational and adapter changes
 
 - Rely on starter auto-discovery instead of explicitly importing or excluding
@@ -76,16 +92,22 @@ Without Spring, `LangfuseOtel.externalBuilder(openTelemetry)` is non-owning, so 
 - Automatic model instrumentation preserves safely proxyable concrete types. Final or otherwise
   non-proxyable model types remain unchanged and log a warning.
 - A model-method `@ObserveGeneration` annotation takes precedence over automatic instrumentation
-  for that bean.
+  for that bean. Both paths require a call through the Spring proxy; direct construction,
+  self-invocation, and private/final methods are outside the interception boundary.
 - Generic instrumentation cannot enter opaque provider-owned executors. Use
   `ReactorContextPropagation` or `LangChain4jStreamingContext` at boundaries owned by the
   integration. See [DESIGN.md](DESIGN.md#asynchronous-observation-and-context-lifecycle).
+- Active Reactor observations install a keyed process-global scheduler hook until their final
+  lease ends. Async spans have no internal timeout, so providers must deliver a terminal callback
+  or applications must enforce timeout/cancellation.
 - Standalone hosts require HTTPS. The development-only plaintext option accepts loopback hosts
   only.
 
 Legacy `LangfuseContext.set*()` and `clear()` mutations are scoped by
 `LangfuseContext.makeCurrent(...)`. An immutable context installed directly with `storeIn(...)`
 ignores those legacy mutations so they cannot escape through a reused executor thread.
+Inside an active `LangfuseTrace`, its trace-local carrier takes precedence over nested immutable
+contexts; update that trace through its fluent setters.
 
 ## Upgrade checklist
 
@@ -93,6 +115,8 @@ ignores those legacy mutations so they cannot escape through a reused executor t
 - Choose `langfuse.otel-mode` and verify that the selected pipeline reaches Langfuse.
 - Review content, exception, principal, and session capture before enabling each field.
 - Exercise streaming completion, error, cancellation, and re-subscription.
+- Verify root I/O, hierarchy, observation types, and trace-wide fields through Langfuse
+  Observations API v2.
 - Confirm provider-specific concrete injection still resolves and investigate any non-proxyable
   model warning.
 - Add alerts for fail-safe fallback, export failures, queue drops, and flush failures.

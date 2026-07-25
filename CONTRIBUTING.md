@@ -53,7 +53,7 @@ export LANGFUSE_SECRET_KEY=sk-lf-...
 export LANGFUSE_HOST=https://cloud.langfuse.com
 
 ./mvnw -B -ntp test -pl langfuse-otel-core -am \
-  -DexcludedGroups= -Dgroups=integration
+  -Dtest.excludedGroups= -Dgroups=integration -DfailIfNoTests=true
 ```
 
 CI runs live export tests only when `LANGFUSE_INTEGRATION_ENABLED=true`. Once enabled, missing

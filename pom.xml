@@ -60,7 +60,7 @@
         <api.compatibility.baseline>0.1.1</api.compatibility.baseline>
         <jacoco.minimum.line.coverage>0.000</jacoco.minimum.line.coverage>
         <jacoco.minimum.branch.coverage>0.000</jacoco.minimum.branch.coverage>
-        <test.excludedGroups>integration,e2e</test.excludedGroups>
+        <test.excludedGroups>integration,e2e,release-canary</test.excludedGroups>
     </properties>
 
     <dependencyManagement>

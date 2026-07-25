@@ -74,30 +74,39 @@ class TracingStreamingLangChain4jChatModelTest {
                         .build())
                 .build();
 
-        proxy.chat(request, new StreamingChatResponseHandler() {
-            @Override
-            public void onPartialResponse(String partial) {
-                accumulated.append(partial);
-            }
+        ChatResponse response;
+        LangfuseContext.setUserId("legacy-stream-user");
+        try {
+            proxy.chat(request, new StreamingChatResponseHandler() {
+                @Override
+                public void onPartialResponse(String partial) {
+                    accumulated.append(partial);
+                }
 
-            @Override
-            public void onCompleteResponse(ChatResponse response) {
-                future.complete(response);
-            }
+                @Override
+                public void onCompleteResponse(ChatResponse response) {
+                    future.complete(response);
+                }
 
-            @Override
-            public void onError(Throwable error) {
-                future.completeExceptionally(error);
-            }
-        });
-
-        ChatResponse response = future.get(5, TimeUnit.SECONDS);
+                @Override
+                public void onError(Throwable error) {
+                    future.completeExceptionally(error);
+                }
+            });
+            response = future.get(5, TimeUnit.SECONDS);
+        } finally {
+            LangfuseContext.clear();
+        }
 
         assertThat(accumulated.toString()).isEqualTo("HelloWorld");
         assertThat(response.aiMessage().text()).isEqualTo("HelloWorld");
         assertThat(otel.getSpans()).hasSize(1);
 
         SpanData span = otel.getSpans().get(0);
+        assertThat(span.getAttributes().get(
+                AttributeKey.stringKey(LangfuseAttributes.OBSERVATION_TYPE))).isEqualTo("generation");
+        assertThat(span.getAttributes().get(AttributeKey.stringKey(LangfuseAttributes.TRACE_USER_ID)))
+                .isEqualTo("legacy-stream-user");
         assertThat(span.getAttributes().get(AttributeKey.stringKey("gen_ai.system"))).isEqualTo("langchain4j");
         assertThat(span.getAttributes().get(AttributeKey.stringKey("gen_ai.request.model"))).isEqualTo("gpt-4o-mini");
         assertThat(span.getAttributes().get(AttributeKey.stringKey("langfuse.observation.input")))

@@ -221,7 +221,9 @@ jobs:
           cache: maven
 
       - name: Exercise live exporter
-        run: ./mvnw -B -ntp test -pl langfuse-otel-core -am -DexcludedGroups= -Dgroups=integration
+        run: >-
+          ./mvnw -B -ntp test -pl langfuse-otel-core -am
+          -Dtest.excludedGroups= -Dgroups=integration -DfailIfNoTests=true
 
       - name: Record live export smoke result
         if: always()

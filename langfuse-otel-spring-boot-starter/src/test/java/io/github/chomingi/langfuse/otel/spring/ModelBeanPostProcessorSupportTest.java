@@ -51,7 +51,7 @@ class ModelBeanPostProcessorSupportTest {
 
     private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
             .withConfiguration(AutoConfigurations.of(
-                    LangfuseOtelAutoConfiguration.class,
+                    LangfuseOtelCoreAutoConfiguration.class,
                     SpringAiAutoConfiguration.class,
                     LangChain4jAutoConfiguration.class))
             .withBean(OpenTelemetry.class, OpenTelemetry::noop);
@@ -74,7 +74,7 @@ class ModelBeanPostProcessorSupportTest {
         new ApplicationContextRunner()
                 .withConfiguration(AutoConfigurations.of(
                         AopAutoConfiguration.class,
-                        LangfuseOtelAutoConfiguration.class,
+                        LangfuseOtelCoreAutoConfiguration.class,
                         SpringAiAutoConfiguration.class))
                 .withUserConfiguration(ObservedModelConfiguration.class)
                 .withBean(OpenTelemetry.class, otel::getOpenTelemetry,
@@ -223,7 +223,7 @@ class ModelBeanPostProcessorSupportTest {
     void scopedProxyIsSkippedWhileItsTargetProducesOneSpan() {
         new ApplicationContextRunner()
                 .withConfiguration(AutoConfigurations.of(
-                        LangfuseOtelAutoConfiguration.class,
+                        LangfuseOtelCoreAutoConfiguration.class,
                         SpringAiAutoConfiguration.class,
                         LangChain4jAutoConfiguration.class))
                 .withUserConfiguration(ScopedModelConfiguration.class)
@@ -244,7 +244,7 @@ class ModelBeanPostProcessorSupportTest {
     void allowedSetterCycleUsesTheSameEarlyProxyAsTheFinalBeanAndInstrumentsOnce() {
         new ApplicationContextRunner()
                 .withConfiguration(AutoConfigurations.of(
-                        LangfuseOtelAutoConfiguration.class,
+                        LangfuseOtelCoreAutoConfiguration.class,
                         SpringAiAutoConfiguration.class,
                         LangChain4jAutoConfiguration.class))
                 .withUserConfiguration(CircularModelConfiguration.class)

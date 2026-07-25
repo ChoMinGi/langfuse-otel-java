@@ -23,6 +23,20 @@ Before opening a pull request:
 binary/source API compatibility against `0.1.1`. Coverage reports are written under each module's
 `target/site/jacoco` directory.
 
+The projects under `consumer-tests` are deliberately outside the Maven reactor. After changing
+framework adapters, auto-configuration, or dependency metadata, install the reactor artifacts and
+run both framework consumer smokes and the prompt classpath check:
+
+```bash
+./mvnw -B -ntp -DskipTests -Djacoco.skip=true install
+./mvnw -B -ntp -f consumer-tests/spring-boot-consumer/pom.xml verify
+./mvnw -B -ntp -f consumer-tests/langchain4j-spring-boot-consumer/pom.xml verify
+./mvnw -B -ntp -f consumer-tests/core-prompt-consumer/pom.xml verify
+```
+
+The full baseline/latest framework commands used for a release are listed in
+[RELEASING.md](RELEASING.md#prepare-the-release-commit).
+
 The slower quality profile adds static analysis and dependency-license checks while producing the
 CycloneDX SBOM used by CI:
 
@@ -52,6 +66,7 @@ credentials fail the integration status job instead of silently skipping it.
 | `langfuse-otel-core` | Framework-neutral Java 11 tracing API and standalone exporter |
 | `langfuse-otel-spring-boot-starter` | Java 17 Spring AI and LangChain4j auto-configuration |
 | `examples` | Consumer builds for both supported adapters |
+| `consumer-tests` | Independent user-flow builds outside the reactor |
 
 ## Guidelines
 

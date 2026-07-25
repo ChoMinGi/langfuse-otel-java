@@ -132,6 +132,8 @@ jobs:
           for consumer in \
             examples/spring-ai-example \
             examples/langchain4j-example \
+            consumer-tests/spring-boot-consumer \
+            consumer-tests/langchain4j-spring-boot-consumer \
             consumer-tests/core-prompt-consumer; do
             consumer_version="$(./mvnw -q -f "$consumer/pom.xml" -DforceStdout help:evaluate -Dexpression=langfuse-otel.version)"
             if [[ "$consumer_version" != "$pom_version" ]]; then
@@ -145,19 +147,53 @@ jobs:
             exit 1
           fi
 
-          readme_version_count="$(grep -Fc "<version>${pom_version}</version>" README.md || true)"
-          if (( readme_version_count < 2 )); then
-            echo "::error::README must show $pom_version for both published modules."
+          if grep -Fiq "release candidate" README.md \
+              || grep -Fq "not yet available from Maven Central" README.md; then
+            echo "::error::README still describes ${pom_version} as an unpublished release candidate."
             exit 1
           fi
 
-          if ! grep -Fq "## [${pom_version}] - " CHANGELOG.md; then
+          if grep -Fiq "release candidate" SECURITY.md \
+              || grep -Fiq "maintenance starts when ${pom_version} is public" SECURITY.md \
+              || grep -Fiq "until ${pom_version} is public" SECURITY.md; then
+            echo "::error::SECURITY.md still describes ${pom_version} as an unpublished release candidate."
+            exit 1
+          fi
+
+          for artifact in langfuse-otel-core langfuse-otel-spring-boot-starter; do
+            if ! awk -v artifact="$artifact" -v version="$pom_version" '
+              index($0, "<artifactId>" artifact "</artifactId>") {
+                inside_dependency = 1
+                next
+              }
+              inside_dependency && index($0, "<version>" version "</version>") {
+                found = 1
+              }
+              inside_dependency && index($0, "</dependency>") {
+                exit
+              }
+              END {
+                exit(found ? 0 : 1)
+              }
+            ' README.md; then
+              echo "::error::README must show $artifact:$pom_version in its dependency block."
+              exit 1
+            fi
+          done
+
+          if grep -Fq "## [${pom_version}] - Unreleased" CHANGELOG.md; then
+            echo "::error::CHANGELOG still marks ${pom_version} as Unreleased."
+            exit 1
+          fi
+
+          escaped_pom_version="${pom_version//./\\.}"
+          if ! grep -Eq "^## \\[${escaped_pom_version}\\] - [0-9]{4}-[0-9]{2}-[0-9]{2}$" CHANGELOG.md; then
             echo "::error::CHANGELOG needs a dated ## [${pom_version}] release heading."
             exit 1
           fi
 
-          if grep -Fq "[Unreleased] - ${pom_version}" CHANGELOG.md; then
-            echo "::error::CHANGELOG still marks $pom_version as Unreleased."
+          if ! grep -Fxq "## [Unreleased]" CHANGELOG.md; then
+            echo "::error::CHANGELOG needs a separate ## [Unreleased] section."
             exit 1
           fi
 
@@ -330,6 +366,22 @@ jobs:
 
       - name: Verify LangChain4j consumer
         run: ./mvnw -B -ntp -f examples/langchain4j-example/pom.xml -DskipTests verify
+
+      - name: Verify Spring AI consumer (external and standalone, 1.0.9)
+        run: ./mvnw -B -ntp -f consumer-tests/spring-boot-consumer/pom.xml verify
+
+      - name: Verify Spring AI consumer (external and standalone, 1.1.8)
+        run: >-
+          ./mvnw -B -ntp -f consumer-tests/spring-boot-consumer/pom.xml
+          -Dspring-ai.version=1.1.8 clean verify
+
+      - name: Verify LangChain4j consumer (external and standalone, 1.0.0)
+        run: ./mvnw -B -ntp -f consumer-tests/langchain4j-spring-boot-consumer/pom.xml verify
+
+      - name: Verify LangChain4j consumer (external and standalone, 1.18.0)
+        run: >-
+          ./mvnw -B -ntp -f consumer-tests/langchain4j-spring-boot-consumer/pom.xml
+          -Dlangchain4j.version=1.18.0 clean verify
 
       - name: Verify core and prompt client compatibility
         run: ./mvnw -B -ntp -f consumer-tests/core-prompt-consumer/pom.xml verify

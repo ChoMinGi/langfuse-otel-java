@@ -24,7 +24,7 @@ class LangfuseOtelAutoConfigurationTest {
 
     private final ApplicationContextRunner baseContextRunner = new ApplicationContextRunner()
             .withConfiguration(AutoConfigurations.of(
-                    LangfuseOtelAutoConfiguration.class,
+                    LangfuseOtelCoreAutoConfiguration.class,
                     SpringAiAutoConfiguration.class,
                     LangChain4jAutoConfiguration.class));
 
@@ -52,6 +52,21 @@ class LangfuseOtelAutoConfigurationTest {
                 .run(context -> {
                     assertThat(context).doesNotHaveBean(LangfuseOtel.class);
                     assertThat(context).doesNotHaveBean(ObserveGenerationAspect.class);
+                });
+    }
+
+    @Test
+    void disabledStarterDoesNotRegisterModelPostProcessorsForUserLangfuseBean() {
+        LangfuseOtel userLangfuse = LangfuseOtel.externalBuilder(OpenTelemetry.noop()).build();
+
+        baseContextRunner
+                .withPropertyValues("langfuse.enabled=false")
+                .withBean(LangfuseOtel.class, () -> userLangfuse,
+                        beanDefinition -> beanDefinition.setDestroyMethodName(""))
+                .run(context -> {
+                    assertThat(context).hasSingleBean(LangfuseOtel.class);
+                    assertThat(context).doesNotHaveBean(ObserveGenerationAspect.class);
+                    assertThat(context).doesNotHaveBean(AbstractModelBeanPostProcessor.class);
                 });
     }
 

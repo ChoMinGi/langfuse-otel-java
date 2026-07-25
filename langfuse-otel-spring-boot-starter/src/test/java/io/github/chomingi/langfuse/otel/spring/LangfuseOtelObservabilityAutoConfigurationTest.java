@@ -22,7 +22,7 @@ class LangfuseOtelObservabilityAutoConfigurationTest {
 
     private final ApplicationContextRunner baseRunner = new ApplicationContextRunner()
             .withConfiguration(AutoConfigurations.of(
-                    LangfuseOtelAutoConfiguration.class,
+                    LangfuseOtelCoreAutoConfiguration.class,
                     LangfuseOtelObservabilityAutoConfiguration.class));
 
     private final ApplicationContextRunner standaloneRunner = baseRunner.withPropertyValues(
@@ -150,7 +150,7 @@ class LangfuseOtelObservabilityAutoConfigurationTest {
     void bootMetricsAutoConfigurationBindsMetersAutomatically() {
         new ApplicationContextRunner()
                 .withConfiguration(AutoConfigurations.of(
-                        LangfuseOtelAutoConfiguration.class,
+                        LangfuseOtelCoreAutoConfiguration.class,
                         LangfuseOtelObservabilityAutoConfiguration.class,
                         MetricsAutoConfiguration.class,
                         SimpleMetricsExportAutoConfiguration.class))
@@ -169,7 +169,7 @@ class LangfuseOtelObservabilityAutoConfigurationTest {
     void standardMetricsDisablePropertyIsHonored() {
         new ApplicationContextRunner()
                 .withConfiguration(AutoConfigurations.of(
-                        LangfuseOtelAutoConfiguration.class,
+                        LangfuseOtelCoreAutoConfiguration.class,
                         LangfuseOtelObservabilityAutoConfiguration.class,
                         MetricsAutoConfiguration.class,
                         SimpleMetricsExportAutoConfiguration.class))
@@ -186,6 +186,21 @@ class LangfuseOtelObservabilityAutoConfigurationTest {
         standaloneRunner.withPropertyValues("langfuse.enabled=false")
                 .run(context -> {
                     assertThat(context).doesNotHaveBean(LangfuseOtel.class);
+                    assertThat(context).doesNotHaveBean("langfuseHealthIndicator");
+                    assertThat(context).doesNotHaveBean("langfuseOtelMeterBinder");
+                });
+    }
+
+    @Test
+    void disablingLangfuseRemovesOperationalBeansForUserLangfuseBean() {
+        LangfuseOtel userLangfuse = LangfuseOtel.externalBuilder(OpenTelemetry.noop()).build();
+
+        baseRunner
+                .withPropertyValues("langfuse.enabled=false")
+                .withBean(LangfuseOtel.class, () -> userLangfuse,
+                        beanDefinition -> beanDefinition.setDestroyMethodName(""))
+                .run(context -> {
+                    assertThat(context).hasSingleBean(LangfuseOtel.class);
                     assertThat(context).doesNotHaveBean("langfuseHealthIndicator");
                     assertThat(context).doesNotHaveBean("langfuseOtelMeterBinder");
                 });

@@ -128,6 +128,22 @@ jobs:
       - name: Compile LangChain4j consumer
         run: ./mvnw -B -ntp -f examples/langchain4j-example/pom.xml -DskipTests verify
 
+      - name: Verify Spring AI consumer (external and standalone, 1.0.9)
+        run: ./mvnw -B -ntp -f consumer-tests/spring-boot-consumer/pom.xml verify
+
+      - name: Verify Spring AI consumer (external and standalone, 1.1.8)
+        run: >-
+          ./mvnw -B -ntp -f consumer-tests/spring-boot-consumer/pom.xml
+          -Dspring-ai.version=1.1.8 clean verify
+
+      - name: Verify LangChain4j consumer (external and standalone, 1.0.0)
+        run: ./mvnw -B -ntp -f consumer-tests/langchain4j-spring-boot-consumer/pom.xml verify
+
+      - name: Verify LangChain4j consumer (external and standalone, 1.18.0)
+        run: >-
+          ./mvnw -B -ntp -f consumer-tests/langchain4j-spring-boot-consumer/pom.xml
+          -Dlangchain4j.version=1.18.0 clean verify
+
       - name: Verify core and prompt client compatibility
         run: ./mvnw -B -ntp -f consumer-tests/core-prompt-consumer/pom.xml verify
 

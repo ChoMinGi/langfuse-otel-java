@@ -1,4 +1,6 @@
-io.github.chomingi.langfuse.otel.spring.LangfuseOtelAutoConfiguration
+io.github.chomingi.langfuse.otel.spring.LangfuseOtelCoreAutoConfiguration
+io.github.chomingi.langfuse.otel.spring.LangfuseOtelServletAutoConfiguration
+io.github.chomingi.langfuse.otel.spring.LangfuseOtelReactiveAutoConfiguration
 io.github.chomingi.langfuse.otel.spring.LangfuseOtelObservabilityAutoConfiguration
 io.github.chomingi.langfuse.otel.spring.SpringAiAutoConfiguration
 io.github.chomingi.langfuse.otel.spring.LangChain4jAutoConfiguration

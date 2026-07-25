@@ -16,8 +16,9 @@ Langfuse documents this path in its
 produce an observable no-op fallback instead of stopping the host application. Callers that want
 strict construction can disable fail-safe mode.
 
-This does not hide ambiguous ownership. Spring `external` mode requires one application
-`OpenTelemetry` bean, and `auto` mode refuses to guess when multiple candidates are equally valid.
+This does not hide ambiguous ownership. Spring `external` mode requires an application
+`OpenTelemetry` bean that is either the sole candidate or selected with `@Primary`. `auto` mode
+refuses to guess when multiple candidates are equally valid.
 
 ## Synchronous span lifecycle
 

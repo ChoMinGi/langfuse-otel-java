@@ -6,14 +6,16 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Role;
 
 /**
  * Adds Langfuse tracing decorators to supported Spring AI model beans.
  */
-@AutoConfiguration(after = LangfuseOtelAutoConfiguration.class)
+@AutoConfiguration(after = LangfuseOtelCoreAutoConfiguration.class)
 @ConditionalOnClass(name = "org.springframework.ai.chat.model.ChatModel")
+@ConditionalOnProperty(prefix = "langfuse", name = "enabled", havingValue = "true", matchIfMissing = true)
 @ConditionalOnBean(LangfuseOtel.class)
 public class SpringAiAutoConfiguration {
 

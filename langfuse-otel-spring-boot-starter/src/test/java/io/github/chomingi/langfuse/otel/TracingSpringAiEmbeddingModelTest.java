@@ -40,6 +40,8 @@ class TracingSpringAiEmbeddingModelTest {
         assertThat(otel.getSpans()).hasSize(1);
 
         SpanData span = otel.getSpans().get(0);
+        assertThat(span.getAttributes().get(
+                AttributeKey.stringKey(LangfuseAttributes.OBSERVATION_TYPE))).isEqualTo("embedding");
         assertThat(span.getAttributes().get(AttributeKey.stringKey("gen_ai.operation.name"))).isEqualTo("embeddings");
         assertThat(span.getAttributes().get(AttributeKey.stringKey("gen_ai.system"))).isEqualTo("spring-ai");
         assertThat(span.getAttributes().get(AttributeKey.stringKey("gen_ai.request.model"))).isEqualTo("text-embedding-3-small");
@@ -148,6 +150,8 @@ class TracingSpringAiEmbeddingModelTest {
         assertThat(embedding).containsExactly(0.1f, 0.2f, 0.3f);
         assertThat(otel.getSpans()).hasSize(1);
         SpanData span = otel.getSpans().get(0);
+        assertThat(span.getAttributes().get(
+                AttributeKey.stringKey(LangfuseAttributes.OBSERVATION_TYPE))).isEqualTo("embedding");
         assertThat(span.getAttributes().get(AttributeKey.stringKey("langfuse.observation.input")))
                 .isEqualTo("document embedding input");
         assertThat(span.getAttributes().get(AttributeKey.stringKey("langfuse.observation.output")))
@@ -182,6 +186,8 @@ class TracingSpringAiEmbeddingModelTest {
         assertThat(embeddings.get(1)).containsExactly(2.0f);
         assertThat(otel.getSpans()).hasSize(1);
         SpanData span = otel.getSpans().get(0);
+        assertThat(span.getAttributes().get(
+                AttributeKey.stringKey(LangfuseAttributes.OBSERVATION_TYPE))).isEqualTo("embedding");
         assertThat(span.getAttributes().get(AttributeKey.stringKey("gen_ai.request.model")))
                 .isEqualTo("bulk-model");
         assertThat(span.getAttributes().get(AttributeKey.stringKey("langfuse.observation.input")))

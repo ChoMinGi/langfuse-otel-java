@@ -65,6 +65,8 @@ class TracingStreamingSpringAiChatModelTest {
         assertThat(responses).hasSize(3);
         assertThat(otel.getSpans()).hasSize(1);
         SpanData span = otel.getSpans().get(0);
+        assertThat(span.getAttributes().get(
+                AttributeKey.stringKey(LangfuseAttributes.OBSERVATION_TYPE))).isEqualTo("generation");
         assertThat(span.getAttributes().get(AttributeKey.stringKey("gen_ai.system"))).isEqualTo("spring-ai");
         assertThat(span.getAttributes().get(AttributeKey.stringKey("gen_ai.request.model"))).isEqualTo("gpt-4o-mini");
         assertThat(span.getAttributes().get(AttributeKey.stringKey("langfuse.observation.input")))

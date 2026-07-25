@@ -43,6 +43,7 @@ public class TracingSpringAiImageModel implements ImageModel {
             createdSpan = langfuseOtel.getTracer().spanBuilder(resolveSpanName())
                     .setParent(Context.current())
                     .setSpanKind(SpanKind.CLIENT)
+                    .setAttribute(LangfuseAttributes.OBSERVATION_TYPE, "generation")
                     .setAttribute(LangfuseAttributes.GEN_AI_OPERATION_NAME, "image_generation")
                     .setAttribute(LangfuseAttributes.GEN_AI_SYSTEM, "spring-ai")
                     .startSpan();

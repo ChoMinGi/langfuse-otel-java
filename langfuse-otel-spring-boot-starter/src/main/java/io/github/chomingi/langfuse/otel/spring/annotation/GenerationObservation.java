@@ -43,6 +43,7 @@ final class GenerationObservation {
                     .spanBuilder(name)
                     .setParent(effectiveParent)
                     .setSpanKind(SpanKind.CLIENT)
+                    .setAttribute(LangfuseAttributes.OBSERVATION_TYPE, "generation")
                     .setAttribute(LangfuseAttributes.GEN_AI_OPERATION_NAME,
                             operation == null || operation.isEmpty() ? "chat" : operation);
             if (model != null && !model.isEmpty()) {
@@ -52,7 +53,7 @@ final class GenerationObservation {
                 builder.setAttribute(LangfuseAttributes.GEN_AI_SYSTEM, system);
             }
             createdSpan = builder.startSpan();
-            LangfuseContext.applyTo(createdSpan, traceContext);
+            LangfuseContext.applyFrom(createdSpan, effectiveParent);
             return new GenerationObservation(langfuseOtel, createdSpan, effectiveParent.with(createdSpan));
         } catch (Throwable failure) {
             endSpanQuietly(createdSpan);

@@ -30,6 +30,8 @@ class TracingLangChain4jImageModelTest {
         assertThat(otel.getSpans()).hasSize(1);
 
         SpanData span = otel.getSpans().get(0);
+        assertThat(span.getAttributes().get(
+                AttributeKey.stringKey(LangfuseAttributes.OBSERVATION_TYPE))).isEqualTo("generation");
         assertThat(span.getAttributes().get(AttributeKey.stringKey("gen_ai.operation.name")))
                 .isEqualTo("image_generation");
         assertThat(span.getAttributes().get(AttributeKey.stringKey("gen_ai.system"))).isEqualTo("langchain4j");
@@ -72,6 +74,8 @@ class TracingLangChain4jImageModelTest {
         assertThat(response.content()).hasSize(3);
         assertThat(otel.getSpans()).hasSize(1);
         SpanData span = otel.getSpans().get(0);
+        assertThat(span.getAttributes().get(
+                AttributeKey.stringKey(LangfuseAttributes.OBSERVATION_TYPE))).isEqualTo("generation");
         assertThat(span.getAttributes().get(AttributeKey.stringKey("langfuse.observation.output")))
                 .isEqualTo("3 image(s) generated");
     }
@@ -100,6 +104,10 @@ class TracingLangChain4jImageModelTest {
         assertThat(edited.content().url()).isEqualTo(URI.create("https://example.com/edited.png"));
         assertThat(masked.content().url()).isEqualTo(URI.create("https://example.com/masked.png"));
         assertThat(otel.getSpans()).hasSize(2);
+        assertThat(otel.getSpans())
+                .allSatisfy(span -> assertThat(span.getAttributes().get(
+                        AttributeKey.stringKey(LangfuseAttributes.OBSERVATION_TYPE)))
+                        .isEqualTo("generation"));
         assertThat(otel.getSpans())
                 .extracting(span -> span.getAttributes().get(
                         AttributeKey.stringKey("langfuse.observation.input")))

@@ -32,6 +32,8 @@ class TracingLangChain4jEmbeddingModelTest {
         assertThat(otel.getSpans()).hasSize(1);
 
         SpanData span = otel.getSpans().get(0);
+        assertThat(span.getAttributes().get(
+                AttributeKey.stringKey(LangfuseAttributes.OBSERVATION_TYPE))).isEqualTo("embedding");
         assertThat(span.getAttributes().get(AttributeKey.stringKey("gen_ai.operation.name"))).isEqualTo("embeddings");
         assertThat(span.getAttributes().get(AttributeKey.stringKey("gen_ai.system"))).isEqualTo("langchain4j");
         assertThat(span.getAttributes().get(AttributeKey.stringKey("langfuse.observation.input")))

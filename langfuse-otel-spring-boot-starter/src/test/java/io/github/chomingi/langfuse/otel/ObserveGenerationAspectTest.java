@@ -49,6 +49,8 @@ class ObserveGenerationAspectTest {
         assertThat(result).isEqualTo("summary: hello");
         SpanData span = otel.getSpans().get(0);
         assertThat(span.getName()).isEqualTo("summarize");
+        assertThat(span.getAttributes().get(
+                AttributeKey.stringKey(LangfuseAttributes.OBSERVATION_TYPE))).isEqualTo("generation");
         assertThat(span.getAttributes().get(AttributeKey.stringKey("gen_ai.request.model"))).isEqualTo("gpt-4o-mini");
         assertThat(span.getAttributes().get(AttributeKey.stringKey("gen_ai.system"))).isEqualTo("openai");
         assertThat(span.getAttributes().get(AttributeKey.stringKey("langfuse.observation.output"))).isEqualTo("summary: hello");

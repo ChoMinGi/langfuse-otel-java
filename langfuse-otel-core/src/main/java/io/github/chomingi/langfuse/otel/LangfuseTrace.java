@@ -22,6 +22,7 @@ public class LangfuseTrace extends AbstractLangfuseSpan {
         super(tracer.spanBuilder(name)
                 .setSpanKind(SpanKind.INTERNAL)
                 .setAttribute(LangfuseAttributes.TRACE_NAME, name)
+                .setAttribute(LangfuseAttributes.OBSERVATION_TYPE, "span")
                 .startSpan(), name);
         this.tracer = tracer;
     }
@@ -67,7 +68,9 @@ public class LangfuseTrace extends AbstractLangfuseSpan {
      * @return this trace
      */
     public LangfuseTrace input(Object input) {
-        span.setAttribute(LangfuseAttributes.TRACE_INPUT, String.valueOf(input));
+        String value = String.valueOf(input);
+        span.setAttribute(LangfuseAttributes.OBSERVATION_INPUT, value);
+        span.setAttribute(LangfuseAttributes.TRACE_INPUT, value);
         return this;
     }
 
@@ -78,7 +81,9 @@ public class LangfuseTrace extends AbstractLangfuseSpan {
      * @return this trace
      */
     public LangfuseTrace output(Object output) {
-        span.setAttribute(LangfuseAttributes.TRACE_OUTPUT, String.valueOf(output));
+        String value = String.valueOf(output);
+        span.setAttribute(LangfuseAttributes.OBSERVATION_OUTPUT, value);
+        span.setAttribute(LangfuseAttributes.TRACE_OUTPUT, value);
         return this;
     }
 

@@ -86,7 +86,9 @@ class LangfuseOtelTransportSecurityTest {
                 langfuse.trace("contract-trace", trace -> {
                     trace.userId("user-42")
                             .sessionId("session-7")
-                            .tags("contract", "0.2");
+                            .tags("contract", "0.2")
+                            .input("trace-question")
+                            .output("trace-answer");
                     trace.span("retrieve-context", span -> {
                         span.input("question")
                                 .metadata("source", "catalog");
@@ -130,10 +132,19 @@ class LangfuseOtelTransportSecurityTest {
             assertThat(generation.getKind()).isEqualTo(Span.SpanKind.SPAN_KIND_CLIENT);
 
             assertThat(stringAttribute(trace, LangfuseAttributes.TRACE_NAME)).isEqualTo("contract-trace");
+            assertThat(stringAttribute(trace, LangfuseAttributes.OBSERVATION_TYPE)).isEqualTo("span");
             assertThat(stringAttribute(trace, LangfuseAttributes.TRACE_USER_ID)).isEqualTo("user-42");
             assertThat(stringAttribute(trace, LangfuseAttributes.TRACE_SESSION_ID)).isEqualTo("session-7");
             assertThat(stringArrayAttribute(trace, LangfuseAttributes.TRACE_TAGS))
                     .containsExactly("contract", "0.2");
+            assertThat(stringAttribute(trace, LangfuseAttributes.OBSERVATION_INPUT))
+                    .isEqualTo("trace-question");
+            assertThat(stringAttribute(trace, LangfuseAttributes.OBSERVATION_OUTPUT))
+                    .isEqualTo("trace-answer");
+            assertThat(stringAttribute(trace, LangfuseAttributes.TRACE_INPUT))
+                    .isEqualTo("trace-question");
+            assertThat(stringAttribute(trace, LangfuseAttributes.TRACE_OUTPUT))
+                    .isEqualTo("trace-answer");
 
             assertThat(stringAttribute(retrieval, LangfuseAttributes.OBSERVATION_INPUT))
                     .isEqualTo("question");
@@ -141,6 +152,8 @@ class LangfuseOtelTransportSecurityTest {
                     .isEqualTo("catalog");
 
             assertThat(stringAttribute(generation, LangfuseAttributes.GEN_AI_OPERATION_NAME)).isEqualTo("chat");
+            assertThat(stringAttribute(generation, LangfuseAttributes.OBSERVATION_TYPE))
+                    .isEqualTo("generation");
             assertThat(stringAttribute(generation, LangfuseAttributes.GEN_AI_REQUEST_MODEL))
                     .isEqualTo("gpt-4o-mini");
             assertThat(longAttribute(generation, LangfuseAttributes.GEN_AI_USAGE_TOTAL_TOKENS)).isEqualTo(19);

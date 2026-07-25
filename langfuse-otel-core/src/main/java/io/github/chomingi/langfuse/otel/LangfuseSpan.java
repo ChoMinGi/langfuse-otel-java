@@ -17,7 +17,10 @@ public class LangfuseSpan extends AbstractLangfuseSpan {
     private final Tracer tracer;
 
     LangfuseSpan(Tracer tracer, String name) {
-        super(tracer.spanBuilder(name).setSpanKind(SpanKind.INTERNAL).startSpan(), name);
+        super(tracer.spanBuilder(name)
+                .setSpanKind(SpanKind.INTERNAL)
+                .setAttribute(LangfuseAttributes.OBSERVATION_TYPE, "span")
+                .startSpan(), name);
         this.tracer = tracer;
     }
 

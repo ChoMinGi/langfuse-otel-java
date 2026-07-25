@@ -21,6 +21,7 @@ public class LangfuseGeneration extends AbstractLangfuseSpan {
     public LangfuseGeneration(Tracer tracer, String name) {
         super(tracer.spanBuilder(name)
                 .setSpanKind(SpanKind.CLIENT)
+                .setAttribute(LangfuseAttributes.OBSERVATION_TYPE, "generation")
                 .setAttribute(LangfuseAttributes.GEN_AI_OPERATION_NAME, "chat")
                 .startSpan(), name);
     }

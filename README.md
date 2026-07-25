@@ -22,12 +22,12 @@ or own a dedicated Langfuse exporter.
 
 ## Quick Start
 
-> **Release status:** `0.2.0` is the current production-preview release candidate and is not yet
-> available from Maven Central. The latest public coordinates are
+> **Release status:** `0.2.0` is the next production-preview release and is not yet available from
+> Maven Central. This revision builds as `0.2.0-SNAPSHOT`. The latest public coordinates are
 > `io.github.chomingi:langfuse-otel-core:0.1.1` and
 > `io.github.chomingi:langfuse-otel-spring-boot-starter:0.1.1`; use the
 > [0.1.1 documentation](https://github.com/ChoMinGi/langfuse-otel-java/tree/v0.1.1) with those
-> artifacts. To evaluate the `0.2.0` configuration below before publication, check out this
+> artifacts. To evaluate the `0.2.0-SNAPSHOT` configuration below, check out this
 > revision and run `./mvnw -B -ntp -DskipTests -Djacoco.skip=true install` first.
 
 ### Spring Boot (Dedicated Exporter Quick Start)
@@ -36,7 +36,7 @@ or own a dedicated Langfuse exporter.
 <dependency>
     <groupId>io.github.chomingi</groupId>
     <artifactId>langfuse-otel-spring-boot-starter</artifactId>
-    <version>0.2.0</version>
+    <version>0.2.0-SNAPSHOT</version>
 </dependency>
 ```
 
@@ -66,7 +66,7 @@ Standalone endpoints must use HTTPS. For a loopback development receiver only, p
 <dependency>
     <groupId>io.github.chomingi</groupId>
     <artifactId>langfuse-otel-core</artifactId>
-    <version>0.2.0</version>
+    <version>0.2.0-SNAPSHOT</version>
 </dependency>
 ```
 

@@ -108,10 +108,11 @@ gh release edit v0.2.0 --draft=false --latest
 ```
 
 Finally, move `main` to the next development version, update the example and consumer-test
-`langfuse-otel.version` properties, restore the changelog's `Unreleased` section, and advance
-`api.compatibility.baseline` to the released version. Keep the README Quick Start dependency
-snippets on the latest version available from Maven Central. If the README also mentions the
-development version, label it separately as unpublished and require a local install.
+`langfuse-otel.version` properties, keep the empty changelog `Unreleased` section created by the
+release commit, and advance `api.compatibility.baseline` to the released version. Keep the README
+Quick Start dependency snippets on the latest version available from Maven Central. If the README
+also mentions the development version, label it separately as unpublished and require a local
+install.
 
 ## Failure and retry policy
 

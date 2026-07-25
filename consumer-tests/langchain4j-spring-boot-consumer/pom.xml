@@ -15,7 +15,7 @@
 
     <properties>
         <java.version>17</java.version>
-        <langfuse-otel.version>0.2.0</langfuse-otel.version>
+        <langfuse-otel.version>0.2.0-SNAPSHOT</langfuse-otel.version>
         <langchain4j.version>1.0.0</langchain4j.version>
         <otel.proto.version>1.3.2-alpha</otel.proto.version>
     </properties>

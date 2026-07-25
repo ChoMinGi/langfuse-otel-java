@@ -1,10 +1,12 @@
 package io.github.chomingi.langfuse.otel;
 
 import io.opentelemetry.api.common.AttributeKey;
+import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.SpanKind;
 import io.opentelemetry.api.trace.Tracer;
 
 import java.util.Arrays;
+import java.util.Objects;
 import java.util.function.Consumer;
 
 /**
@@ -17,14 +19,48 @@ import java.util.function.Consumer;
 public class LangfuseTrace extends AbstractLangfuseSpan {
 
     private final Tracer tracer;
+    private final LangfuseTraceState traceState;
 
     LangfuseTrace(Tracer tracer, String name) {
-        super(tracer.spanBuilder(name)
-                .setSpanKind(SpanKind.INTERNAL)
-                .setAttribute(LangfuseAttributes.TRACE_NAME, name)
-                .setAttribute(LangfuseAttributes.OBSERVATION_TYPE, "span")
-                .startSpan(), name);
+        this(tracer, name, traceBinding(name));
+    }
+
+    private LangfuseTrace(Tracer tracer, String name, TraceBinding binding) {
+        super(startSpan(tracer, name, binding), name, binding.traceState, binding.owner);
         this.tracer = tracer;
+        this.traceState = binding.traceState;
+    }
+
+    private static Span startSpan(Tracer tracer, String name, TraceBinding binding) {
+        return tracer.spanBuilder(name)
+                .setSpanKind(SpanKind.INTERNAL)
+                .setAttribute(
+                        LangfuseAttributes.TRACE_NAME,
+                        binding.traceState.snapshot().getTraceName())
+                .setAttribute(LangfuseAttributes.OBSERVATION_TYPE, "span")
+                .startSpan();
+    }
+
+    private static TraceBinding traceBinding(String name) {
+        LangfuseTraceState current = LangfuseContext.traceStateFrom(
+                io.opentelemetry.context.Context.current());
+        if (current != null) return new TraceBinding(current, false);
+
+        LangfuseTraceContext initial = LangfuseContext.current()
+                .toBuilder()
+                .traceName(name)
+                .build();
+        return new TraceBinding(new LangfuseTraceState(initial, true), true);
+    }
+
+    private static final class TraceBinding {
+        private final LangfuseTraceState traceState;
+        private final boolean owner;
+
+        private TraceBinding(LangfuseTraceState traceState, boolean owner) {
+            this.traceState = traceState;
+            this.owner = owner;
+        }
     }
 
     /**
@@ -35,6 +71,7 @@ public class LangfuseTrace extends AbstractLangfuseSpan {
      */
     public LangfuseTrace userId(String userId) {
         span.setAttribute(LangfuseAttributes.TRACE_USER_ID, userId);
+        traceState.userId(userId);
         return this;
     }
 
@@ -46,6 +83,7 @@ public class LangfuseTrace extends AbstractLangfuseSpan {
      */
     public LangfuseTrace sessionId(String sessionId) {
         span.setAttribute(LangfuseAttributes.TRACE_SESSION_ID, sessionId);
+        traceState.sessionId(sessionId);
         return this;
     }
 
@@ -58,6 +96,7 @@ public class LangfuseTrace extends AbstractLangfuseSpan {
      */
     public LangfuseTrace tags(String... tags) {
         span.setAttribute(AttributeKey.stringArrayKey(LangfuseAttributes.TRACE_TAGS), Arrays.asList(tags));
+        traceState.tags(tags);
         return this;
     }
 
@@ -93,9 +132,55 @@ public class LangfuseTrace extends AbstractLangfuseSpan {
      * @param key metadata key
      * @param value metadata value
      * @return this trace
+     * @throws NullPointerException if {@code key} or {@code value} is {@code null}
      */
     public LangfuseTrace metadata(String key, String value) {
+        Objects.requireNonNull(key, "key");
+        Objects.requireNonNull(value, "value");
         span.setAttribute(LangfuseAttributes.TRACE_METADATA + "." + key, value);
+        traceState.metadata(key, value);
+        return this;
+    }
+
+    /**
+     * Records the trace version on this trace and subsequently created observations.
+     *
+     * @param version version identifier
+     * @return this trace
+     * @throws NullPointerException if {@code version} is {@code null}
+     */
+    public LangfuseTrace version(String version) {
+        Objects.requireNonNull(version, "version");
+        span.setAttribute(LangfuseAttributes.VERSION, version);
+        traceState.version(version);
+        return this;
+    }
+
+    /**
+     * Records the release on this trace and subsequently created observations.
+     *
+     * @param release release identifier
+     * @return this trace
+     * @throws NullPointerException if {@code release} is {@code null}
+     */
+    public LangfuseTrace release(String release) {
+        Objects.requireNonNull(release, "release");
+        span.setAttribute(LangfuseAttributes.RELEASE, release);
+        traceState.release(release);
+        return this;
+    }
+
+    /**
+     * Records the environment on this trace and subsequently created observations.
+     *
+     * @param environment environment name
+     * @return this trace
+     * @throws NullPointerException if {@code environment} is {@code null}
+     */
+    public LangfuseTrace environment(String environment) {
+        Objects.requireNonNull(environment, "environment");
+        span.setAttribute(LangfuseAttributes.ENVIRONMENT, environment);
+        traceState.environment(environment);
         return this;
     }
 

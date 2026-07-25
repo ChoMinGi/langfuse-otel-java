@@ -13,11 +13,20 @@ abstract class AbstractLangfuseSpan implements AutoCloseable {
     private final Scope scope;
     private final Thread openingThread;
     private final Context installedContext;
+    private final LangfuseTraceState traceState;
+    private final boolean ownsTraceState;
     private final java.lang.ref.Cleaner.Cleanable cleanable;
     private final AtomicBoolean closed = new AtomicBoolean(false);
 
     protected AbstractLangfuseSpan(Span span, String name) {
+        this(span, name, null, false);
+    }
+
+    protected AbstractLangfuseSpan(
+            Span span, String name, LangfuseTraceState traceState, boolean ownsTraceState) {
         this.span = span;
+        this.traceState = traceState;
+        this.ownsTraceState = ownsTraceState;
         this.openingThread = Thread.currentThread();
         Scope openedScope = null;
         Context openedContext = null;
@@ -26,7 +35,13 @@ abstract class AbstractLangfuseSpan implements AutoCloseable {
             // External OpenTelemetry SDKs do not install our SpanProcessor, so library-created spans
             // also apply the current immutable metadata directly.
             LangfuseContext.applyTo(span, LangfuseContext.current());
-            openedScope = span.makeCurrent();
+            if (traceState == null) {
+                openedScope = span.makeCurrent();
+            } else {
+                LangfuseContext.applyTo(span, traceState.snapshot());
+                Context contextWithSpan = span.storeInContext(Context.current());
+                openedScope = LangfuseContext.storeTraceState(contextWithSpan, traceState).makeCurrent();
+            }
             openedContext = Context.current();
             registeredCleanable = SpanGuard.register(this, span, name, closed);
         } catch (Throwable setupFailure) {
@@ -94,6 +109,7 @@ abstract class AbstractLangfuseSpan implements AutoCloseable {
                     "Langfuse spans must be closed in reverse creation order");
         }
         if (closed.compareAndSet(false, true)) {
+            if (ownsTraceState) traceState.freeze();
             try {
                 scope.close();
             } finally {

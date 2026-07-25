@@ -10,6 +10,11 @@ directly. This lets an application route the same trace through its existing SDK
 Langfuse documents this path in its
 [OpenTelemetry integration guide](https://langfuse.com/integrations/native/opentelemetry).
 
+The standalone exporter sends `x-langfuse-ingestion-version: 4`; an external SDK or Collector must
+set the same header. Root and generic spans carry an explicit observation type, as do model
+generations and embeddings. Root input/output are written to the observation attributes used by
+v4 and dual-written to the deprecated trace attributes for compatibility.
+
 ## Fail-safe observability
 
 `LangfuseOtel.builder()` defaults to `failSafe(true)`. Missing keys or a standalone setup failure
@@ -30,12 +35,23 @@ An abandoned wrapper registers a `Cleaner` action that warns and ends the span. 
 closes the originating thread's `Scope`; it is a last-resort span cleanup, not a substitute for a
 correct close.
 
+An active trace owns a trace-local carrier for name, user/session IDs, tags, metadata, version,
+release, and environment. Nested `LangfuseTrace` wrappers in the same OTel trace share that carrier
+and only its owner freezes it. The carrier takes precedence over nested immutable request context
+so one OTel trace does not split into competing trace records. Updates affect observations started
+after the setter returns; prior observations are not backfilled.
+
 ## OpenTelemetry ownership
 
 `LangfuseOtel.builder()` creates and owns a dedicated SDK and exporter.
 `LangfuseOtel.externalBuilder(openTelemetry)` uses an application-owned SDK and creates no
 exporter. In external mode, export routing, resources, batching, flushing, and shutdown remain the
 application's responsibility; the library's `flush()` and `close()` do not affect that SDK.
+
+Owned mode installs a span processor that copies the active trace carrier onto descendant spans.
+External mode cannot retrofit that processor into a supplied SDK: library/starter-created spans
+apply the values directly, while raw application or third-party spans require application-owned
+propagation.
 
 A process should normally own one OpenTelemetry SDK. Making ownership explicit avoids duplicate
 exports, split traces, and shutting down infrastructure owned by the host application.
@@ -60,6 +76,10 @@ logs the instrumentation gap. Existing JDK proxies retain only the interfaces th
 If a model method declares `@ObserveGeneration`, explicit annotation-based tracing takes
 precedence for that entire model bean. Automatic model instrumentation is skipped so one call does
 not create nested duplicate observations.
+
+Both mechanisms depend on Spring proxy interception. Directly constructed models, direct provider
+SDK calls, self-invocation, and private/final methods are not advised. The library does not define
+ordering relative to other around advice such as `@Transactional`.
 
 ## Privacy-first capture
 
@@ -89,6 +109,10 @@ The final wrapper also restores raw Reactive Streams signals, request, and cance
 `ReactorContextPropagation.wrap(rawPublisher)` lets a provider adapter move the boundary next to a
 raw source when its own upstream operators also need the context.
 
+The keyed scheduler hook is process-global while at least one lease is active. All Reactor
+scheduled tasks in the JVM pass through a small decorator lookup during that period, but only tasks
+with a captured matching context are wrapped. The hook is removed when the last lease ends.
+
 LangChain4j callbacks and model listeners restore the invocation context automatically. Provider
 adapters that own task submission can use `LangChain4jStreamingContext.wrap(...)`,
 `taskWrapping(...)`, or a fixed per-request `Snapshot`. These adapters do not claim to reach an
@@ -97,6 +121,11 @@ opaque provider-owned executor, and they retain no global request registry.
 `CompletionStage` observations attach a terminal side effect and return the original stage.
 Reactor observations create one span per subscription and end it on completion, error, or
 cancellation. Atomic terminal guards prevent concurrent signals from ending a span twice.
+
+There is no internal observation timeout or GC fallback for these raw async spans. A stage,
+publisher, or provider callback sequence that never emits a terminal signal can retain its
+observation and any scheduler lease. Provider/application timeouts and cancellation remain
+operational requirements.
 
 The `0.2.x` compatibility claim is JVM-only. Reflective compatibility paths do not imply Spring
 AOT or GraalVM native-image support.

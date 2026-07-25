@@ -18,6 +18,8 @@
   and redirect credential handling
 - Independent Spring AI and LangChain4j consumer smokes for application-owned and standalone
   OpenTelemetry pipelines
+- Langfuse v4 observation semantics, trace-local attribute propagation, and an exact-commit
+  root/child/generation canary for API read-back
 
 ### Changed
 
@@ -33,6 +35,8 @@
   conflicts with the optional `langfuse-java` prompt client
 - Maven Central publication stops at `VALIDATED` for manual approval before the GitHub release is
   published
+- Root input/output use v4 observation attributes and remain dual-written to legacy trace
+  attributes; raw model spans declare their v4 observation type
 
 ### Fixed
 
@@ -54,6 +58,8 @@
 - Consumer artifact installation no longer runs a zero-test JaCoCo coverage check
 - `langfuse.enabled=false` now disables model instrumentation and operational signals even when an
   application supplies its own `LangfuseOtel` bean
+- Trace name, user/session IDs, tags, metadata, version, release, and environment propagate to
+  subsequent library and owned-pipeline descendants without cross-thread ThreadLocal leakage
 
 ## [0.1.1] - 2026-05-12
 
@@ -86,14 +92,14 @@
 - `langfuse-otel-core`: Graceful degradation — no-op mode when API keys are absent
 - `langfuse-otel-core`: Prompt management integration via `langfuse-java` SDK (optional)
 - `langfuse-otel-spring-boot-starter`: Auto-configuration with `application.yml` properties
-- `langfuse-otel-spring-boot-starter`: Spring AI `ChatModel` auto-instrumentation (zero code)
+- `langfuse-otel-spring-boot-starter`: Spring AI `ChatModel` automatic bean instrumentation
 - `langfuse-otel-spring-boot-starter`: Spring AI streaming `ChatModel.stream()` auto-instrumentation
-- `langfuse-otel-spring-boot-starter`: Spring AI `EmbeddingModel` auto-instrumentation (zero code)
-- `langfuse-otel-spring-boot-starter`: Spring AI `ImageModel` auto-instrumentation (zero code)
-- `langfuse-otel-spring-boot-starter`: LangChain4j `ChatModel` auto-instrumentation (zero code)
+- `langfuse-otel-spring-boot-starter`: Spring AI `EmbeddingModel` automatic bean instrumentation
+- `langfuse-otel-spring-boot-starter`: Spring AI `ImageModel` automatic bean instrumentation
+- `langfuse-otel-spring-boot-starter`: LangChain4j `ChatModel` automatic bean instrumentation
 - `langfuse-otel-spring-boot-starter`: LangChain4j `StreamingChatModel` auto-instrumentation
-- `langfuse-otel-spring-boot-starter`: LangChain4j `EmbeddingModel` auto-instrumentation (zero code)
-- `langfuse-otel-spring-boot-starter`: LangChain4j `ImageModel` auto-instrumentation (zero code)
+- `langfuse-otel-spring-boot-starter`: LangChain4j `EmbeddingModel` automatic bean instrumentation
+- `langfuse-otel-spring-boot-starter`: LangChain4j `ImageModel` automatic bean instrumentation
 - `langfuse-otel-spring-boot-starter`: `@ObserveGeneration` annotation
 - `langfuse-otel-spring-boot-starter`: `LangfuseContextFilter` for HTTP request context propagation
 - `langfuse-otel-spring-boot-starter`: `completion_start_time` attribute for streaming TTFT measurement

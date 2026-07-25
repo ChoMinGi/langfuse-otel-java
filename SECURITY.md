@@ -31,6 +31,14 @@ Spring AI streaming never retains an unbounded completion. If the raw completion
 
 Explicit core fluent calls such as `generation.input(value)` are treated as an intentional caller opt-in and do not use the automatic capture policy.
 
+Trace-wide context can include trace name, user/session IDs, tags, metadata, version, release, and
+environment. Version 0.2 copies those values to same-trace descendants created by the library and,
+in an owned SDK, to descendants handled by its span processor. Treat every copied field as
+exportable data. When an application shares an external OpenTelemetry SDK with multiple exporters,
+attributes applied to library/starter spans are available to every configured exporter, not only
+Langfuse. Raw spans created by other instrumentation are not modified in external mode unless the
+application configures its own propagation.
+
 HTTP session IDs can be bearer credentials in some deployments. Do not enable session capture unless the value is non-secret and approved for export. Prefer an application-defined opaque analytics session identifier set explicitly on a trace.
 
 Exceptions frequently contain response bodies, prompts, URLs, or credentials. Automatic instrumentation records only `exception.type` by default. Enabling message or stack capture with zero `ExceptionRedactor` beans uses the identity redactor, so the selected details are exported unchanged except for the independent `langfuse.exception.max-length` limit. Exactly one bean processes details before truncation. Multiple beans, redactor failures, or a `null` result fail closed. Treat one reviewed, thread-safe exception redactor as mandatory in production before enabling sensitive details.

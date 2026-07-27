@@ -37,6 +37,18 @@ run both framework consumer smokes and the prompt classpath check:
 The full baseline/latest framework commands used for a release are listed in
 [RELEASING.md](RELEASING.md#prepare-the-release-commit).
 
+To exercise the complete local path from both framework model beans through OTLP ingestion and
+Observations API v2 read-back, run:
+
+```bash
+./e2e/langfuse-docker/run.sh
+```
+
+This starts a digest-pinned Langfuse `v4.0.0-rc.2` stack with disposable project keys and a local
+TLS proxy, then runs the Spring AI and LangChain4j consumer tests. It needs Docker, Java 17,
+`curl`, `jq`, `openssl`, and `keytool`, but no Langfuse Cloud credentials. The stack uses an
+isolated Compose project and is removed with its volumes when the command exits.
+
 The slower quality profile adds static analysis and dependency-license checks while producing the
 CycloneDX SBOM used by CI:
 
@@ -67,6 +79,7 @@ credentials fail the integration status job instead of silently skipping it.
 | `langfuse-otel-spring-boot-starter` | Java 17 Spring AI and LangChain4j auto-configuration |
 | `examples` | Consumer builds for both supported adapters |
 | `consumer-tests` | Independent user-flow builds outside the reactor |
+| `e2e/langfuse-docker` | Disposable self-hosted Langfuse user-flow validation |
 
 ## Guidelines
 

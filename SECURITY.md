@@ -61,11 +61,9 @@ The standalone transport contract test also verifies that cross-origin redirects
 
 | Version | Supported |
 |---------|-----------|
-| 0.2.x   | Release candidate; maintenance starts when 0.2.0 is public |
-| 0.1.1   | Current Maven Central version; maintained until 0.2.0 is public |
-| 0.1.0 and earlier | No longer supported |
+| 0.2.x   | Supported after the first public 0.2 release |
+| 0.1.x   | Supported until the 0.2.0 artifacts are public |
 
-After `0.2.0` is published, `0.1.x` will no longer be supported. When `0.3.0` moves the starter to
-Spring Boot 4 and Spring AI 2, `0.2.x` will remain in maintenance for six months. That window covers
-critical vulnerabilities and regressions owned by this library; it does not extend the support
-lifecycle of Spring Boot 3 or other upstream dependencies.
+When `0.3.0` moves the starter to Spring Boot 4 and Spring AI 2, `0.2.x` will remain in maintenance
+for six months. That window covers critical vulnerabilities and regressions owned by this library;
+it does not extend the support lifecycle of Spring Boot 3 or other upstream dependencies.

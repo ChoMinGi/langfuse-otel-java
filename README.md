@@ -55,6 +55,11 @@ This quick start deliberately selects `standalone`, so the configured keys and h
 
 Standalone endpoints must use HTTPS. For a loopback development receiver only, plaintext HTTP can be enabled explicitly with `langfuse.allow-insecure-http-for-development=true`; never use that option with production credentials.
 
+That option only relaxes endpoint validation. Direct HTTP export to Langfuse Docker can currently
+fail during cleartext HTTP negotiation with the JDK sender; use a local TLS reverse proxy or
+HTTPS-capable collector until [#9](https://github.com/ChoMinGi/langfuse-otel-java/issues/9) is
+resolved.
+
 ### Standalone (No Spring)
 
 ```xml

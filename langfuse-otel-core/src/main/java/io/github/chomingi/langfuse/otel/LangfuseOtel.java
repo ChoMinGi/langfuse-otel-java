@@ -10,6 +10,7 @@ import io.opentelemetry.sdk.resources.Resource;
 import io.opentelemetry.sdk.resources.ResourceBuilder;
 import io.opentelemetry.sdk.trace.SdkTracerProvider;
 import io.opentelemetry.sdk.trace.export.BatchSpanProcessor;
+import io.opentelemetry.sdk.trace.samplers.Sampler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -540,6 +541,11 @@ public class LangfuseOtel implements AutoCloseable {
 
                 tracerProvider = SdkTracerProvider.builder()
                         .setResource(resource)
+                        // Langfuse owns this provider exclusively, so its sampling decision must not be
+                        // inherited from an unrelated upstream trace. Without this, the SDK default
+                        // parentBased(alwaysOn) drops every LLM span whenever a surrounding agent- or
+                        // Micrometer-created parent span was head-sampled away.
+                        .setSampler(Sampler.alwaysOn())
                         .addSpanProcessor(new LangfuseContextSpanProcessor())
                         .addSpanProcessor(BatchSpanProcessor.builder(exporter)
                                 .setMeterProvider(runtimeMeterProvider)

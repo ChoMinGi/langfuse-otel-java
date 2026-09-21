@@ -16,6 +16,7 @@ import io.github.chomingi.langfuse.otel.spring.annotation.ObserveGeneration;
 import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.sdk.testing.junit5.OpenTelemetryExtension;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.aopalliance.intercept.MethodInterceptor;
 import org.springframework.aop.TargetSource;
@@ -31,6 +32,8 @@ import org.springframework.beans.factory.support.DefaultListableBeanFactory;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.autoconfigure.aop.AopAutoConfiguration;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Scope;
@@ -92,6 +95,70 @@ class ModelBeanPostProcessorSupportTest {
                     assertThat(otel.getSpans()).extracting(span -> span.getName())
                             .containsExactly("explicit-model");
                 });
+    }
+
+    @Test
+    void implementationAnnotationOnJdkSpringAiModelProducesExactlyOneSpan() {
+        new ApplicationContextRunner()
+                .withConfiguration(AutoConfigurations.of(
+                        AopAutoConfiguration.class,
+                        LangfuseOtelCoreAutoConfiguration.class,
+                        SpringAiAutoConfiguration.class))
+                .withUserConfiguration(ObservedModelConfiguration.class)
+                .withBean(OpenTelemetry.class, otel::getOpenTelemetry,
+                        beanDefinition -> beanDefinition.setDestroyMethodName(""))
+                .withPropertyValues("spring.aop.proxy-target-class=false")
+                .run(context -> {
+                    org.springframework.ai.chat.model.ChatModel model = context.getBean(
+                            org.springframework.ai.chat.model.ChatModel.class);
+                    assertThat(AopUtils.isJdkDynamicProxy(model)).isTrue();
+
+                    assertThat(model.call(new Prompt("jdk")).getResult().getOutput().getText())
+                            .isEqualTo("observed");
+
+                    assertThat(otel.getSpans()).extracting(span -> span.getName())
+                            .containsExactly("explicit-model");
+                });
+    }
+
+    @Test
+    void implementationAnnotationOnJdkLangChain4jModelProducesExactlyOneSpan() {
+        new ApplicationContextRunner()
+                .withConfiguration(AutoConfigurations.of(
+                        AopAutoConfiguration.class,
+                        LangfuseOtelCoreAutoConfiguration.class,
+                        LangChain4jAutoConfiguration.class))
+                .withBean("observedModel", ObservedLangChain4jChatModel.class,
+                        ObservedLangChain4jChatModel::new)
+                .withBean(OpenTelemetry.class, otel::getOpenTelemetry,
+                        beanDefinition -> beanDefinition.setDestroyMethodName(""))
+                .withPropertyValues("spring.aop.proxy-target-class=false")
+                .run(context -> {
+                    ChatModel model = context.getBean(ChatModel.class);
+                    assertThat(AopUtils.isJdkDynamicProxy(model)).isTrue();
+
+                    assertThat(model.chat(chatRequest("jdk")).aiMessage().text()).isEqualTo("observed");
+
+                    assertThat(otel.getSpans()).extracting(span -> span.getName())
+                            .containsExactly("explicit-lc4j-model");
+                });
+    }
+
+    @Test
+    @ExtendWith(OutputCaptureExtension.class)
+    void annotatedFinalModelMethodIsPreservedAndWarnedBeforeAnnotationPrecedence(CapturedOutput output) {
+        FinalObservedSpringAiChatModel target = new FinalObservedSpringAiChatModel();
+
+        Object processed = ModelBeanPostProcessorSupport.instrumentSpringAi(
+                target, LangfuseOtel.externalBuilder(otel.getOpenTelemetry()).build());
+
+        assertThat(processed).isSameAs(target);
+        assertThat(((org.springframework.ai.chat.model.ChatModel) processed)
+                .call(new Prompt("final")).getResult().getOutput().getText()).isEqualTo("final-observed");
+        assertThat(otel.getSpans()).isEmpty();
+        assertThat(output).contains("Skipping automatic Langfuse instrumentation")
+                .contains("FinalObservedSpringAiChatModel")
+                .contains("@ObserveGeneration");
     }
 
     @Test
@@ -462,6 +529,24 @@ class ModelBeanPostProcessorSupportTest {
 
         int getInvocations() {
             return invocations.get();
+        }
+    }
+
+    public static class FinalObservedSpringAiChatModel
+            implements org.springframework.ai.chat.model.ChatModel {
+        @Override
+        @ObserveGeneration(name = "unadvisable-model")
+        public final org.springframework.ai.chat.model.ChatResponse call(Prompt prompt) {
+            return new org.springframework.ai.chat.model.ChatResponse(
+                    List.of(new Generation(new AssistantMessage("final-observed"))));
+        }
+    }
+
+    public static class ObservedLangChain4jChatModel implements ChatModel {
+        @Override
+        @ObserveGeneration(name = "explicit-lc4j-model")
+        public ChatResponse chat(ChatRequest request) {
+            return ChatResponse.builder().aiMessage(AiMessage.from("observed")).build();
         }
     }
 

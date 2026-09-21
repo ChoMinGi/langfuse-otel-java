@@ -5,7 +5,7 @@
 
     <groupId>io.github.chomingi</groupId>
     <artifactId>langfuse-otel-java</artifactId>
-    <version>0.2.0</version>
+    <version>0.2.1-SNAPSHOT</version>
     <packaging>pom</packaging>
 
     <name>langfuse-otel-java</name>
@@ -48,7 +48,8 @@
         <jackson.version>2.21.5</jackson.version>
         <kotlin.version>1.9.25</kotlin.version>
         <okhttp.version>4.12.0</okhttp.version>
-        <netty.version>4.1.136.Final</netty.version>
+        <netty.version>4.1.138.Final</netty.version>
+        <tomcat.version>10.1.59</tomcat.version>
         <assertj.version>3.27.7</assertj.version>
         <spring-ai.version>1.0.9</spring-ai.version>
         <langchain4j.version>1.0.0</langchain4j.version>
@@ -57,7 +58,7 @@
         <license-maven-plugin.version>2.7.1</license-maven-plugin.version>
         <cyclonedx-maven-plugin.version>2.9.2</cyclonedx-maven-plugin.version>
         <japicmp-maven-plugin.version>0.26.1</japicmp-maven-plugin.version>
-        <api.compatibility.baseline>0.1.1</api.compatibility.baseline>
+        <api.compatibility.baseline>0.2.0</api.compatibility.baseline>
         <jacoco.minimum.line.coverage>0.000</jacoco.minimum.line.coverage>
         <jacoco.minimum.branch.coverage>0.000</jacoco.minimum.branch.coverage>
         <test.excludedGroups>integration,e2e,release-canary</test.excludedGroups>
@@ -65,6 +66,22 @@
 
     <dependencyManagement>
         <dependencies>
+            <!-- Boot's imported BOM properties are not overridden by this project's properties. -->
+            <dependency>
+                <groupId>org.apache.tomcat.embed</groupId>
+                <artifactId>tomcat-embed-core</artifactId>
+                <version>${tomcat.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.tomcat.embed</groupId>
+                <artifactId>tomcat-embed-el</artifactId>
+                <version>${tomcat.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.tomcat.embed</groupId>
+                <artifactId>tomcat-embed-websocket</artifactId>
+                <version>${tomcat.version}</version>
+            </dependency>
             <dependency>
                 <groupId>com.fasterxml.jackson</groupId>
                 <artifactId>jackson-bom</artifactId>

@@ -4,7 +4,7 @@ This file tracks release-level work. Completed implementation details live in
 [CHANGELOG.md](CHANGELOG.md), and the publication procedure lives in
 [RELEASING.md](RELEASING.md).
 
-## 0.2.0 — Spring Boot 3 production preview
+## 0.2.0 — Published Spring Boot 3 production preview
 
 The code and build now cover the release scope:
 
@@ -14,13 +14,19 @@ The code and build now cover the release scope:
 - local status plus optional Actuator health and metrics
 - reproducible artifacts and the release gates documented in [RELEASING.md](RELEASING.md)
 
-Three checks must run against the exact release commit:
+Published to Maven Central and GitHub on 2026-08-03. The `0.2.x` line remains a production preview.
 
-- [ ] Run the Java and framework compatibility matrix.
-- [ ] Export the exact release SHA canary and verify its hierarchy, root I/O, types, and trace-wide
-  fields through Langfuse Observations API v2.
-- [ ] Complete Central validation and manual publication, verify public dependency resolution, then
-  publish the generated GitHub draft.
+## 0.2.1 — Stabilization (in development)
+
+- Fix implementation-method annotation resolution through JDK proxies and preserve annotation precedence.
+- Surface non-proxyable model methods without changing application behavior.
+- Ship the owned-pipeline sampling fix already merged after 0.2.0.
+- Patch Netty and Tomcat on the Boot 3 line and restore a passing vulnerability gate.
+- Validate compatibility against 0.2.0, the Java/framework matrix, independent consumers, and Docker read-back.
+
+See [STABILIZATION-0.2.1.md](STABILIZATION-0.2.1.md) for acceptance criteria and validation evidence.
+Exact-release-commit canary, Central validation/publication, and public artifact resolution remain
+release gates in [RELEASING.md](RELEASING.md).
 
 ## 0.3.0 — Spring Boot 4 adapter line
 

@@ -4,6 +4,8 @@
 
 ### Fixed
 
+- Make the Docker E2E truststore copy writable when the JDK ships read-only `cacerts`, and
+  preserve keytool error output for CI diagnosis
 - Resolve `@ObserveGeneration` on the most-specific bridged implementation method for JDK proxies,
   including final implementations and generic reactive return types; preserve one observation when
   annotations take precedence over Spring AI or LangChain4j automatic instrumentation

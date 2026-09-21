@@ -17,6 +17,8 @@ Spring Boot 4 migration and new instrumentation features remain outside this pat
 - [x] Enable grouped Maven patch update PRs, bump development consumers to `0.2.1-SNAPSHOT`, and
   use published `0.2.0` as the API compatibility baseline.
 - [x] Update proxy limitations, dependency-management guidance, roadmap, and release instructions.
+- [x] Make the disposable E2E truststore writable for read-only JDK distributions; reproduce the
+  keytool permission failure and verify certificate import succeeds after correcting the copy's mode.
 
 ## Validation
 

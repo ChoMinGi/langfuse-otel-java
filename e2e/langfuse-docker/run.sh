@@ -135,11 +135,13 @@ if [[ -z "${java_home}" || ! -f "${java_home}/lib/security/cacerts" ]]; then
     exit 1
 fi
 cp "${java_home}/lib/security/cacerts" "${truststore}"
+# Some JDK distributions ship a read-only truststore; only our disposable copy is modified.
+chmod 600 "${truststore}"
 keytool -importcert -noprompt -trustcacerts \
     -alias langfuse-otel-java-e2e \
     -file "${ca_dir}/ca.crt" \
     -keystore "${truststore}" \
-    -storepass changeit >/dev/null
+    -storepass changeit
 
 printf 'user = "%s:%s"\ncacert = "%s"\n' \
     "${LANGFUSE_PUBLIC_KEY}" \

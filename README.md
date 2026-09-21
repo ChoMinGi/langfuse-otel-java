@@ -23,10 +23,9 @@ or own a dedicated Langfuse exporter.
 ## Quick Start
 
 > **Release status:** `0.2.x` is the production-preview line for Spring Boot 3, Spring AI 1, and
-> LangChain4j. The dependency examples below use `0.2.0`.
+> LangChain4j. The dependency examples below use `0.2.1`.
 
-Development is on `0.2.1-SNAPSHOT`. See the [0.2.1 stabilization checklist](STABILIZATION-0.2.1.md)
-for pending fixes and release gates; snapshot changes are not available in the published `0.2.0` artifacts.
+See the [0.2.1 stabilization checklist](STABILIZATION-0.2.1.md) for scope and validation evidence.
 
 ### Spring Boot (Dedicated Exporter Quick Start)
 
@@ -34,7 +33,7 @@ for pending fixes and release gates; snapshot changes are not available in the p
 <dependency>
     <groupId>io.github.chomingi</groupId>
     <artifactId>langfuse-otel-spring-boot-starter</artifactId>
-    <version>0.2.0</version>
+    <version>0.2.1</version>
 </dependency>
 ```
 
@@ -69,7 +68,7 @@ resolved.
 <dependency>
     <groupId>io.github.chomingi</groupId>
     <artifactId>langfuse-otel-core</artifactId>
-    <version>0.2.0</version>
+    <version>0.2.1</version>
 </dependency>
 ```
 

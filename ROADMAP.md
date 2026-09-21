@@ -16,7 +16,7 @@ The code and build now cover the release scope:
 
 Published to Maven Central and GitHub on 2026-08-03. The `0.2.x` line remains a production preview.
 
-## 0.2.1 — Stabilization (in development)
+## 0.2.1 — Stabilization
 
 - Fix implementation-method annotation resolution through JDK proxies and preserve annotation precedence.
 - Surface non-proxyable model methods without changing application behavior.

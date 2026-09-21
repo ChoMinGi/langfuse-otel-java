@@ -187,7 +187,7 @@ Before Central credentials are available, the workflow verifies:
 - release-version snippets in README and a dated changelog heading;
 - absence of an existing GitHub release or published Maven Central coordinates;
 - `clean verify`, including coverage, warning-free Javadocs, and binary/source compatibility with
-  `0.1.1`;
+  `0.2.0`;
 - SpotBugs, dependency-license, CycloneDX SBOM, and High/Critical vulnerability gates;
 - core Java 11/17/21, the blocking Spring AI/LangChain4j matrix, and all consumer checks.
 

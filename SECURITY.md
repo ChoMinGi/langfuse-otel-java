@@ -61,10 +61,10 @@ The standalone transport contract test also verifies that cross-origin redirects
 
 | Version | Supported |
 |---------|-----------|
-| 0.2.x   | Supported; 0.2.0 is public, 0.2.1 is in development |
+| 0.2.x   | Supported — Spring Boot 3 / Spring AI 1 |
 | 0.1.x   | No longer maintained; upgrade to the 0.2.x line |
 
-The `0.2.1` development build uses Netty `4.1.138.Final` and Tomcat `10.1.59` while retaining
+The `0.2.1` release uses Netty `4.1.138.Final` and Tomcat `10.1.59` while retaining
 Spring Boot `3.5.16`. Tomcat `10.1.58` was not released; see the
 [Tomcat security advisory](https://tomcat.apache.org/security-10.html).
 Web dependencies remain optional. Applications using their own Spring Boot parent or BOM control

@@ -1,6 +1,6 @@
 # 0.2.1 stabilization
 
-Working version: `0.2.1-SNAPSHOT`. Base: `02d82224c1a6720e58239e31c434502121ffe1dc`.
+Release version: `0.2.1`. Base: `02d82224c1a6720e58239e31c434502121ffe1dc`.
 This patch retains Java 11 core, Java 17 starter, Spring Boot 3, and Spring AI 1 support.
 Spring Boot 4 migration and new instrumentation features remain outside this patch.
 
@@ -50,7 +50,7 @@ release must run the required CI again with the current vulnerability database.
 ## Publication gates
 
 - [ ] Review and merge the patch; required CI must pass on the final commit.
-- [ ] Set final `0.2.1` versions, publication date, and stable build timestamp.
+- [x] Set final `0.2.1` versions, publication date, and stable build timestamp.
 - [ ] Export the exact release SHA canary and verify its hierarchy and attributes in Langfuse.
 - [ ] Validate the signed candidate in Central, publish it, and verify resolution from an empty repository.
 - [ ] Publish the GitHub release and update the README dependency snippets to `0.2.1`.

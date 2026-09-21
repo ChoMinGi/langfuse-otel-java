@@ -25,6 +25,9 @@ or own a dedicated Langfuse exporter.
 > **Release status:** `0.2.x` is the production-preview line for Spring Boot 3, Spring AI 1, and
 > LangChain4j. The dependency examples below use `0.2.0`.
 
+Development is on `0.2.1-SNAPSHOT`. See the [0.2.1 stabilization checklist](STABILIZATION-0.2.1.md)
+for pending fixes and release gates; snapshot changes are not available in the published `0.2.0` artifacts.
+
 ### Spring Boot (Dedicated Exporter Quick Start)
 
 ```xml
@@ -209,8 +212,11 @@ public class LLMService {
 `@ObserveGeneration` covers synchronous methods, `CompletionStage`, and Reactor `Mono`/`Flux`.
 Stages retain their identity, and Reactor creates one observation per subscription. On a model
 bean, explicit annotations take precedence over automatic instrumentation so the same call is not
-traced twice. The method must be reached through its Spring proxy: self-invocation and private or
-final methods are not advised. Ordering relative to other around advice, such as
+traced twice. The method must be reached through its Spring proxy: self-invocation and private
+methods are not advised. Class-based (CGLIB) proxies cannot advise final methods or final classes.
+Starting with `0.2.1`, implementation-method annotations are resolved through JDK proxies, including
+final implementations and generic bridge methods. Use `spring.aop.proxy-target-class=false` with
+interface-based injection for this path. Ordering relative to other around advice, such as
 `@Transactional`, is not guaranteed.
 
 ### Request Context Propagation
@@ -374,7 +380,8 @@ Keep this component out of liveness. Add it to readiness only when losing Langfu
   LangChain4j provider that never completes, errors, or is cancelled can leave its observation
   open; configure provider/application timeouts and cancellation.
 - Final or otherwise non-proxyable model types are left unchanged and logged as uninstrumented.
-  Annotation-based tracing also cannot advise self-invocation or private/final methods.
+  Annotation-based tracing also cannot advise self-invocation, private methods, or final methods
+  through class-based proxies. Existing JDK proxies can advise public interface methods.
 - `0.2.x` is JVM-only; Spring AOT and GraalVM native-image support are not claimed.
 - Custom concrete publisher subtypes are returned unchanged when a compatible wrapper type cannot
   be preserved.

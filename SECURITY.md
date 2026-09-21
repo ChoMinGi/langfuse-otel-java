@@ -61,8 +61,17 @@ The standalone transport contract test also verifies that cross-origin redirects
 
 | Version | Supported |
 |---------|-----------|
-| 0.2.x   | Supported after the first public 0.2 release |
-| 0.1.x   | Supported until the 0.2.0 artifacts are public |
+| 0.2.x   | Supported; 0.2.0 is public, 0.2.1 is in development |
+| 0.1.x   | No longer maintained; upgrade to the 0.2.x line |
+
+The `0.2.1` development build uses Netty `4.1.138.Final` and Tomcat `10.1.59` while retaining
+Spring Boot `3.5.16`. Tomcat `10.1.58` was not released; see the
+[Tomcat security advisory](https://tomcat.apache.org/security-10.html).
+Web dependencies remain optional. Applications using their own Spring Boot parent or BOM control
+their resolved runtime versions; this starter does not override application dependency management.
+Until the Boot BOM includes these patches, Boot-parent consumers can set `netty.version` and
+`tomcat.version` to these versions, as the examples do. BOM-import consumers must explicitly manage
+the Netty BOM and Tomcat embed artifacts. Verify the application dependency tree and security scan.
 
 When `0.3.0` moves the starter to Spring Boot 4 and Spring AI 2, `0.2.x` will remain in maintenance
 for six months. That window covers critical vulnerabilities and regressions owned by this library;

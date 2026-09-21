@@ -2,6 +2,29 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Make the Docker E2E truststore copy writable when the JDK ships read-only `cacerts`, and
+  preserve keytool error output for CI diagnosis
+- Resolve `@ObserveGeneration` on the most-specific bridged implementation method for JDK proxies,
+  including final implementations and generic reactive return types; preserve one observation when
+  annotations take precedence over Spring AI or LangChain4j automatic instrumentation
+- Warn about non-proxyable model types before skipping automatic instrumentation for explicit annotations
+- Owned OpenTelemetry pipelines explicitly sample all library spans, including when the upstream
+  parent is unsampled; external pipelines retain the application's sampling policy
+
+### Changed
+
+- Prepare `0.2.1-SNAPSHOT` and check source/binary API compatibility against published `0.2.0`
+- Patch Netty to `4.1.138.Final` and Tomcat embed artifacts to `10.1.59` on the Boot 3 line;
+  examples and Boot consumer tests use the same overrides
+- Enable Maven dependency update PRs with grouped patch updates
+
+### Added
+
+- Disposable Docker Langfuse E2E for both framework consumers, including OTLP ingestion and
+  Observations API v2 read-back, plus a manual CI workflow
+
 ## [0.2.0] - 2026-07-26
 
 ### Added

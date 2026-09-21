@@ -20,7 +20,7 @@ Before opening a pull request:
 ```
 
 `clean verify` runs unit and packaged-JAR tests, coverage checks, warning-free Javadocs, and
-binary/source API compatibility against `0.1.1`. Coverage reports are written under each module's
+binary/source API compatibility against `0.2.0`. Coverage reports are written under each module's
 `target/site/jacoco` directory.
 
 The projects under `consumer-tests` are deliberately outside the Maven reactor. After changing

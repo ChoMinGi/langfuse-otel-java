@@ -11,6 +11,8 @@ import org.aspectj.lang.annotation.Aspect;
 import org.aspectj.lang.reflect.MethodSignature;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.aop.support.AopUtils;
+import org.springframework.core.BridgeMethodResolver;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -174,8 +176,17 @@ public class ObserveGenerationAspect {
 
     private static ObservationDescriptor descriptor(ProceedingJoinPoint joinPoint) {
         MethodSignature signature = (MethodSignature) joinPoint.getSignature();
-        Method method = signature.getMethod();
+        Method invokedMethod = signature.getMethod();
+        Object target = joinPoint.getTarget();
+        Method method = BridgeMethodResolver.findBridgedMethod(AopUtils.getMostSpecificMethod(
+                invokedMethod, target == null ? invokedMethod.getDeclaringClass() : AopUtils.getTargetClass(target)));
         ObserveGeneration annotation = method.getAnnotation(ObserveGeneration.class);
+        if (annotation == null) {
+            annotation = invokedMethod.getAnnotation(ObserveGeneration.class);
+        }
+        if (annotation == null) {
+            throw new IllegalStateException("No @ObserveGeneration on the invoked or target method");
+        }
         String name = annotation.name().isEmpty() ? method.getName() : annotation.name();
         return new ObservationDescriptor(
                 method, name, annotation.operation(), annotation.model(), annotation.system());

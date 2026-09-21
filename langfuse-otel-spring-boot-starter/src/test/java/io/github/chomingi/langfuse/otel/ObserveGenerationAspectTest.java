@@ -41,6 +41,94 @@ class ObserveGenerationAspectTest {
     static final OpenTelemetryExtension otel = OpenTelemetryExtension.create();
 
     @Test
+    void jdkProxyResolvesImplementationAnnotation() {
+        SummaryService service = jdkProxy(new SummaryServiceImpl());
+
+        assertThat(service.summarize("hello")).isEqualTo("summary: hello");
+        assertThat(otel.getSpans()).hasSize(1);
+        assertThat(otel.getSpans().get(0).getName()).isEqualTo("jdk-summary");
+        assertThat(otel.getSpans().get(0).getAttributes()
+                .get(AttributeKey.stringKey("gen_ai.request.model"))).isEqualTo("jdk-model");
+    }
+
+    @Test
+    void jdkProxyAdvisesFinalImplementationMethod() {
+        SummaryService service = jdkProxy(new FinalMethodSummaryService());
+
+        assertThat(service.summarize("hello")).isEqualTo("final: hello");
+        assertThat(otel.getSpans()).extracting(SpanData::getName).containsExactly("final-method");
+    }
+
+    @Test
+    void jdkProxyAdvisesFinalImplementationClass() {
+        SummaryService service = jdkProxy(new FinalSummaryService());
+
+        assertThat(service.summarize("hello")).isEqualTo("final: hello");
+        assertThat(otel.getSpans()).extracting(SpanData::getName).containsExactly("final-class");
+    }
+
+    @Test
+    void jdkProxyResolvesBridgedReactiveReturnTypeBeforeStartingObservation() {
+        GenericService<Mono<String>> service = jdkProxy(new ReactiveGenericService());
+
+        Mono<String> result = service.generate();
+
+        assertThat(otel.getSpans()).isEmpty();
+        assertThat(result.block()).isEqualTo("reactive-result");
+        assertThat(result.block()).isEqualTo("reactive-result");
+        assertThat(otel.getSpans()).extracting(SpanData::getName)
+                .containsExactly("bridged-reactive", "bridged-reactive");
+    }
+
+    private <T> T jdkProxy(T target) {
+        AspectJProxyFactory factory = new AspectJProxyFactory(target);
+        factory.setProxyTargetClass(false);
+        factory.addAspect(new ObserveGenerationAspect(
+                LangfuseOtel.externalBuilder(otel.getOpenTelemetry()).build()));
+        return factory.getProxy();
+    }
+
+    public interface SummaryService {
+        String summarize(String text);
+    }
+
+    public static class SummaryServiceImpl implements SummaryService {
+        @Override
+        @ObserveGeneration(name = "jdk-summary", model = "jdk-model")
+        public String summarize(String text) {
+            return "summary: " + text;
+        }
+    }
+
+    public static class FinalMethodSummaryService implements SummaryService {
+        @Override
+        @ObserveGeneration(name = "final-method")
+        public final String summarize(String text) {
+            return "final: " + text;
+        }
+    }
+
+    public static final class FinalSummaryService implements SummaryService {
+        @Override
+        @ObserveGeneration(name = "final-class")
+        public String summarize(String text) {
+            return "final: " + text;
+        }
+    }
+
+    public interface GenericService<T> {
+        T generate();
+    }
+
+    public static class ReactiveGenericService implements GenericService<Mono<String>> {
+        @Override
+        @ObserveGeneration(name = "bridged-reactive")
+        public Mono<String> generate() {
+            return Mono.just("reactive-result");
+        }
+    }
+
+    @Test
     void annotationCapturesConfiguredMetadataAndOutput() {
         TestService proxy = proxy(new TestService());
 

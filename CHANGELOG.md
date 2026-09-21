@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-09-21
+
 ### Fixed
 
 - Make the Docker E2E truststore copy writable when the JDK ships read-only `cacerts`, and
@@ -15,7 +17,7 @@
 
 ### Changed
 
-- Prepare `0.2.1-SNAPSHOT` and check source/binary API compatibility against published `0.2.0`
+- Prepare `0.2.1` and check source/binary API compatibility against published `0.2.0`
 - Patch Netty to `4.1.138.Final` and Tomcat embed artifacts to `10.1.59` on the Boot 3 line;
   examples and Boot consumer tests use the same overrides
 - Enable Maven dependency update PRs with grouped patch updates

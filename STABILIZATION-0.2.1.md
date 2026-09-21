@@ -49,11 +49,11 @@ release must run the required CI again with the current vulnerability database.
 
 ## Publication gates
 
-- [ ] Review and merge the patch; required CI must pass on the final commit.
+- [x] Review and merge the patch; required CI must pass on the final commit.
 - [x] Set final `0.2.1` versions, publication date, and stable build timestamp.
-- [ ] Export the exact release SHA canary and verify its hierarchy and attributes in Langfuse.
-- [ ] Validate the signed candidate in Central, publish it, and verify resolution from an empty repository.
-- [ ] Publish the GitHub release and update the README dependency snippets to `0.2.1`.
+- [x] Export the exact release SHA canary and verify its hierarchy and attributes in Langfuse.
+- [x] Validate the signed candidate in Central, publish it, and verify resolution from an empty repository.
+- [x] Publish the GitHub release and update the README dependency snippets to `0.2.1`.
 
 Follow [RELEASING.md](RELEASING.md). Development validation does not replace final-commit release gates.
 
@@ -65,3 +65,22 @@ Tomcat's scanner fix hint `10.1.58` is not a public release; the
 [official advisory](https://tomcat.apache.org/security-10.html) identifies `10.1.59` as the released fix.
 Netty and Tomcat web dependencies are optional to consumers; application-owned dependency management
 can override library versions and must be verified separately.
+
+## Final release audit
+
+- Signed tag: `v0.2.1`, commit `9515ce5af65749d68e79e0b1db4edfec50fb6ac1`.
+- [Final main CI](https://github.com/ChoMinGi/langfuse-otel-java/actions/runs/35612516052) and
+  [release gates](https://github.com/ChoMinGi/langfuse-otel-java/actions/runs/35615857793) passed.
+- Exact-commit canary passed against disposable Langfuse `4.0.0-rc.2`: root, child span, and generation
+  hierarchy, I/O, version, release, and trace-wide context all matched through Observations API v2.
+  Marker: `v0.2.1-9515ce5af657-20260921T145732Z`; trace ID: `69433caa87ef06a4883951d8e08f4489`.
+- Central deployment: `53db7471-55ed-4f54-81ae-5fd25c00dc7d`.
+- SBOM packaging exception: Central skipped the CycloneDX attachment in `0.2.1`. The exact-tag
+  quality job SBOM (112 components, zero High/Critical findings) is provided as a signed GitHub
+  release asset. The next development version disables CycloneDX `skipNotDeployed` and quality CI
+  uses the release profile to prevent recurrence.
+- Publication completed on 2026-09-21 UTC (2026-09-22 KST): Central `PUBLISHED` and
+  [GitHub release](https://github.com/ChoMinGi/langfuse-otel-java/releases/tag/v0.2.1) public.
+- Public resolution used a newly created empty Maven repository with no reactor install. Both
+  artifacts resolved from Central; Spring AI and LangChain4j consumers each passed two tests.
+  Both downloaded JAR signatures verified against `4772295BF86379CE1D06367065829ECFDDE6A022`.

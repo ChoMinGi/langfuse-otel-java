@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Keep CycloneDX SBOM generation enabled when the Central publishing extension skips Maven deploy;
+  exercise the release profile in quality CI so a missing SBOM fails before upload
+
 ## [0.2.1] - 2026-09-21
 
 ### Fixed

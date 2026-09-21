@@ -5,7 +5,7 @@
 
     <groupId>io.github.chomingi</groupId>
     <artifactId>langfuse-otel-java</artifactId>
-    <version>0.2.1</version>
+    <version>0.2.2-SNAPSHOT</version>
     <packaging>pom</packaging>
 
     <name>langfuse-otel-java</name>
@@ -58,7 +58,7 @@
         <license-maven-plugin.version>2.7.1</license-maven-plugin.version>
         <cyclonedx-maven-plugin.version>2.9.2</cyclonedx-maven-plugin.version>
         <japicmp-maven-plugin.version>0.26.1</japicmp-maven-plugin.version>
-        <api.compatibility.baseline>0.2.0</api.compatibility.baseline>
+        <api.compatibility.baseline>0.2.1</api.compatibility.baseline>
         <jacoco.minimum.line.coverage>0.000</jacoco.minimum.line.coverage>
         <jacoco.minimum.branch.coverage>0.000</jacoco.minimum.branch.coverage>
         <test.excludedGroups>integration,e2e,release-canary</test.excludedGroups>
@@ -168,6 +168,8 @@
                             <outputName>bom</outputName>
                             <outputReactorProjects>false</outputReactorProjects>
                             <skipAttach>false</skipAttach>
+                            <!-- Central replaces Maven deploy and marks it skipped; still attach the SBOM. -->
+                            <skipNotDeployed>false</skipNotDeployed>
                         </configuration>
                     </execution>
                 </executions>

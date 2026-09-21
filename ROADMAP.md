@@ -18,6 +18,8 @@ Published to Maven Central and GitHub on 2026-08-03. The `0.2.x` line remains a 
 
 ## 0.2.1 — Stabilization
 
+Published to Maven Central and GitHub on 2026-09-21 UTC. Development continues on `0.2.2-SNAPSHOT`.
+
 - Fix implementation-method annotation resolution through JDK proxies and preserve annotation precedence.
 - Surface non-proxyable model methods without changing application behavior.
 - Ship the owned-pipeline sampling fix already merged after 0.2.0.

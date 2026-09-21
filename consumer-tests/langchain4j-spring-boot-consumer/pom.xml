@@ -17,7 +17,7 @@
         <java.version>17</java.version>
         <netty.version>4.1.138.Final</netty.version>
         <tomcat.version>10.1.59</tomcat.version>
-        <langfuse-otel.version>0.2.1</langfuse-otel.version>
+        <langfuse-otel.version>0.2.2-SNAPSHOT</langfuse-otel.version>
         <langchain4j.version>1.0.0</langchain4j.version>
         <otel.proto.version>1.3.2-alpha</otel.proto.version>
     </properties>

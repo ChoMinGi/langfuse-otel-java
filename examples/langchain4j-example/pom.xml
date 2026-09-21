@@ -18,7 +18,7 @@
         <netty.version>4.1.138.Final</netty.version>
         <tomcat.version>10.1.59</tomcat.version>
         <jackson-bom.version>2.21.5</jackson-bom.version>
-        <langfuse-otel.version>0.2.1</langfuse-otel.version>
+        <langfuse-otel.version>0.2.2-SNAPSHOT</langfuse-otel.version>
     </properties>
 
     <dependencies>

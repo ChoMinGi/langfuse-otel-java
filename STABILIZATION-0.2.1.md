@@ -52,8 +52,8 @@ release must run the required CI again with the current vulnerability database.
 - [x] Review and merge the patch; required CI must pass on the final commit.
 - [x] Set final `0.2.1` versions, publication date, and stable build timestamp.
 - [x] Export the exact release SHA canary and verify its hierarchy and attributes in Langfuse.
-- [ ] Validate the signed candidate in Central, publish it, and verify resolution from an empty repository.
-- [ ] Publish the GitHub release and update the README dependency snippets to `0.2.1`.
+- [x] Validate the signed candidate in Central, publish it, and verify resolution from an empty repository.
+- [x] Publish the GitHub release and update the README dependency snippets to `0.2.1`.
 
 Follow [RELEASING.md](RELEASING.md). Development validation does not replace final-commit release gates.
 
@@ -79,3 +79,8 @@ can override library versions and must be verified separately.
   quality job SBOM (112 components, zero High/Critical findings) is provided as a signed GitHub
   release asset. The next development version disables CycloneDX `skipNotDeployed` and quality CI
   uses the release profile to prevent recurrence.
+- Publication completed on 2026-09-21 UTC (2026-09-22 KST): Central `PUBLISHED` and
+  [GitHub release](https://github.com/ChoMinGi/langfuse-otel-java/releases/tag/v0.2.1) public.
+- Public resolution used a newly created empty Maven repository with no reactor install. Both
+  artifacts resolved from Central; Spring AI and LangChain4j consumers each passed two tests.
+  Both downloaded JAR signatures verified against `4772295BF86379CE1D06367065829ECFDDE6A022`.

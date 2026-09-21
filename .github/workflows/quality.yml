@@ -35,9 +35,10 @@ jobs:
           java-version: 17
           cache: maven
 
-      - name: Build quality evidence
+      - name: Build quality evidence with the release profile
         run: >-
-          ./mvnw -B -ntp -Pquality
+          ./mvnw -B -ntp -Pquality,release
+          -Dgpg.skip=true
           -DskipTests
           -Djacoco.skip=true
           -Dmaven.javadoc.skip=true

@@ -187,7 +187,7 @@ Before Central credentials are available, the workflow verifies:
 - release-version snippets in README and a dated changelog heading;
 - absence of an existing GitHub release or published Maven Central coordinates;
 - `clean verify`, including coverage, warning-free Javadocs, and binary/source compatibility with
-  `0.2.0`;
+  the configured `api.compatibility.baseline`;
 - SpotBugs, dependency-license, CycloneDX SBOM, and High/Critical vulnerability gates;
 - core Java 11/17/21, the blocking Spring AI/LangChain4j matrix, and all consumer checks.
 
@@ -199,6 +199,8 @@ The `central-validation` environment is entered only after every gate succeeds. 
 2. Locate `io.github.chomingi:langfuse-otel-java:<version>` and record its deployment ID in the release issue or audit record.
 3. Require state `VALIDATED`. Inspect the listed POM, JAR, sources, Javadoc, SBOM, checksums, and
    signatures. Drop the candidate instead of publishing if any coordinate or metadata is wrong.
+   For `0.2.1`, the signed SBOM is a GitHub release asset from the exact-tag quality job;
+   the Central extension skipped the SBOM attachment. Later releases must include it in the bundle.
 4. Optionally resolve the validated candidate through Central's manual-testing repository as described in the [Publisher API documentation](https://central.sonatype.org/publish/publish-portal-api/#manually-testing-a-deployment-bundle).
 5. Select **Publish** in the Portal. Wait until the deployment state is `PUBLISHED`.
 

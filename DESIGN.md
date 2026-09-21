@@ -78,7 +78,11 @@ precedence for that entire model bean. Automatic model instrumentation is skippe
 not create nested duplicate observations.
 
 Both mechanisms depend on Spring proxy interception. Directly constructed models, direct provider
-SDK calls, self-invocation, and private/final methods are not advised. The library does not define
+SDK calls, self-invocation, and private methods are not advised. Class-based proxies also cannot
+advise final methods. From 0.2.1, annotation metadata is resolved on the most-specific bridged target
+method, so JDK proxies can trace implementation annotations even on final implementations.
+The model proxyability check runs before annotation precedence so non-proxyable model beans still
+produce a library warning. The library does not define
 ordering relative to other around advice such as `@Transactional`.
 
 ## Privacy-first capture

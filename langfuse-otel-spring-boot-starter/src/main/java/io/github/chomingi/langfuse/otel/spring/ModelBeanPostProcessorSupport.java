@@ -63,6 +63,9 @@ final class ModelBeanPostProcessorSupport {
         if (!SpringAiModelMethodInterceptor.supports(bean) || isManualSpringAiWrapper(bean)) {
             return bean;
         }
+        if (!canInstrument(bean, "Spring AI")) {
+            return bean;
+        }
         if (hasObservedModelMethod(bean, SpringAiModelMethodInterceptor.MODEL_INTERFACES)) {
             log.debug("Skipping automatic Spring AI model instrumentation because an explicit "
                     + "@ObserveGeneration model method takes precedence for this bean");
@@ -75,12 +78,28 @@ final class ModelBeanPostProcessorSupport {
         if (!LangChain4jModelMethodInterceptor.supports(bean) || isManualLangChain4jWrapper(bean)) {
             return bean;
         }
+        if (!canInstrument(bean, "LangChain4j")) {
+            return bean;
+        }
         if (hasObservedModelMethod(bean, LangChain4jModelMethodInterceptor.MODEL_INTERFACES)) {
             log.debug("Skipping automatic LangChain4j model instrumentation because an explicit "
                     + "@ObserveGeneration model method takes precedence for this bean");
             return bean;
         }
         return instrument(bean, new LangChain4jModelMethodInterceptor(bean, langfuseOtel), "LangChain4j");
+    }
+
+    private static boolean canInstrument(Object bean, String framework) {
+        Class<?> userClass = ClassUtils.getUserClass(bean);
+        if (!AopUtils.isJdkDynamicProxy(bean) && !canCreateClassProxy(userClass)) {
+            log.warn("Skipping automatic Langfuse instrumentation for final or otherwise non-proxyable {} "
+                    + "model type {}. The original bean is preserved. Class-based proxies cannot advise "
+                    + "final methods, including @ObserveGeneration methods. Use an existing JDK proxy "
+                    + "with interface-based injection or manual instrumentation for this model.",
+                    framework, userClass.getName());
+            return false;
+        }
+        return true;
     }
 
     private static Object instrument(Object bean, ModelMethodInterceptor interceptor, String framework) {
@@ -94,15 +113,8 @@ final class ModelBeanPostProcessorSupport {
         }
 
         Class<?> beanClass = bean.getClass();
-        boolean existingJdkProxy = AopUtils.isJdkDynamicProxy(bean);
         Class<?> userClass = ClassUtils.getUserClass(beanClass);
-        if (!existingJdkProxy && !canCreateClassProxy(userClass)) {
-            log.warn("Skipping automatic Langfuse instrumentation for final or otherwise non-proxyable {} "
-                    + "model type {}. The original bean is preserved; use an interface-based bean or manual "
-                    + "instrumentation for this model.", framework, userClass.getName());
-            return bean;
-        }
-
+        boolean existingJdkProxy = AopUtils.isJdkDynamicProxy(bean);
         try {
             ProxyFactory proxyFactory = new ProxyFactory();
             proxyFactory.setTarget(bean);

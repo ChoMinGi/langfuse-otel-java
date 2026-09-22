@@ -52,7 +52,7 @@
         <tomcat.version>10.1.59</tomcat.version>
         <assertj.version>3.27.7</assertj.version>
         <spring-ai.version>1.0.9</spring-ai.version>
-        <langchain4j.version>1.0.0</langchain4j.version>
+        <langchain4j.version>1.20.0</langchain4j.version>
         <jacoco.version>0.8.15</jacoco.version>
         <spotbugs-maven-plugin.version>4.10.4.1</spotbugs-maven-plugin.version>
         <license-maven-plugin.version>2.7.1</license-maven-plugin.version>

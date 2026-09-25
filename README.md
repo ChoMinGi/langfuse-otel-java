@@ -14,7 +14,7 @@ OpenTelemetry-based Langfuse tracing for Java, Spring AI, and LangChain4j.
 
 </div>
 
-The core module provides a small synchronous tracing API. The Spring Boot starter instruments
+The core module provides explicit observations for synchronous and asynchronous work, plus fluent tracing helpers. The Spring Boot starter instruments
 supported Spring AI and LangChain4j calls and can either reuse the application's OpenTelemetry SDK
 or own a dedicated Langfuse exporter.
 
@@ -23,9 +23,9 @@ or own a dedicated Langfuse exporter.
 ## Quick Start
 
 > **Release status:** `0.2.x` is the production-preview line for Spring Boot 3, Spring AI 1, and
-> LangChain4j. The dependency examples below use `0.2.1`.
+> LangChain4j. The dependency examples below use `0.2.2`.
 
-See the [0.2.1 stabilization checklist](STABILIZATION-0.2.1.md) for scope and validation evidence.
+See the [observation API guide](OBSERVATION-API.md) and [validation evidence](OBSERVATION-VALIDATION.md).
 
 ### Spring Boot (Dedicated Exporter Quick Start)
 
@@ -33,7 +33,7 @@ See the [0.2.1 stabilization checklist](STABILIZATION-0.2.1.md) for scope and va
 <dependency>
     <groupId>io.github.chomingi</groupId>
     <artifactId>langfuse-otel-spring-boot-starter</artifactId>
-    <version>0.2.1</version>
+    <version>0.2.2</version>
 </dependency>
 ```
 
@@ -68,7 +68,7 @@ resolved.
 <dependency>
     <groupId>io.github.chomingi</groupId>
     <artifactId>langfuse-otel-core</artifactId>
-    <version>0.2.1</version>
+    <version>0.2.2</version>
 </dependency>
 ```
 
@@ -312,7 +312,30 @@ trace.generation("llm", gen -> {
 
 ### Core tracing API
 
-The core API supports callbacks, try-with-resources, and explicit `end()`. All three are
+Version `0.2.2` adds an explicit observation API.
+Use it when the application owns synchronous or asynchronous execution and needs to end an
+observation independently of a thread-local scope:
+
+```java
+try (var observation = langfuse.observation("chat", ObservationType.GENERATION).start();
+     var scope = observation.makeCurrent()) {
+    try {
+        observation.input(prompt); // governed by the capture policy; disabled by default
+        var response = model.call(prompt);
+        observation.output(response);
+    } catch (RuntimeException | Error failure) {
+        observation.fail(failure);
+        throw failure;
+    }
+}
+```
+
+`model` is an application-provided client. Scope closes first; closing the observation only ends
+its span. For async completion, snapshot propagation, capture policies and mixing with the starter,
+see [Explicit observations](OBSERVATION-API.md) and the
+[runnable consumer example](consumer-tests/core-observation-consumer).
+
+The legacy trace/span/generation API supports callbacks, try-with-resources, and explicit `end()`. All three are
 synchronous scope APIs: close a handle on the thread that created it and do not pass it into an
 asynchronous callback.
 
@@ -394,7 +417,7 @@ Keep this component out of liveness. Add it to readiness only when losing Langfu
 |-----------|---------------|-------|
 | Java | 11+ | Core module |
 | Java | 17+ | Spring Boot starter |
-| OpenTelemetry SDK | 1.62.0 | Via BOM |
+| OpenTelemetry SDK | 1.66.0 | Via BOM |
 | Spring Boot | 3.5.16 | Non-web external and standalone consumer startup |
 | Spring AI | 1.0.9 / 1.1.8 | Chat consumer smoke; adapter tests also cover streaming, embeddings, and images |
 | LangChain4j | 1.0.0 / 1.18.0 | Chat consumer smoke; adapter tests also cover streaming, embeddings, and images |

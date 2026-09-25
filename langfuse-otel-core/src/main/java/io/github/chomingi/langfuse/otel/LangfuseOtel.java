@@ -155,6 +155,21 @@ public class LangfuseOtel implements AutoCloseable {
     }
 
     /**
+     * Creates a builder for an observation whose lifetime is independent of thread-local scopes.
+     * Starting and ending an observation do not change the current context. Content capture is
+     * governed by this integration's policies, including for explicit input/output calls.
+     *
+     * @param name nonblank observation name
+     * @param type observation type
+     * @return a new builder; its default parent is resolved when {@code start()} is called
+     * @throws IllegalArgumentException if the name is blank
+     * @throws NullPointerException if the name or type is null
+     */
+    public LangfuseObservation.Builder observation(String name, ObservationType type) {
+        return new LangfuseObservation.Builder(tracer, contentCapturePolicy, exceptionCapturePolicy, name, type);
+    }
+
+    /**
      * Returns whether construction fell back to a no-op instance.
      *
      * @return {@code true} for a no-op instance
@@ -192,7 +207,7 @@ public class LangfuseOtel implements AutoCloseable {
     }
 
     /**
-     * Returns the policy applied only to content recorded by automatic instrumentation.
+     * Returns the policy applied to automatic instrumentation and explicit observations.
      *
      * @return the content capture policy
      */
@@ -201,7 +216,7 @@ public class LangfuseOtel implements AutoCloseable {
     }
 
     /**
-     * Returns the policy applied to exceptions recorded by automatic instrumentation.
+     * Returns the policy applied to automatic-instrumentation and explicit-observation exceptions.
      *
      * @return the exception capture policy
      */
@@ -457,7 +472,7 @@ public class LangfuseOtel implements AutoCloseable {
             return this;
         }
         /**
-         * Sets the policy for automatically captured model content.
+         * Sets the policy for automatic instrumentation and explicit-observation content.
          *
          * @param contentCapturePolicy capture policy
          * @return this builder
@@ -468,7 +483,7 @@ public class LangfuseOtel implements AutoCloseable {
             return this;
         }
         /**
-         * Sets the policy for automatically captured exceptions.
+         * Sets the policy for automatic-instrumentation and explicit-observation exceptions.
          *
          * @param exceptionCapturePolicy capture policy
          * @return this builder

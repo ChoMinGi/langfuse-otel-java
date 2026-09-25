@@ -1,0 +1,21 @@
+{
+  "failedRequestAttempts" : 5,
+  "firstFlushMs" : 8333.255042,
+  "scenario" : "disconnect",
+  "time" : "2026-09-24T03:29:37.234751Z",
+  "status" : {
+    "openTelemetryOwnership" : "OWNED",
+    "noopFallback" : false,
+    "noopReason" : "NONE",
+    "operationalSignalsAvailable" : true,
+    "exportState" : "SUCCEEDED",
+    "failedExportSpanCount" : 1,
+    "queueDroppedSpanCount" : 0,
+    "flushState" : "SUCCEEDED",
+    "failedFlushCount" : 0,
+    "timedOutFlushCount" : 0
+  },
+  "httpRequests" : 6,
+  "acceptedSpans" : 1,
+  "duplicateAcceptedIds" : 0
+}

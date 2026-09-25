@@ -1,0 +1,16 @@
+{
+  "baseline": "33a8926b30d3aac4bb2a42e577146d396a5e69ff",
+  "command": "./mvnw -B -ntp -f experiments/core-operations/pom.xml verify -Dtest=OwnedPipelineTest",
+  "java": "17.0.14+0",
+  "tests": 5,
+  "failures": 0,
+  "errors": 0,
+  "skipped": 0,
+  "seconds": 27.623,
+  "includes_shutdown_worker_cleanup_assertion": true,
+  "source_sha256": {
+    "experiments/core-operations/src/test/java/operations/LoadTest.java": "a49140d52dad21c80209b34dde6ae3365119c59f1200ed7eafc22b6c7c8cd36f",
+    "experiments/core-operations/src/test/java/operations/LocalOtlpReceiver.java": "829a296d377e61179f5901c3b8bf3d72178864e6867c1a7cd041a64cbfc60652",
+    "experiments/core-operations/src/test/java/operations/OwnedPipelineTest.java": "874a4b90ab304a72995db5d27b658cd6b3abcbd24b7c0716d0d908db5ce03d88"
+  }
+}

@@ -15,15 +15,15 @@ GitHub creates an unprotected environment automatically when a workflow first re
 
 ## Prepare the release commit
 
-Use `0.2.1` below as an example. Prepare these changes as one commit on a release branch, then
+Use `0.2.2` below as an example. Prepare these changes as one commit on a release branch, then
 merge it through the normal `main` protections:
 
-1. Change the root and both module parent versions from `0.2.1-SNAPSHOT` to `0.2.1`.
+1. Change the root and both module parent versions from `0.2.2-SNAPSHOT` to `0.2.2`.
 2. Change `langfuse-otel.version` in both example POMs and all
-   `consumer-tests` project POMs to `0.2.1`.
+   `consumer-tests` and `experiments` project POMs to `0.2.2`.
 3. Replace the README release-candidate block with final release wording and confirm both dependency
-   snippets use `0.2.1`.
-4. Move the `## [Unreleased]` notes into a `## [0.2.1] - YYYY-MM-DD` section using the actual
+   snippets use `0.2.2`.
+4. Move the `## [Unreleased]` notes into a `## [0.2.2] - YYYY-MM-DD` section using the actual
    publication date. Add a separate empty `## [Unreleased]` section above it for future work.
 5. Set `project.build.outputTimestamp` once to a stable UTC timestamp for the release commit. Do not derive it from the current build time.
 6. Review `SECURITY.md`, compatibility claims, and migration notes for the release version. Change
@@ -42,6 +42,8 @@ Run the Maven gates locally:
 ./mvnw -B -ntp -f consumer-tests/langchain4j-spring-boot-consumer/pom.xml verify
 ./mvnw -B -ntp -f consumer-tests/langchain4j-spring-boot-consumer/pom.xml -Dlangchain4j.version=1.18.0 clean verify
 ./mvnw -B -ntp -f consumer-tests/core-prompt-consumer/pom.xml verify
+./mvnw -B -ntp -f consumer-tests/core-observation-consumer/pom.xml verify
+./mvnw -B -ntp -f experiments/core-operations/pom.xml verify
 ```
 
 The release workflow also scans the generated SBOM and rejects High or Critical vulnerability
@@ -50,6 +52,23 @@ findings.
 Merge the release commit into `main` and wait for required main CI checks.
 
 ## Verify the exact release commit in Langfuse
+
+For 0.2.2, use the pinned disposable Langfuse 4.41.0 runner from a clean checkout of the release
+commit at `origin/main`. Install the exact release artifact first:
+
+```bash
+./mvnw -B -ntp -pl langfuse-otel-core -am -DskipTests -Djacoco.skip=true install
+bash experiments/core-preflight/docker/run.sh
+```
+
+The runner records the actual Git commit and Maven version in every observation and checks them
+on read-back. It verifies four independent traces (raw helpers and explicit observations, each
+with capture enabled and disabled), hierarchy, metadata search, model usage and root I/O. Retain
+`experiments/core-preflight/target/live-*.json` and the test report with the release audit. This
+satisfies the exact-commit read-back gate below without shared Cloud credentials. The release
+workflow repeats it on the signed tag and blocks Central upload if it fails.
+
+The shared-project canary below remains an alternative for deployments with maintained credentials.
 
 Run the release canary from a clean checkout of the same commit now at `origin/main`. It exports one
 root, one generic child, and one generation with unique I/O and trace-wide fields. The canary uses
@@ -63,7 +82,7 @@ test "$release_sha" = "$(git rev-parse origin/main)"
 release_short_sha="$(git rev-parse --short=12 HEAD)"
 
 export LANGFUSE_CANARY_COMMIT="$release_sha"
-LANGFUSE_CANARY_MARKER="v0.2.1-${release_short_sha}-$(date -u +%Y%m%dT%H%M%SZ)"
+LANGFUSE_CANARY_MARKER="v0.2.2-${release_short_sha}-$(date -u +%Y%m%dT%H%M%SZ)"
 export LANGFUSE_CANARY_MARKER
 canary_from="$(date -u +%Y-%m-%dT%H:%M:%S.000Z)"
 
@@ -72,7 +91,7 @@ canary_from="$(date -u +%Y-%m-%dT%H:%M:%S.000Z)"
   -Dgroups=release-canary \
   -DfailIfNoTests=true \
   -Dtest=LangfuseV4CanaryIntegrationTest \
-  -Dlangfuse.canary.release=0.2.1
+  -Dlangfuse.canary.release=0.2.2
 
 canary_to="$(date -u +%Y-%m-%dT%H:%M:%S.999Z)"
 canary_name="langfuse-otel-java-v4-canary-${LANGFUSE_CANARY_MARKER}"
@@ -120,7 +139,7 @@ verify_canary() {
     --arg generation "$canary_generation" \
     --arg marker "$LANGFUSE_CANARY_MARKER" \
     --arg sha "$LANGFUSE_CANARY_COMMIT" \
-    --arg release "0.2.1" '
+    --arg release "0.2.2" '
       def row($name): .data[] | select(.name == $name);
       (row($root)) as $root_row |
       ((.data | length) == 3) and
@@ -175,8 +194,8 @@ registered with GitHub so the tag signature is reported as verified:
 git fetch origin main
 test "$(git rev-parse HEAD)" = "$release_sha"
 test "$(git rev-parse origin/main)" = "$release_sha"
-git tag -s -m "Release 0.2.1" v0.2.1 "$release_sha"
-git push origin v0.2.1
+git tag -s -m "Release 0.2.2" v0.2.2 "$release_sha"
+git push origin v0.2.2
 ```
 
 ## What the tag workflow enforces
@@ -189,7 +208,8 @@ Before Central credentials are available, the workflow verifies:
 - `clean verify`, including coverage, warning-free Javadocs, and binary/source compatibility with
   the configured `api.compatibility.baseline`;
 - SpotBugs, dependency-license, CycloneDX SBOM, and High/Critical vulnerability gates;
-- core Java 11/17/21, the blocking Spring AI/LangChain4j matrix, and all consumer checks.
+- core Java 11/17/21, the blocking Spring AI/LangChain4j matrix, and all consumer checks;
+- owned-pipeline operational contracts and pinned Langfuse 4.41.0 exact-commit read-back.
 
 The `central-validation` environment is entered only after every gate succeeds. The deploy job builds and signs once, uploads a candidate named `io.github.chomingi:langfuse-otel-java:<version>`, waits for `VALIDATED`, and stops. The following job has the only `contents:write` permission and creates a draft GitHub release without checking out or building repository code.
 
@@ -213,10 +233,11 @@ run the two framework consumer projects against that same repository:
 
 ```bash
 release_m2="$(mktemp -d)"
-./mvnw -B -ntp -U -Dmaven.repo.local="$release_m2" org.apache.maven.plugins:maven-dependency-plugin:3.8.1:get -Dartifact=io.github.chomingi:langfuse-otel-core:0.2.1
-./mvnw -B -ntp -U -Dmaven.repo.local="$release_m2" org.apache.maven.plugins:maven-dependency-plugin:3.8.1:get -Dartifact=io.github.chomingi:langfuse-otel-spring-boot-starter:0.2.1
+./mvnw -B -ntp -U -Dmaven.repo.local="$release_m2" org.apache.maven.plugins:maven-dependency-plugin:3.8.1:get -Dartifact=io.github.chomingi:langfuse-otel-core:0.2.2
+./mvnw -B -ntp -U -Dmaven.repo.local="$release_m2" org.apache.maven.plugins:maven-dependency-plugin:3.8.1:get -Dartifact=io.github.chomingi:langfuse-otel-spring-boot-starter:0.2.2
 ./mvnw -B -ntp -U -Dmaven.repo.local="$release_m2" -f consumer-tests/spring-boot-consumer/pom.xml clean verify
 ./mvnw -B -ntp -U -Dmaven.repo.local="$release_m2" -f consumer-tests/langchain4j-spring-boot-consumer/pom.xml clean verify
+./mvnw -B -ntp -U -Dmaven.repo.local="$release_m2" -f consumer-tests/core-observation-consumer/pom.xml clean verify
 ```
 
 Do not install the reactor into `release_m2`; these runs must consume the artifacts published by
@@ -230,11 +251,11 @@ temporary repository until they succeed so its contents can be inspected if nece
 After both artifacts resolve publicly, review the draft title and changelog link, then publish it:
 
 ```bash
-gh release view v0.2.1 --json isDraft,url
-gh release edit v0.2.1 --draft=false --latest
+gh release view v0.2.2 --json isDraft,url
+gh release edit v0.2.2 --draft=false --latest
 ```
 
-Finally, move `main` to the next development version, update the example and consumer-test
+Finally, move `main` to the next development version, update the example, consumer-test and experiment
 `langfuse-otel.version` properties, keep the empty changelog `Unreleased` section created by the
 release commit, and advance `api.compatibility.baseline` to the released version. Keep the README
 Quick Start dependency snippets on the latest version available from Maven Central. If the README

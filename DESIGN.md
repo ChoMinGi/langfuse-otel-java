@@ -27,7 +27,7 @@ refuses to guess when multiple candidates are equally valid.
 
 ## Synchronous span lifecycle
 
-The core API supports callbacks, try-with-resources, and explicit `end()`. They share one contract:
+The legacy `trace()`/span/generation wrappers support callbacks, try-with-resources, and explicit `end()`. They share one contract:
 each wrapper retains an OpenTelemetry `Scope`, so it must close on its creating thread and in
 reverse creation order.
 
@@ -40,6 +40,29 @@ release, and environment. Nested `LangfuseTrace` wrappers in the same OTel trace
 and only its owner freezes it. The carrier takes precedence over nested immutable request context
 so one OTel trace does not split into competing trace records. Updates affect observations started
 after the setter returns; prior observations are not backfilled.
+
+## Explicit observation lifecycle (unreleased)
+
+`LangfuseOtel.observation(name, type)` creates an opt-in, Scope-independent observation. Its builder
+resolves the implicit parent at start, selects an explicit whole snapshot or the parent's snapshot,
+and installs a fresh frozen trace carrier **before** starting the span. This keeps the existing
+processor and wrapper resolvers consistent without changing legacy context precedence. Worker
+ThreadLocal values are not merged. External SDKs receive explicit attribute copies on library-created
+spans and retain ownership of processors, sampling, export and shutdown.
+
+Attribute commits and terminal selection share a per-object lock. Body/exception redactors run
+outside that lock; prepared values are discarded if termination wins first. Terminal attributes
+are applied by the winning caller and `span.end()` runs after releasing the lock, so an external
+synchronous processor cannot run under it. There is no global registry, Cleaner, executor or
+watchdog. The application owns completion, timeout and actual provider cancellation.
+
+The new API contains nonfatal recording/SDK failures and propagates VirtualMachineError,
+ThreadDeath and LinkageError. A fatal exception-preparation failure attempts termination before
+propagation. Scope attachment/restoration follows OTel's own context storage semantics. Legacy
+recording helpers retain their existing fail-safe behavior. Neither path can control later writes
+through raw spans or other SDK components, or guarantee exactly-once network delivery.
+
+See [OBSERVATION-API.md](OBSERVATION-API.md) for usage and the limits of legacy setter mixing.
 
 ## OpenTelemetry ownership
 

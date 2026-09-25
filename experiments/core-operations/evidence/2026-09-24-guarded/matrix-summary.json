@@ -1,0 +1,658 @@
+{
+  "file": "experiments/core-operations/evidence/2026-09-24-guarded/matrix-clock-guarded.json",
+  "clockChecksPassed": true,
+  "groups": [
+    {
+      "recording": "none",
+      "receiver": "NORMAL",
+      "concurrency": 1,
+      "samples": 1,
+      "operations": 8999,
+      "measuredSeconds": 3.000812625,
+      "opsPerSecond": 2998.8543519940704,
+      "p99MicrosRange": [
+        2.833,
+        2.833
+      ],
+      "producerBytesPerOp": 0.0035559506611845763,
+      "postGcHeapBytesRange": [
+        7457464,
+        7457464
+      ],
+      "threadCountRange": [
+        142,
+        142
+      ],
+      "queueDrops": 0,
+      "failedExportSpans": 0
+    },
+    {
+      "recording": "none",
+      "receiver": "SLOW",
+      "concurrency": 1,
+      "samples": 1,
+      "operations": 8983,
+      "measuredSeconds": 3.000534834,
+      "opsPerSecond": 2993.7996047274014,
+      "p99MicrosRange": [
+        2.709,
+        2.709
+      ],
+      "producerBytesPerOp": 0.0035622843148168763,
+      "postGcHeapBytesRange": [
+        7472856,
+        7472856
+      ],
+      "threadCountRange": [
+        142,
+        142
+      ],
+      "queueDrops": 0,
+      "failedExportSpans": 0
+    },
+    {
+      "recording": "none",
+      "receiver": "UNAVAILABLE",
+      "concurrency": 1,
+      "samples": 1,
+      "operations": 9000,
+      "measuredSeconds": 3.000528125,
+      "opsPerSecond": 2999.471967955641,
+      "p99MicrosRange": [
+        1.792,
+        1.792
+      ],
+      "producerBytesPerOp": 0.0035555555555555557,
+      "postGcHeapBytesRange": [
+        7475520,
+        7475520
+      ],
+      "threadCountRange": [
+        142,
+        142
+      ],
+      "queueDrops": 0,
+      "failedExportSpans": 0
+    },
+    {
+      "recording": "metadata",
+      "receiver": "NORMAL",
+      "concurrency": 1,
+      "samples": 1,
+      "operations": 8998,
+      "measuredSeconds": 3.000134292,
+      "opsPerSecond": 2999.1990771858423,
+      "p99MicrosRange": [
+        23.599,
+        23.599
+      ],
+      "producerBytesPerOp": 2185.6261391420317,
+      "postGcHeapBytesRange": [
+        9607192,
+        9607192
+      ],
+      "threadCountRange": [
+        150,
+        150
+      ],
+      "queueDrops": 0,
+      "failedExportSpans": 0
+    },
+    {
+      "recording": "metadata",
+      "receiver": "SLOW",
+      "concurrency": 1,
+      "samples": 1,
+      "operations": 8844,
+      "measuredSeconds": 3.00016075,
+      "opsPerSecond": 2947.8420447971,
+      "p99MicrosRange": [
+        19.167,
+        19.167
+      ],
+      "producerBytesPerOp": 2064.0253279059248,
+      "postGcHeapBytesRange": [
+        9610992,
+        9610992
+      ],
+      "threadCountRange": [
+        150,
+        150
+      ],
+      "queueDrops": 0,
+      "failedExportSpans": 0
+    },
+    {
+      "recording": "metadata",
+      "receiver": "UNAVAILABLE",
+      "concurrency": 1,
+      "samples": 1,
+      "operations": 8997,
+      "measuredSeconds": 3.000251,
+      "opsPerSecond": 2998.7491046582436,
+      "p99MicrosRange": [
+        32.223,
+        32.223
+      ],
+      "producerBytesPerOp": 2113.190619095254,
+      "postGcHeapBytesRange": [
+        9866104,
+        9866104
+      ],
+      "threadCountRange": [
+        150,
+        150
+      ],
+      "queueDrops": 6943,
+      "failedExportSpans": 6
+    },
+    {
+      "recording": "body",
+      "receiver": "NORMAL",
+      "concurrency": 1,
+      "samples": 1,
+      "operations": 8995,
+      "measuredSeconds": 3.000077792,
+      "opsPerSecond": 2998.2555865671366,
+      "p99MicrosRange": [
+        23.583,
+        23.583
+      ],
+      "producerBytesPerOp": 2360.0249027237355,
+      "postGcHeapBytesRange": [
+        13703560,
+        13703560
+      ],
+      "threadCountRange": [
+        154,
+        154
+      ],
+      "queueDrops": 0,
+      "failedExportSpans": 0
+    },
+    {
+      "recording": "body",
+      "receiver": "SLOW",
+      "concurrency": 1,
+      "samples": 1,
+      "operations": 8923,
+      "measuredSeconds": 3.00032525,
+      "opsPerSecond": 2974.0109009848184,
+      "p99MicrosRange": [
+        25.375,
+        25.375
+      ],
+      "producerBytesPerOp": 2360.025103664687,
+      "postGcHeapBytesRange": [
+        13707592,
+        13707592
+      ],
+      "threadCountRange": [
+        154,
+        154
+      ],
+      "queueDrops": 0,
+      "failedExportSpans": 0
+    },
+    {
+      "recording": "body",
+      "receiver": "UNAVAILABLE",
+      "concurrency": 1,
+      "samples": 1,
+      "operations": 8717,
+      "measuredSeconds": 3.000337667,
+      "opsPerSecond": 2905.339654224992,
+      "p99MicrosRange": [
+        31.967,
+        31.967
+      ],
+      "producerBytesPerOp": 2360.1055408970974,
+      "postGcHeapBytesRange": [
+        13664648,
+        13664648
+      ],
+      "threadCountRange": [
+        153,
+        153
+      ],
+      "queueDrops": 6157,
+      "failedExportSpans": 512
+    },
+    {
+      "recording": "none",
+      "receiver": "NORMAL",
+      "concurrency": 32,
+      "samples": 1,
+      "operations": 9023,
+      "measuredSeconds": 3.011761042,
+      "opsPerSecond": 2995.9216133588598,
+      "p99MicrosRange": [
+        0.292,
+        0.292
+      ],
+      "producerBytesPerOp": 0.11348775351878533,
+      "postGcHeapBytesRange": [
+        13671960,
+        13671960
+      ],
+      "threadCountRange": [
+        153,
+        153
+      ],
+      "queueDrops": 0,
+      "failedExportSpans": 0
+    },
+    {
+      "recording": "none",
+      "receiver": "SLOW",
+      "concurrency": 32,
+      "samples": 1,
+      "operations": 9024,
+      "measuredSeconds": 3.011414459,
+      "opsPerSecond": 2996.5984831581764,
+      "p99MicrosRange": [
+        0.25,
+        0.25
+      ],
+      "producerBytesPerOp": 0.11347517730496454,
+      "postGcHeapBytesRange": [
+        13681424,
+        13681424
+      ],
+      "threadCountRange": [
+        153,
+        153
+      ],
+      "queueDrops": 0,
+      "failedExportSpans": 0
+    },
+    {
+      "recording": "none",
+      "receiver": "UNAVAILABLE",
+      "concurrency": 32,
+      "samples": 1,
+      "operations": 8960,
+      "measuredSeconds": 3.005633417,
+      "opsPerSecond": 2981.0687987835877,
+      "p99MicrosRange": [
+        0.209,
+        0.209
+      ],
+      "producerBytesPerOp": 0.11428571428571428,
+      "postGcHeapBytesRange": [
+        13683856,
+        13683856
+      ],
+      "threadCountRange": [
+        153,
+        153
+      ],
+      "queueDrops": 0,
+      "failedExportSpans": 0
+    },
+    {
+      "recording": "metadata",
+      "receiver": "NORMAL",
+      "concurrency": 32,
+      "samples": 1,
+      "operations": 9024,
+      "measuredSeconds": 3.010998292,
+      "opsPerSecond": 2997.012659879649,
+      "p99MicrosRange": [
+        50.335,
+        50.335
+      ],
+      "producerBytesPerOp": 2088.7375886524824,
+      "postGcHeapBytesRange": [
+        13758448,
+        13758448
+      ],
+      "threadCountRange": [
+        153,
+        153
+      ],
+      "queueDrops": 0,
+      "failedExportSpans": 0
+    },
+    {
+      "recording": "metadata",
+      "receiver": "SLOW",
+      "concurrency": 32,
+      "samples": 1,
+      "operations": 9024,
+      "measuredSeconds": 3.011726833,
+      "opsPerSecond": 2996.287678259033,
+      "p99MicrosRange": [
+        39.423,
+        39.423
+      ],
+      "producerBytesPerOp": 2080.794326241135,
+      "postGcHeapBytesRange": [
+        13769328,
+        13769328
+      ],
+      "threadCountRange": [
+        153,
+        153
+      ],
+      "queueDrops": 0,
+      "failedExportSpans": 0
+    },
+    {
+      "recording": "metadata",
+      "receiver": "UNAVAILABLE",
+      "concurrency": 32,
+      "samples": 1,
+      "operations": 9024,
+      "measuredSeconds": 3.011493958,
+      "opsPerSecond": 2996.5193773767487,
+      "p99MicrosRange": [
+        46.271,
+        46.271
+      ],
+      "producerBytesPerOp": 2080.22695035461,
+      "postGcHeapBytesRange": [
+        13746880,
+        13746880
+      ],
+      "threadCountRange": [
+        153,
+        153
+      ],
+      "queueDrops": 6464,
+      "failedExportSpans": 512
+    },
+    {
+      "recording": "body",
+      "receiver": "NORMAL",
+      "concurrency": 32,
+      "samples": 1,
+      "operations": 9024,
+      "measuredSeconds": 3.013123959,
+      "opsPerSecond": 2994.8983589095014,
+      "p99MicrosRange": [
+        35.391,
+        35.391
+      ],
+      "producerBytesPerOp": 2352.22695035461,
+      "postGcHeapBytesRange": [
+        13801576,
+        13801576
+      ],
+      "threadCountRange": [
+        154,
+        154
+      ],
+      "queueDrops": 0,
+      "failedExportSpans": 0
+    },
+    {
+      "recording": "body",
+      "receiver": "SLOW",
+      "concurrency": 32,
+      "samples": 1,
+      "operations": 9020,
+      "measuredSeconds": 3.011701125,
+      "opsPerSecond": 2994.985101650815,
+      "p99MicrosRange": [
+        47.391,
+        47.391
+      ],
+      "producerBytesPerOp": 2352.2270509977825,
+      "postGcHeapBytesRange": [
+        13803560,
+        13803560
+      ],
+      "threadCountRange": [
+        154,
+        154
+      ],
+      "queueDrops": 0,
+      "failedExportSpans": 0
+    },
+    {
+      "recording": "body",
+      "receiver": "UNAVAILABLE",
+      "concurrency": 32,
+      "samples": 1,
+      "operations": 9021,
+      "measuredSeconds": 3.011428875,
+      "opsPerSecond": 2995.5879333195276,
+      "p99MicrosRange": [
+        43.807,
+        43.807
+      ],
+      "producerBytesPerOp": 2352.227025828622,
+      "postGcHeapBytesRange": [
+        13751728,
+        13751728
+      ],
+      "threadCountRange": [
+        153,
+        153
+      ],
+      "queueDrops": 6461,
+      "failedExportSpans": 512
+    },
+    {
+      "recording": "none",
+      "receiver": "NORMAL",
+      "concurrency": 128,
+      "samples": 1,
+      "operations": 9088,
+      "measuredSeconds": 3.040179041,
+      "opsPerSecond": 2989.2976293299826,
+      "p99MicrosRange": [
+        0.291,
+        0.291
+      ],
+      "producerBytesPerOp": 0.4507042253521127,
+      "postGcHeapBytesRange": [
+        13750448,
+        13750448
+      ],
+      "threadCountRange": [
+        153,
+        153
+      ],
+      "queueDrops": 0,
+      "failedExportSpans": 0
+    },
+    {
+      "recording": "none",
+      "receiver": "SLOW",
+      "concurrency": 128,
+      "samples": 1,
+      "operations": 9088,
+      "measuredSeconds": 3.041189333,
+      "opsPerSecond": 2988.304575905863,
+      "p99MicrosRange": [
+        0.25,
+        0.25
+      ],
+      "producerBytesPerOp": 0.4507042253521127,
+      "postGcHeapBytesRange": [
+        13752816,
+        13752816
+      ],
+      "threadCountRange": [
+        153,
+        153
+      ],
+      "queueDrops": 0,
+      "failedExportSpans": 0
+    },
+    {
+      "recording": "none",
+      "receiver": "UNAVAILABLE",
+      "concurrency": 128,
+      "samples": 1,
+      "operations": 9088,
+      "measuredSeconds": 3.039747,
+      "opsPerSecond": 2989.7224999317377,
+      "p99MicrosRange": [
+        0.25,
+        0.25
+      ],
+      "producerBytesPerOp": 0.4507042253521127,
+      "postGcHeapBytesRange": [
+        13754824,
+        13754824
+      ],
+      "threadCountRange": [
+        153,
+        153
+      ],
+      "queueDrops": 0,
+      "failedExportSpans": 0
+    },
+    {
+      "recording": "metadata",
+      "receiver": "NORMAL",
+      "concurrency": 128,
+      "samples": 1,
+      "operations": 9088,
+      "measuredSeconds": 3.03979,
+      "opsPerSecond": 2989.680208172275,
+      "p99MicrosRange": [
+        33.631,
+        33.631
+      ],
+      "producerBytesPerOp": 2080.9014084507044,
+      "postGcHeapBytesRange": [
+        13818200,
+        13818200
+      ],
+      "threadCountRange": [
+        153,
+        153
+      ],
+      "queueDrops": 0,
+      "failedExportSpans": 0
+    },
+    {
+      "recording": "metadata",
+      "receiver": "SLOW",
+      "concurrency": 128,
+      "samples": 1,
+      "operations": 9088,
+      "measuredSeconds": 3.039127,
+      "opsPerSecond": 2990.3324211196173,
+      "p99MicrosRange": [
+        32.863,
+        32.863
+      ],
+      "producerBytesPerOp": 2080.9014084507044,
+      "postGcHeapBytesRange": [
+        13820912,
+        13820912
+      ],
+      "threadCountRange": [
+        153,
+        153
+      ],
+      "queueDrops": 0,
+      "failedExportSpans": 0
+    },
+    {
+      "recording": "metadata",
+      "receiver": "UNAVAILABLE",
+      "concurrency": 128,
+      "samples": 1,
+      "operations": 9088,
+      "measuredSeconds": 3.039023917,
+      "opsPerSecond": 2990.4338525151525,
+      "p99MicrosRange": [
+        40.799,
+        40.799
+      ],
+      "producerBytesPerOp": 2080.9014084507044,
+      "postGcHeapBytesRange": [
+        13776744,
+        13776744
+      ],
+      "threadCountRange": [
+        153,
+        153
+      ],
+      "queueDrops": 6528,
+      "failedExportSpans": 512
+    },
+    {
+      "recording": "body",
+      "receiver": "NORMAL",
+      "concurrency": 128,
+      "samples": 1,
+      "operations": 9088,
+      "measuredSeconds": 3.03793525,
+      "opsPerSecond": 2991.5054970312485,
+      "p99MicrosRange": [
+        53.855,
+        53.855
+      ],
+      "producerBytesPerOp": 2352.9014084507044,
+      "postGcHeapBytesRange": [
+        13831976,
+        13831976
+      ],
+      "threadCountRange": [
+        154,
+        154
+      ],
+      "queueDrops": 0,
+      "failedExportSpans": 0
+    },
+    {
+      "recording": "body",
+      "receiver": "SLOW",
+      "concurrency": 128,
+      "samples": 1,
+      "operations": 9088,
+      "measuredSeconds": 3.040521666,
+      "opsPerSecond": 2988.9607765748447,
+      "p99MicrosRange": [
+        49.439,
+        49.439
+      ],
+      "producerBytesPerOp": 2352.9014084507044,
+      "postGcHeapBytesRange": [
+        13833968,
+        13833968
+      ],
+      "threadCountRange": [
+        154,
+        154
+      ],
+      "queueDrops": 0,
+      "failedExportSpans": 0
+    },
+    {
+      "recording": "body",
+      "receiver": "UNAVAILABLE",
+      "concurrency": 128,
+      "samples": 1,
+      "operations": 9088,
+      "measuredSeconds": 3.038376916,
+      "opsPerSecond": 2991.070644376894,
+      "p99MicrosRange": [
+        166.911,
+        166.911
+      ],
+      "producerBytesPerOp": 2352.9014084507044,
+      "postGcHeapBytesRange": [
+        13784544,
+        13784544
+      ],
+      "threadCountRange": [
+        153,
+        153
+      ],
+      "queueDrops": 6528,
+      "failedExportSpans": 512
+    }
+  ],
+  "measurementSecondsRequested": 81,
+  "warmupSecondsRequested": 0,
+  "twoHourProfileCompleted": false,
+  "note": "p99 range is across windows, not a merged percentile. Allocation is producer-thread only."
+}

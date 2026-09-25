@@ -2,6 +2,25 @@
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-09-25
+
+### Added
+
+- Add an opt-in `LangfuseObservation` API with explicit parent/snapshot selection, Scope-independent
+  lifetime, policy-controlled input/output, model/usage/metadata attributes and one terminal transition
+  across `end`, `fail` and `cancel`. Existing fluent wrappers and starter defaults remain available.
+- Add a Java 11 observation consumer and CI coverage, including asynchronous completion and external SDK ownership.
+- Add owned-pipeline fault/retention checks to CI and an opt-in sustained-load workflow with clock validation,
+  bounded measurement storage and preserved operational evidence.
+- Gate releases on Langfuse 4.41.0 observation read-back with the exact commit and artifact version.
+
+### Changed
+
+- Update OpenTelemetry to 1.66.0, including the observation consumer and SDK testing fixture.
+
+- Prepare exception details separately from span mutation so the observation API runs redactors outside
+  its lock and propagates fatal instrumentation errors. Legacy helper capture behavior is preserved.
+
 ### Fixed
 
 - Keep CycloneDX SBOM generation enabled when the Central publishing extension skips Maven deploy;

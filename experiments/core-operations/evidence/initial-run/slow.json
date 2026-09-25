@@ -1,0 +1,20 @@
+{
+  "endMsWhileNetworkBlocked" : 0.00325,
+  "scenario" : "slow",
+  "time" : "2026-09-22T16:38:23.313568Z",
+  "status" : {
+    "openTelemetryOwnership" : "OWNED",
+    "noopFallback" : false,
+    "noopReason" : "NONE",
+    "operationalSignalsAvailable" : true,
+    "exportState" : "SUCCEEDED",
+    "failedExportSpanCount" : 0,
+    "queueDroppedSpanCount" : 0,
+    "flushState" : "SUCCEEDED",
+    "failedFlushCount" : 0,
+    "timedOutFlushCount" : 0
+  },
+  "httpRequests" : 2,
+  "acceptedSpans" : 513,
+  "duplicateAcceptedIds" : 0
+}

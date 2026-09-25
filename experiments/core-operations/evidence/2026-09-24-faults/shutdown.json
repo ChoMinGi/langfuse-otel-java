@@ -1,0 +1,20 @@
+{
+  "closeMs" : 10005.114541,
+  "scenario" : "shutdown",
+  "time" : "2026-09-23T16:07:07.429643Z",
+  "status" : {
+    "openTelemetryOwnership" : "OWNED",
+    "noopFallback" : false,
+    "noopReason" : "NONE",
+    "operationalSignalsAvailable" : true,
+    "exportState" : "NOT_ATTEMPTED",
+    "failedExportSpanCount" : 0,
+    "queueDroppedSpanCount" : 0,
+    "flushState" : "NOT_REQUESTED",
+    "failedFlushCount" : 0,
+    "timedOutFlushCount" : 0
+  },
+  "httpRequests" : 1,
+  "acceptedSpans" : 0,
+  "duplicateAcceptedIds" : 0
+}

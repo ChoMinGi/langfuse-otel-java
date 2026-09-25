@@ -1,0 +1,14 @@
+{
+  "recorded_date": "2026-09-24",
+  "baseline": "33a8926b30d3aac4bb2a42e577146d396a5e69ff",
+  "source_state": "uncommitted working tree",
+  "fault_command": "./mvnw -B -ntp -f experiments/core-operations/pom.xml verify",
+  "load_command": "./mvnw -B -ntp -f experiments/core-operations/pom.xml test -Dtest=LoadTest -Doperations.load=true -Doperations.warmupSeconds=1 -Doperations.measureSeconds=3",
+  "limitations": [
+    "Matrix used 1-second warmup and 3-second measurement per combination; not sustained-load or soak validation.",
+    "JUnit/wall-clock elapsed time is about 32943 seconds while monotonic elapsed time is about 295 seconds. Sleep/suspension or clock changes were not independently established. Do not interpret as a nine-hour soak.",
+    "Fault run preceded an added assertion waiting for BatchSpanProcessor thread cleanup; that assertion requires a fresh run.",
+    "Initial load fixed pool starts threads lazily; early thread counts are not a stable retention baseline.",
+    "Producer allocation excludes exporter, HTTP receiver and other threads."
+  ]
+}

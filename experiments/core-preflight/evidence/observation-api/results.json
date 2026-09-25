@@ -1,0 +1,152 @@
+{
+  "baseline": "33a8926b30d3aac4bb2a42e577146d396a5e69ff",
+  "implementation": "uncommitted A/B working tree",
+  "version": "0.2.2-SNAPSHOT",
+  "java": "21.0.8",
+  "command": "./mvnw -B -ntp -Pquality clean install",
+  "modules": {
+    "langfuse-otel-core": {
+      "surefire": {
+        "tests": 155,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "failsafe": {
+        "tests": 1,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "coverage": {
+        "BRANCH": {
+          "missed": 103,
+          "covered": 379
+        },
+        "LINE": {
+          "missed": 124,
+          "covered": 1150
+        }
+      },
+      "spotbugs_findings": 0
+    },
+    "langfuse-otel-spring-boot-starter": {
+      "surefire": {
+        "tests": 205,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 2
+      },
+      "failsafe": {
+        "tests": 1,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "coverage": {
+        "BRANCH": {
+          "missed": 368,
+          "covered": 666
+        },
+        "LINE": {
+          "missed": 500,
+          "covered": 1868
+        }
+      },
+      "spotbugs_findings": 0
+    }
+  },
+  "live": [
+    {
+      "api": "observation",
+      "capture": true,
+      "trace_id": "497fb154659fe87099d21ea2f374151d",
+      "file": "live-observation-true.json",
+      "observations": 3
+    },
+    {
+      "api": "observation",
+      "capture": false,
+      "trace_id": "b57f1baa40d693c9186aa3d332791244",
+      "file": "live-observation-false.json",
+      "observations": 3
+    },
+    {
+      "api": "raw",
+      "capture": true,
+      "trace_id": "bc66776e8af2a6d370242097601f45f4",
+      "file": "live-v4-true.json",
+      "observations": 3
+    },
+    {
+      "api": "raw",
+      "capture": false,
+      "trace_id": "7968cbb717ca1e445f49b56123c43541",
+      "file": "live-v4-false.json",
+      "observations": 3
+    }
+  ],
+  "live_source_note": "Read-back preceded the private PreparedException-to-ExceptionDetails naming-only correction; no recording behavior changed.",
+  "java11_core": {
+    "tests": 155,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "java11_consumer": {
+    "tests": 5,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "legacy_core_prompt_consumer": {
+    "tests": 1,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "java17_latest_frameworks": {
+    "spring_ai": "1.1.8",
+    "langchain4j": "1.18.0",
+    "core_tests": 155,
+    "starter_tests": 205,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "reviewed_core_source_sha256": {
+    "langfuse-otel-core/src/main/java/io/github/chomingi/langfuse/otel/AbstractLangfuseSpan.java": "7c387f85b475ff6bf6f88ac60a196cd7d4a9d2e94e776fa249ec86ca9774a03b",
+    "langfuse-otel-core/src/main/java/io/github/chomingi/langfuse/otel/ContentCapturePolicy.java": "a1ed03e589541be7692bde2795012a1cd90713b6c6da5e027c51c8006fd476a4",
+    "langfuse-otel-core/src/main/java/io/github/chomingi/langfuse/otel/ContentCaptureType.java": "34221b9e72ec3f5c28f471abe9b511b3ffa66d673fc617a6ecd91fe61165d94f",
+    "langfuse-otel-core/src/main/java/io/github/chomingi/langfuse/otel/ContentRedactor.java": "37b262c0e47da1b13e62f4673dc1fa89d6c7b47b3808e920c3551123d3ef0629",
+    "langfuse-otel-core/src/main/java/io/github/chomingi/langfuse/otel/ExceptionCapturePolicy.java": "b115c7d598c7d0f74a1562e7bbabb5961e3f0ec55931ef4f0eab95e8ffab090d",
+    "langfuse-otel-core/src/main/java/io/github/chomingi/langfuse/otel/ExceptionCaptureType.java": "e57222b99bd922ffd33722ad61b75c60f59df0c7a9bac2e8ed8727582f1c0c51",
+    "langfuse-otel-core/src/main/java/io/github/chomingi/langfuse/otel/ExceptionRecorder.java": "43f35c6a52922168e3aaecd0196323825386b105d40fd867e946d9ab0a4f2732",
+    "langfuse-otel-core/src/main/java/io/github/chomingi/langfuse/otel/ExceptionRedactor.java": "5fcafe08b6b6b3796a200646d6674da615ab1435d4de178e6df73001ee7f36db",
+    "langfuse-otel-core/src/main/java/io/github/chomingi/langfuse/otel/JsonUtils.java": "ac6c241825439edb302926529039329c2c1ed4aabea718b48e1ef832894b4bc1",
+    "langfuse-otel-core/src/main/java/io/github/chomingi/langfuse/otel/LangfuseAttributes.java": "d7a68dee9ab02de22314cb6166c4f1b0bde7be6fbf58c4a60b6641919a4eed13",
+    "langfuse-otel-core/src/main/java/io/github/chomingi/langfuse/otel/LangfuseContext.java": "efa0b66d2235d333a68b324c222a9eacb951ff9efe8797c12908f3ec6fa79fef",
+    "langfuse-otel-core/src/main/java/io/github/chomingi/langfuse/otel/LangfuseContextSpanProcessor.java": "ffbd9cd31e9480f083afa103828a40d32cec5414eb9c86ed101e38ec3c08af2d",
+    "langfuse-otel-core/src/main/java/io/github/chomingi/langfuse/otel/LangfuseGeneration.java": "afdfd319590293fef72cb49baa3e86d0bd37e7d66798522beb4348c3affdc676",
+    "langfuse-otel-core/src/main/java/io/github/chomingi/langfuse/otel/LangfuseObservation.java": "b2e379b495c16cc1bb45602f1b3d537a11e9ffe362b44e33e6c369aca623cd88",
+    "langfuse-otel-core/src/main/java/io/github/chomingi/langfuse/otel/LangfuseOtel.java": "266177ff3a5c6c15e259a23783c9a4e8277faa1e3af95283c55f1cd969261984",
+    "langfuse-otel-core/src/main/java/io/github/chomingi/langfuse/otel/LangfuseOtelRuntime.java": "b88a578579350be07de64f065c334528aad4e67a05120efef53963da80c096ab",
+    "langfuse-otel-core/src/main/java/io/github/chomingi/langfuse/otel/LangfuseOtelRuntimeMeterProvider.java": "d687868e3fa3c6b15c3fe3ad088ace78eb4a631dc7777b05ff72be4c35b19761",
+    "langfuse-otel-core/src/main/java/io/github/chomingi/langfuse/otel/LangfuseOtelStatus.java": "6603795a92b9f593ed6ca1b66c7ac5f363517dbfb420762cc982fdf4855e659a",
+    "langfuse-otel-core/src/main/java/io/github/chomingi/langfuse/otel/LangfusePromptHelper.java": "936372849d25cb76f571d53b8dd93615d8af39d30a37719cfbafc5396efa4ca5",
+    "langfuse-otel-core/src/main/java/io/github/chomingi/langfuse/otel/LangfuseSpan.java": "6e8d1606c1754079e2766333239ee5ce91e90ed2a53c5a8077e3455ef686493a",
+    "langfuse-otel-core/src/main/java/io/github/chomingi/langfuse/otel/LangfuseTrace.java": "1620fd4b86ef6e85e8aa22dab89efe8552e57a6f987389ba233165b167aecb34",
+    "langfuse-otel-core/src/main/java/io/github/chomingi/langfuse/otel/LangfuseTraceContext.java": "eda082ec33a259ed696c995c19f7901af6fc6ccc9d24cedd21aa99f014727de0",
+    "langfuse-otel-core/src/main/java/io/github/chomingi/langfuse/otel/LangfuseTraceState.java": "dd8c95e002cacb1a90fcf19417b47499236a7cae1806d950d33fd429f74d3f93",
+    "langfuse-otel-core/src/main/java/io/github/chomingi/langfuse/otel/ObservationFailureSupport.java": "dcb9783717988becebfc9325dff75412d4a8f79eea9dbf5edec3356016dc3809",
+    "langfuse-otel-core/src/main/java/io/github/chomingi/langfuse/otel/ObservationType.java": "3b707aaea2c2c4a1e0b1e1b689f5d3ca9bad1ebb1057d2d13a913a8530667d47",
+    "langfuse-otel-core/src/main/java/io/github/chomingi/langfuse/otel/SpanGuard.java": "364ced67df0cbb9fe5110ec15e51e186cdc3cb3952187fe8ca7482dfb81bc5ec"
+  },
+  "legacy_helper_regression": {
+    "tests": 23,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "docker_cleanup": "Confirmed: disposable project removed; pre-existing langfuse stack retained."
+}

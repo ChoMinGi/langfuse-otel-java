@@ -16,6 +16,8 @@
 
 ### Changed
 
+- Update OpenTelemetry to 1.66.0, including the observation consumer and SDK testing fixture.
+
 - Prepare exception details separately from span mutation so the observation API runs redactors outside
   its lock and propagates fatal instrumentation errors. Legacy helper capture behavior is preserved.
 

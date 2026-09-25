@@ -417,7 +417,7 @@ Keep this component out of liveness. Add it to readiness only when losing Langfu
 |-----------|---------------|-------|
 | Java | 11+ | Core module |
 | Java | 17+ | Spring Boot starter |
-| OpenTelemetry SDK | 1.62.0 | Via BOM |
+| OpenTelemetry SDK | 1.66.0 | Via BOM |
 | Spring Boot | 3.5.16 | Non-web external and standalone consumer startup |
 | Spring AI | 1.0.9 / 1.1.8 | Chat consumer smoke; adapter tests also cover streaming, embeddings, and images |
 | LangChain4j | 1.0.0 / 1.18.0 | Chat consumer smoke; adapter tests also cover streaming, embeddings, and images |

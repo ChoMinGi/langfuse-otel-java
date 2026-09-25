@@ -18,6 +18,12 @@ jobs:
     name: quality and supply chain
     uses: ./.github/workflows/quality.yml
 
+  observation-readback:
+    name: observation read-back
+    uses: ./.github/workflows/observation-e2e.yml
+    with:
+      checkout_ref: ${{ github.sha }}
+
   verify:
     name: verify (Java 17, package + Javadoc)
     runs-on: ubuntu-latest

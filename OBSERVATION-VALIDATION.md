@@ -178,3 +178,11 @@ preparation: at the time it was captured, there was no commit, PR, hosted CI res
 Release 0.2.2 additionally requires hosted CI, the vulnerability gate, exact-commit Langfuse 4.41.0
 read-back, Central validation and public artifact resolution under [RELEASING.md](RELEASING.md).
 No community submission is included.
+
+## Release dependency update
+
+During 0.2.2 preparation on September 25, upstream main advanced OpenTelemetry to 1.66.0.
+The release retains that update and aligns the observation consumer and SDK testing fixture.
+The September 23–24 evidence above remains evidence for 1.62.0; it must not be relabeled as
+1.66.0 performance evidence. Release CI reruns contracts, consumer tests and Langfuse read-back
+with 1.66.0. The optional sustained-load workflow records its actual runtime separately.

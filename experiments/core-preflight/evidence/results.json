@@ -1,0 +1,66 @@
+{
+  "date": "2026-09-23 Asia/Seoul",
+  "repository_commit": "33a8926b30d3aac4bb2a42e577146d396a5e69ff",
+  "core_version": "0.2.2-SNAPSHOT",
+  "opentelemetry_version": "1.62.0",
+  "langfuse_version": "4.41.0",
+  "langfuse_revision": "d84020653a619a374bd36e4563d52a5db5590129",
+  "platform": "macOS arm64; Docker linux/arm64",
+  "java_full_regression": "21.0.8",
+  "java_consumer": [
+    "11.0.26",
+    "21.0.8"
+  ],
+  "results": {
+    "core": {
+      "tests": 125,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "starter": {
+      "tests": 203,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 2
+    },
+    "independent_consumer": {
+      "tests": 23,
+      "failures": 0,
+      "errors": 0
+    },
+    "live": {
+      "tests": 1,
+      "traces": 2,
+      "observations_per_trace": 3,
+      "metadata_filters": "common run=3 and individual kind=tool=1, for both traces"
+    },
+    "java17_probes": {
+      "tests": 5,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    }
+  },
+  "live_traces": [
+    {
+      "capture": true,
+      "trace_id": "9d88a34e6026d44873026bf52b241952",
+      "file": "live-v4-true.json",
+      "sha256": "a6489eac896bc6bb69d0dd26349bf3b5854e07642cd9bcefc1db3f3ded34a0e6"
+    },
+    {
+      "capture": false,
+      "trace_id": "3df89be6f612ac8770348b8102bb192e",
+      "file": "live-v4-false.json",
+      "sha256": "ed9191866d2c961fd6c27896c07a64ed50a41bdc1667e3b8da00dc74ee5ab435"
+    }
+  ],
+  "images": {
+    "web_manifest": "sha256:3d117d87a3447c7e250844889da6eed744e3544dd9a83ba0f508abb5605199cb",
+    "web_arm64": "sha256:2688d9aa6554dbba997e12108d9ffd85528b229a7a7e5643e55262dfd93aec19",
+    "worker_manifest": "sha256:5218286e570f8b0ed37e67b769edd151cec5ac5f3fbf091abb2f98067f2942ec",
+    "worker_arm64": "sha256:af9e805d94ff9839cf7eba9f6313b6e3398d977ab92f51acc8828ed73e66a5f3"
+  },
+  "java_context_and_mixing_probes": "17.0.14"
+}

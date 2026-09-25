@@ -84,6 +84,13 @@ public final class LangfuseContext {
         return context.with(TRACE_STATE_CONTEXT_KEY, traceState);
     }
 
+    // Install before span creation so processors and wrappers resolve the same immutable snapshot.
+    static Context storeObservationSnapshot(Context parent, LangfuseTraceContext snapshot) {
+        LangfuseTraceState state = new LangfuseTraceState(snapshot, false);
+        state.freeze();
+        return storeTraceState(storeIn(parent, snapshot), state);
+    }
+
     static LangfuseTraceState traceStateFrom(Context context) {
         return context == null ? null : context.get(TRACE_STATE_CONTEXT_KEY);
     }

@@ -1,0 +1,21 @@
+{
+  "blockedProducerMs" : 20.476167,
+  "produced" : 4608,
+  "scenario" : "saturation",
+  "time" : "2026-09-22T16:38:23.018706Z",
+  "status" : {
+    "openTelemetryOwnership" : "OWNED",
+    "noopFallback" : false,
+    "noopReason" : "NONE",
+    "operationalSignalsAvailable" : true,
+    "exportState" : "SUCCEEDED",
+    "failedExportSpanCount" : 0,
+    "queueDroppedSpanCount" : 2048,
+    "flushState" : "SUCCEEDED",
+    "failedFlushCount" : 0,
+    "timedOutFlushCount" : 0
+  },
+  "httpRequests" : 5,
+  "acceptedSpans" : 2560,
+  "duplicateAcceptedIds" : 0
+}

@@ -1,0 +1,46 @@
+name: Core sustained load
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: core-sustained-load-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  sustained-load:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: maven
+      - name: Install current core
+        run: ./mvnw -B -ntp -pl langfuse-otel-core -am -DskipTests -Djacoco.skip=true install
+      - name: Verify operational contracts
+        run: ./mvnw -B -ntp -f experiments/core-operations/pom.xml verify
+      - name: Ten-minute warmup and two-hour measurement
+        run: bash experiments/core-operations/run-soak.sh
+      - name: Validate clocks and summarize measurements
+        run: >-
+          python3 experiments/core-operations/summarize.py
+          experiments/core-operations/target/operations/load-soak.json
+          > experiments/core-operations/target/operations/load-soak-summary.json
+      - name: Retain measurement evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: core-sustained-load-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            experiments/core-operations/target/operations/
+            experiments/core-operations/target/surefire-reports/
+          if-no-files-found: warn
+          retention-days: 30

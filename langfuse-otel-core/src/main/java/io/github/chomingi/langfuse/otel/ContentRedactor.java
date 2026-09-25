@@ -1,7 +1,7 @@
 package io.github.chomingi.langfuse.otel;
 
 /**
- * Redacts automatically captured model content before it is attached to a span.
+ * Redacts policy-controlled model/observation content before it is attached to a span.
  * Implementations may be invoked concurrently and should therefore be thread-safe.
  */
 @FunctionalInterface

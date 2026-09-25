@@ -147,6 +147,24 @@ jobs:
       - name: Verify core and prompt client compatibility
         run: ./mvnw -B -ntp -f consumer-tests/core-prompt-consumer/pom.xml verify
 
+      - name: Verify explicit observation consumer
+        run: ./mvnw -B -ntp -f consumer-tests/core-observation-consumer/pom.xml verify
+
+      - name: Verify owned pipeline fault and measurement contracts
+        timeout-minutes: 5
+        run: ./mvnw -B -ntp -f experiments/core-operations/pom.xml verify
+
+      - name: Retain operational fault evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: operational-faults-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            experiments/core-operations/target/operations/
+            experiments/core-operations/target/surefire-reports/
+          if-no-files-found: warn
+          retention-days: 14
+
   integration-status:
     name: live export smoke status (explicit opt-in)
     runs-on: ubuntu-latest

@@ -134,7 +134,10 @@ jobs:
             examples/langchain4j-example \
             consumer-tests/spring-boot-consumer \
             consumer-tests/langchain4j-spring-boot-consumer \
-            consumer-tests/core-prompt-consumer; do
+            consumer-tests/core-prompt-consumer \
+            consumer-tests/core-observation-consumer \
+            experiments/core-preflight \
+            experiments/core-operations; do
             consumer_version="$(./mvnw -q -f "$consumer/pom.xml" -DforceStdout help:evaluate -Dexpression=langfuse-otel.version)"
             if [[ "$consumer_version" != "$pom_version" ]]; then
               echo "::error::$consumer uses langfuse-otel version $consumer_version instead of $pom_version."
@@ -386,6 +389,30 @@ jobs:
       - name: Verify core and prompt client compatibility
         run: ./mvnw -B -ntp -f consumer-tests/core-prompt-consumer/pom.xml verify
 
+      - name: Verify explicit observation consumer
+        run: ./mvnw -B -ntp -f consumer-tests/core-observation-consumer/pom.xml verify
+
+      - name: Verify owned pipeline operational contracts
+        timeout-minutes: 5
+        run: ./mvnw -B -ntp -f experiments/core-operations/pom.xml verify
+
+      - name: Retain operational contract evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-core-operations-${{ github.run_id }}
+          path: |
+            experiments/core-operations/target/operations/
+            experiments/core-operations/target/surefire-reports/
+          retention-days: 30
+
+  observation-readback:
+    name: release observation read-back
+    needs: [preflight]
+    uses: ./.github/workflows/observation-e2e.yml
+    with:
+      checkout_ref: ${{ needs.preflight.outputs.release_sha }}
+
   quality:
     name: release quality and supply chain
     needs: [preflight]
@@ -397,7 +424,7 @@ jobs:
     name: release quality gate
     runs-on: ubuntu-latest
     if: always()
-    needs: [preflight, verify, core, starter, consumer-smoke, quality]
+    needs: [preflight, verify, core, starter, consumer-smoke, quality, observation-readback]
     permissions: {}
     steps:
       - name: Require every release candidate gate
@@ -409,11 +436,12 @@ jobs:
           STARTER_RESULT: ${{ needs.starter.result }}
           CONSUMER_RESULT: ${{ needs.consumer-smoke.result }}
           QUALITY_RESULT: ${{ needs.quality.result }}
+          READBACK_RESULT: ${{ needs.observation-readback.result }}
         run: |
           set -euo pipefail
           failed=false
 
-          for gate in PREFLIGHT VERIFY CORE STARTER CONSUMER QUALITY; do
+          for gate in PREFLIGHT VERIFY CORE STARTER CONSUMER QUALITY READBACK; do
             result_variable="${gate}_RESULT"
             result="${!result_variable}"
             echo "$gate: $result"

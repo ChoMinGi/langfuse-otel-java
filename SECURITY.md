@@ -29,7 +29,7 @@ Automatic content capture is metadata-only by default. Enabling it does not requ
 
 Spring AI streaming never retains an unbounded completion. If the raw completion exceeds `langfuse.content.max-length` before terminal redaction, the output attribute is dropped rather than exporting a pre-redaction prefix. This trades long-stream content visibility for a fail-closed privacy boundary.
 
-Explicit core fluent calls such as `generation.input(value)` are treated as an intentional caller opt-in and do not use the automatic capture policy.
+Legacy core fluent calls such as `LangfuseGeneration.input(value)` are treated as an intentional caller opt-in and do not use the automatic capture policy. The new observation API applies the policy, as described below.
 
 Trace-wide context can include trace name, user/session IDs, tags, metadata, version, release, and
 environment. Version 0.2 copies those values to same-trace descendants created by the library and,
@@ -44,6 +44,22 @@ HTTP session IDs can be bearer credentials in some deployments. Do not enable se
 Exceptions frequently contain response bodies, prompts, URLs, or credentials. Automatic instrumentation records only `exception.type` by default. Enabling message or stack capture with zero `ExceptionRedactor` beans uses the identity redactor, so the selected details are exported unchanged except for the independent `langfuse.exception.max-length` limit. Exactly one bean processes details before truncation. Multiple beans, redactor failures, or a `null` result fail closed. Treat one reviewed, thread-safe exception redactor as mandatory in production before enabling sensitive details.
 
 Captured stacks contain exception types and frames but omit throwable messages from the top-level exception, causes, and suppressed exceptions. Message capture remains an independent opt-in.
+
+### Explicit observation API (since 0.2.2)
+
+`LangfuseObservation.input(String)` and `output(String)` apply the configured content policy even
+though the calls are explicit; both remain disabled by default. Its `fail(Throwable)` records only
+the exception type by default. This differs from legacy fluent trace/span/generation input/output,
+which still bypass the automatic capture policy. Metadata, names and model names are explicit data
+and are not automatically redacted. Context propagation carries metadata, not prompts, responses or
+throwables, and does not automatically add metadata to Baggage or HTTP headers.
+
+Nonfatal redactor failures omit the value without logging its original text. Fatal errors raised
+by the new observation recording path propagate; the old helpers keep their existing behavior.
+The post-redaction length limit does not bound a caller's already-created String or a redactor's
+intermediate allocations. SDK limits apply again at export: configure sufficient attribute count
+and value-length limits, particularly for structured usage/cost written through other APIs.
+Direct writes to raw spans and downstream SDK processors remain outside the observation policy.
 
 ### API Keys
 

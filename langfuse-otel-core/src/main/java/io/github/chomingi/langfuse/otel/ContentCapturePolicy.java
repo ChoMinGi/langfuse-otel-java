@@ -3,8 +3,8 @@ package io.github.chomingi.langfuse.otel;
 import java.util.Objects;
 
 /**
- * Immutable safety policy for content recorded by automatic instrumentation.
- * Manual fluent {@code input(...)} and {@code output(...)} calls are not governed by this policy.
+ * Immutable safety policy for automatic instrumentation and {@link LangfuseObservation} content.
+ * Legacy fluent trace/span/generation {@code input(...)} and {@code output(...)} calls bypass this policy.
  */
 public final class ContentCapturePolicy {
 
@@ -83,6 +83,14 @@ public final class ContentCapturePolicy {
     }
 
     String capture(ContentCaptureType type, Object value) {
+        return capture(type, value, false);
+    }
+
+    String captureForObservation(ContentCaptureType type, String value) {
+        return capture(type, value, true);
+    }
+
+    private String capture(ContentCaptureType type, Object value, boolean propagateFatal) {
         Objects.requireNonNull(type, "type");
         if (value == null || !isEnabled(type)) {
             return null;
@@ -99,8 +107,9 @@ public final class ContentCapturePolicy {
                 return null;
             }
             return truncateWithoutSplittingSurrogatePair(redacted);
-        } catch (Throwable ignored) {
-            // Instrumentation and user-provided redactors must never affect host application behavior.
+        } catch (Throwable failure) {
+            if (propagateFatal) ObservationFailureSupport.rethrowIfFatal(failure);
+            // Omit failed values; never log the unredacted content.
             return null;
         }
     }

@@ -1,0 +1,135 @@
+{
+  "baseline": "33a8926b30d3aac4bb2a42e577146d396a5e69ff",
+  "implementation": "uncommitted 0.2.2-SNAPSHOT observation API; no production changes during phase C",
+  "command": "bash experiments/core-operations/run-soak.sh",
+  "passed": true,
+  "environment": {
+    "startedAt": "2026-09-24T03:48:38.069779Z",
+    "java": "17.0.14+0",
+    "vm": "OpenJDK 64-Bit Server VM",
+    "os": "Mac OS X 26.1",
+    "arch": "aarch64",
+    "processors": 11,
+    "maxHeapBytes": 536870912,
+    "vmArguments": [
+      "-Xms128m",
+      "-Xmx512m"
+    ],
+    "profile": "soak",
+    "allocationSupported": true,
+    "clockDivergenceLimitMillis": 2000,
+    "prestartedWorkerThreads": 32,
+    "executedClassSha256": {
+      "io.github.chomingi.langfuse.otel.LangfuseObservation": "46eb34df78a253a6ad7b1106ccb154c2f25bdd1063e3a29697ac2e62f1e867cb",
+      "io.github.chomingi.langfuse.otel.LangfuseOtel": "7f873e57ad0a8e81b782834a1906397ccffd00994c77c9e95e0692dda5a66382",
+      "operations.LoadTest": "60785b1e9ba7d9b263983ed60fc1082093402b342422b4607c63a901fb1f8148",
+      "operations.LocalOtlpReceiver": "22817822e6563ba365b7ea5a6d3967d9ae4b39a3daed3c11dd7312ff270c5bd2",
+      "operations.TimingGuard": "a8b0ccec04cc91896a9d70c4298f86b719c068cffdc668bc34160c4c92254c70"
+    },
+    "coreArtifactSha256": "bf5f214510ba62bd0667e7d74761c4e3ef08540c69bf0fe71ff5d91d9f6a4341",
+    "warmup": {
+      "recording": "body",
+      "receiver": "NORMAL",
+      "concurrency": 32,
+      "requestedSeconds": 600,
+      "measuredSeconds": 600.016975792,
+      "wallMeasuredSeconds": 600.009,
+      "gcCollectionsDuringPhase": 342,
+      "gcMillisDuringPhase": 377,
+      "targetOpsPerSecond": 3000,
+      "operations": 1799742,
+      "opsPerSecond": 2999.4851356070512,
+      "p50Nanos": 3083,
+      "p95Nanos": 21087,
+      "p99Nanos": 45311,
+      "maxNanos": 28622847,
+      "producerAllocatedBytesPerOp": 2342.3449316624274,
+      "acceptedBeforeRecovery": 1799742,
+      "failedSpansBeforeRecovery": 0,
+      "queueDropsBeforeRecovery": 0,
+      "acceptedIncludingDrain": 1799742,
+      "failedSpansIncludingDrain": 0,
+      "queueDropsIncludingDrain": 0,
+      "httpRequestsIncludingDrain": 3516,
+      "postGcLiveHeapBytes": 11722144,
+      "threadsAfterIdle": 53,
+      "batchWorkersAfterIdle": 2,
+      "loadWorkersAfterIdle": 32,
+      "sampledEndedObservations": 32,
+      "retainedObservationSamples": 0,
+      "sampledAt": "2026-09-24T03:58:38.906805Z"
+    },
+    "finishedAt": "2026-09-24T06:00:07.372914Z"
+  },
+  "elapsed_monotonic_seconds": 7889.193531583,
+  "elapsed_wall_seconds": 7889.308,
+  "max_clock_divergence_ms": 1909,
+  "measured_seconds": 7200.201540456,
+  "measured_operations": 21599509,
+  "warmup_operations": 1799742,
+  "first_30_minutes": {
+    "operations": 5399650,
+    "seconds": 1800.040733041,
+    "p99_us_range": [
+      43.551,
+      49.215
+    ],
+    "heap_mib_range": [
+      11.218544006347656,
+      11.231971740722656
+    ],
+    "failed": 0,
+    "dropped": 0
+  },
+  "accounting": {
+    "accepted": 15208357,
+    "failed": 115200,
+    "queue_dropped": 6275952
+  },
+  "post_gc_heap_mib_range": [
+    11.218544006347656,
+    11.512245178222656
+  ],
+  "post_fault_heap_mib_range": [
+    11.476860046386719,
+    11.512245178222656
+  ],
+  "sampled_observations": 768,
+  "retained_samples": 0,
+  "thread_counts": [
+    53
+  ],
+  "gc_collections_during_measurements": 3185,
+  "gc_ms_during_measurements": 4181,
+  "harness_source_sha256": {
+    "experiments/core-operations/src/test/java/operations/AsyncRetentionTest.java": "f01e686e61fb7e30f9a262015897fc62faed7e1ecfa3b8b77fbecd3816bb8c9b",
+    "experiments/core-operations/src/test/java/operations/LoadTest.java": "9effb7df7009654abd3f36b2f77b1e005e467a12dddf8ec27e38011175258d39",
+    "experiments/core-operations/src/test/java/operations/LocalOtlpReceiver.java": "829a296d377e61179f5901c3b8bf3d72178864e6867c1a7cd041a64cbfc60652",
+    "experiments/core-operations/src/test/java/operations/OwnedPipelineTest.java": "874a4b90ab304a72995db5d27b658cd6b3abcbd24b7c0716d0d908db5ce03d88",
+    "experiments/core-operations/src/test/java/operations/TimingGuard.java": "5852e2f275be206032c0d2c463c84b42fd6173e05fc73099b0f998e6e4a67e22",
+    "experiments/core-operations/src/test/java/operations/TimingGuardTest.java": "82cee6eca434ff06292c45f6d6386c68d12591984f4d3c55dc8f72bf8139e200"
+  },
+  "files_sha256": {
+    "contracts-results.json": "b648f530ed72f4b8eecca89451dfc23333f093748726beaf7f604255b494372b",
+    "disconnect.json": "63d68ba9a743a9aea372a1aa7ebc8a29a05b8d2ab55ae077d9d239df34cb660e",
+    "harness-smoke.json": "4118ac6c614a3ddd7a9860e44113263e9a9ce86baa955f07e547caa209a889e3",
+    "load-soak.json": "c7a453137a70714a569ccfe2767ef822ee9951587d695d2f350f6539b9d3e1ae",
+    "matrix-clock-guarded.json": "3d716ff53abb257846f47e1305dd314531ae1a112c684f99a02ee83a5ea70d99",
+    "matrix-compiled-classes.json": "18d0c8b6cead3d3f1222628a94ac754d333f2d972c32c7e82d94103c9cf22bb4",
+    "matrix-summary.json": "3928da0ca2b10b153539652ac659e50e8ef63b07c49eb1401baabd7639678d20",
+    "saturation.json": "2ab477f93b9c228d8f867f8fe88bc124f6188f091209b8012bef92bd478a53b0",
+    "shutdown.json": "ccbea1618df987f667faf23f8c3750202321fc400273ef9be2f92b0a5f3d63d6",
+    "slow.json": "37b6d5583e0e64463241eae7ae415d80486974cda79db5d64e946f6deb8c066d",
+    "soak-summary.json": "8f41a837bf38bd06125f263fbf328bc54552874c75ed1195ca85d393f3050485",
+    "unavailable.json": "28624ec53ee4a69dac4c3341f7c438a9118eb1662d610580967753af82a6c315"
+  },
+  "limits": [
+    "One owned-pipeline configuration for the long run: Java 17, macOS arm64, concurrency 32, fixed preallocated 1 KiB input/output, offered 3000 ops/s, 512 MiB max heap.",
+    "Normal receiver time is 60 minutes in total; 503 and delayed receiver each 30 minutes. Measurement windows include periodic drain and idle GC between them.",
+    "Local OTLP receiver, not a Langfuse ingestion-capacity benchmark; no model call.",
+    "Producer-only allocation, no maximum-throughput or general leak-free claim.",
+    "Short matrix is exploratory and same-JVM; none keeps fixture SDK clients and receiver alive.",
+    "Root functional/quality and real Langfuse read-back evidence remains the earlier A/B result.",
+    "CI workflow configuration and equivalent local command validated; no hosted run, commit, push, PR or release."
+  ]
+}

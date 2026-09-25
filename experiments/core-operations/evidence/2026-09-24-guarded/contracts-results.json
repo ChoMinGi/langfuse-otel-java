@@ -1,0 +1,36 @@
+{
+  "command": "./mvnw -B -ntp -f experiments/core-operations/pom.xml verify",
+  "tests": {
+    "AsyncRetentionTest": {
+      "tests": "2",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "time": "0.371"
+    },
+    "TimingGuardTest": {
+      "tests": "3",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "time": "0.006"
+    },
+    "OwnedPipelineTest": {
+      "tests": "5",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "time": "27.222"
+    }
+  },
+  "load_test": "skipped by default; opt-in matrix executed separately",
+  "source_sha256": {
+    "experiments/core-operations/src/test/java/operations/AsyncRetentionTest.java": "f01e686e61fb7e30f9a262015897fc62faed7e1ecfa3b8b77fbecd3816bb8c9b",
+    "experiments/core-operations/src/test/java/operations/LoadTest.java": "9effb7df7009654abd3f36b2f77b1e005e467a12dddf8ec27e38011175258d39",
+    "experiments/core-operations/src/test/java/operations/LocalOtlpReceiver.java": "829a296d377e61179f5901c3b8bf3d72178864e6867c1a7cd041a64cbfc60652",
+    "experiments/core-operations/src/test/java/operations/OwnedPipelineTest.java": "874a4b90ab304a72995db5d27b658cd6b3abcbd24b7c0716d0d908db5ce03d88",
+    "experiments/core-operations/src/test/java/operations/TimingGuard.java": "5852e2f275be206032c0d2c463c84b42fd6173e05fc73099b0f998e6e4a67e22",
+    "experiments/core-operations/src/test/java/operations/TimingGuardTest.java": "82cee6eca434ff06292c45f6d6386c68d12591984f4d3c55dc8f72bf8139e200"
+  },
+  "workflow_validation": "actionlint and bash -n passed"
+}

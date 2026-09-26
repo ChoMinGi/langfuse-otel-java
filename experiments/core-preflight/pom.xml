@@ -5,7 +5,7 @@
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <maven.compiler.release>11</maven.compiler.release>
-    <langfuse-otel.version>0.2.2</langfuse-otel.version>
+    <langfuse-otel.version>0.2.3-SNAPSHOT</langfuse-otel.version>
   </properties>
   <dependencies>
     <dependency><groupId>com.fasterxml.jackson.core</groupId><artifactId>jackson-databind</artifactId><version>2.21.5</version><scope>test</scope></dependency>

@@ -186,3 +186,9 @@ The release retains that update and aligns the observation consumer and SDK test
 The September 23–24 evidence above remains evidence for 1.62.0; it must not be relabeled as
 1.66.0 performance evidence. Release CI reruns contracts, consumer tests and Langfuse read-back
 with 1.66.0. The optional sustained-load workflow records its actual runtime separately.
+
+The exact 0.2.2 release commit subsequently passed the hosted Java 17/Linux two-hour profile with
+OpenTelemetry 1.66.0: 21,600,000 measured observations, no loss in NORMAL windows, all intentional
+fault/overload losses accounted for, and no retained sampled observations. The public core JAR's
+SHA-256 matches the tested JAR. See [RELEASE-0.2.2.md](RELEASE-0.2.2.md) for release CI, read-back,
+public consumer checks, runtime conditions and the preserved measurement JSON.

@@ -79,7 +79,7 @@ jobs:
     name: publish the existing candidate
     needs: [provenance]
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 35
     environment:
       name: central-validation
       url: https://central.sonatype.com/publishing/deployments
@@ -99,6 +99,7 @@ jobs:
           import time
           import urllib.error
           import urllib.request
+          import xml.etree.ElementTree as ET
 
           version = os.environ['VERSION']
           deployment = os.environ['DEPLOYMENT_ID']
@@ -127,22 +128,38 @@ jobs:
           assert status['deploymentName'] == 'io.github.chomingi:langfuse-otel-java:' + version, 'Unexpected deployment name'
           expected = {'pkg:maven/io.github.chomingi/' + artifact + '@' + version for artifact in
               ('langfuse-otel-java', 'langfuse-otel-core', 'langfuse-otel-spring-boot-starter')}
-          assert expected.issubset(set(status.get('purls', []))), 'Missing expected Maven coordinates'
           state = status['deploymentState']
+          print('Central state:', state, 'coordinates:', status.get('purls', []), flush=True)
           if state == 'VALIDATED':
+              coordinates = {purl.split('?', 1)[0].split('#', 1)[0] for purl in status.get('purls', [])}
+              assert expected.issubset(coordinates), 'Missing expected Maven coordinates'
               post('/deployment/' + deployment)
           elif state not in ('PUBLISHING', 'PUBLISHED'):
               raise SystemExit('Refusing to publish state ' + state)
 
-          deadline = time.monotonic() + 600
+          deadline = time.monotonic() + 1800
           while state != 'PUBLISHED':
               if time.monotonic() >= deadline:
                   raise SystemExit('Publication is still pending; inspect this deployment before retrying.')
               time.sleep(15)
               status = post('/status?id=' + deployment)
               state = status['deploymentState']
+              print('Central state:', state, flush=True)
               if state not in ('VALIDATED', 'PUBLISHING', 'PUBLISHED'):
                   raise SystemExit('Unexpected publication state ' + state)
+
+          # Verify already-published coordinates from the public POMs. Keep the PURL check before
+          # publication, and never send Central credentials to the public repository.
+          ns = {'m': 'http://maven.apache.org/POM/4.0.0'}
+          for artifact in ('langfuse-otel-java', 'langfuse-otel-core', 'langfuse-otel-spring-boot-starter'):
+              url = ('https://repo.maven.apache.org/maven2/io/github/chomingi/' + artifact + '/' +
+                  version + '/' + artifact + '-' + version + '.pom')
+              with client.open(urllib.request.Request(url), timeout=30) as response:
+                  pom = ET.fromstring(response.read())
+              group = pom.findtext('m:groupId', namespaces=ns) or pom.findtext('m:parent/m:groupId', namespaces=ns)
+              pom_version = pom.findtext('m:version', namespaces=ns) or pom.findtext('m:parent/m:version', namespaces=ns)
+              assert group == 'io.github.chomingi' and pom_version == version, 'Unexpected public POM identity'
+              assert pom.findtext('m:artifactId', namespaces=ns) == artifact, 'Unexpected public artifact'
           with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as summary:
               summary.write('Maven Central deployment `' + deployment + '` is **PUBLISHED**.\n')
               summary.write('Verify public consumer resolution before publishing the GitHub draft.\n')

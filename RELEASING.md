@@ -232,8 +232,9 @@ Alternatively, a maintainer can dispatch **Publish validated Central candidate**
 rebuild artifacts or upload another bundle. Before credentials are exposed it verifies the signed
 tag, main ancestry, successful release run containing that deployment ID, and a successful sustained-load
 run for the exact release commit. It then checks the Central deployment name and Maven coordinates,
-publishes only a validated candidate, and waits for `PUBLISHED`. A retry can resume polling an
-already-publishing/published candidate. Public consumer resolution and GitHub draft publication remain
+publishes only a validated candidate, and waits up to 30 minutes for `PUBLISHED`. A retry can resume polling an
+already-publishing/published candidate. Published coordinates are checked independently through public POMs;
+Central authentication headers are never sent to the public repository. Public consumer resolution and GitHub draft publication remain
 separate final steps.
 
 ```bash

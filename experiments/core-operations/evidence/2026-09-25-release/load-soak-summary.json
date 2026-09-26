@@ -1,0 +1,82 @@
+{
+  "file": "experiments/core-operations/target/operations/load-soak.json",
+  "clockChecksPassed": true,
+  "groups": [
+    {
+      "recording": "body",
+      "receiver": "NORMAL",
+      "concurrency": 32,
+      "samples": 12,
+      "operations": 10800000,
+      "measuredSeconds": 3600.0195664479998,
+      "opsPerSecond": 2999.983694715288,
+      "p99MicrosRange": [
+        15.791,
+        17.663
+      ],
+      "producerBytesPerOp": 2152.0022755555556,
+      "postGcHeapBytesRange": [
+        11780160,
+        12066360
+      ],
+      "threadCountRange": [
+        53,
+        53
+      ],
+      "queueDrops": 0,
+      "failedExportSpans": 0
+    },
+    {
+      "recording": "body",
+      "receiver": "UNAVAILABLE",
+      "concurrency": 32,
+      "samples": 6,
+      "operations": 5400000,
+      "measuredSeconds": 1800.008558947,
+      "opsPerSecond": 2999.9857351561623,
+      "p99MicrosRange": [
+        15.247,
+        16.319
+      ],
+      "producerBytesPerOp": 2152.0484533333333,
+      "postGcHeapBytesRange": [
+        12034248,
+        12062168
+      ],
+      "threadCountRange": [
+        53,
+        53
+      ],
+      "queueDrops": 5273536,
+      "failedExportSpans": 115200
+    },
+    {
+      "recording": "body",
+      "receiver": "SLOW",
+      "concurrency": 32,
+      "samples": 6,
+      "operations": 5400000,
+      "measuredSeconds": 1800.008335015,
+      "opsPerSecond": 2999.986108372659,
+      "p99MicrosRange": [
+        13.095,
+        17.647
+      ],
+      "producerBytesPerOp": 2152.0022755555556,
+      "postGcHeapBytesRange": [
+        12028656,
+        12064240
+      ],
+      "threadCountRange": [
+        53,
+        53
+      ],
+      "queueDrops": 876064,
+      "failedExportSpans": 0
+    }
+  ],
+  "measurementSecondsRequested": 7200,
+  "warmupSecondsRequested": 600,
+  "twoHourProfileCompleted": true,
+  "note": "p99 range is across windows, not a merged percentile. Allocation is producer-thread only."
+}

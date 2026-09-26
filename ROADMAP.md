@@ -40,7 +40,8 @@ release gates in [RELEASING.md](RELEASING.md).
 
 Phase-0 evidence: [CORE-PREFLIGHT.md](CORE-PREFLIGHT.md). API contract: [OBSERVATION-API.md](OBSERVATION-API.md).
 Implementation and operational evidence: [OBSERVATION-VALIDATION.md](OBSERVATION-VALIDATION.md).
-Release publication follows the gated process in [RELEASING.md](RELEASING.md).
+Published artifacts are available from Maven Central. See the [release audit](RELEASE-0.2.2.md).
+Development continues on `0.2.3-SNAPSHOT`, with API compatibility checked against `0.2.2`.
 
 ## Deferred — Spring Boot 4 adapter line
 

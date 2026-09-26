@@ -1,0 +1,166 @@
+name: Publish validated Central candidate
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Release version, for example 0.2.2
+        required: true
+        type: string
+      deployment_id:
+        description: Validated deployment ID from the successful release workflow
+        required: true
+        type: string
+      release_run_id:
+        description: Successful release workflow run that uploaded this candidate
+        required: true
+        type: string
+      confirm_publish:
+        description: Publish this exact validated candidate permanently to Maven Central
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: central-publication-${{ inputs.version }}
+  cancel-in-progress: false
+
+jobs:
+  provenance:
+    name: verify candidate provenance
+    runs-on: ubuntu-latest
+    outputs:
+      sha: ${{ steps.check.outputs.sha }}
+    steps:
+      - name: Require signed tag, successful upload and sustained-load validation
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+          DEPLOYMENT_ID: ${{ inputs.deployment_id }}
+          RELEASE_RUN_ID: ${{ inputs.release_run_id }}
+          CONFIRM_PUBLISH: ${{ inputs.confirm_publish }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$CONFIRM_PUBLISH" == true ]]
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          [[ "$DEPLOYMENT_ID" =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]]
+          [[ "$RELEASE_RUN_ID" =~ ^[0-9]+$ ]]
+
+          gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/v$VERSION" > tag-ref.json
+          jq -e '.object.type == "tag"' tag-ref.json >/dev/null
+          tag_sha="$(jq -r '.object.sha' tag-ref.json)"
+          gh api "repos/$GITHUB_REPOSITORY/git/tags/$tag_sha" > tag.json
+          jq -e '.verification.verified == true and .object.type == "commit"' tag.json >/dev/null
+          release_sha="$(jq -r '.object.sha' tag.json)"
+          gh api "repos/$GITHUB_REPOSITORY/compare/${release_sha}...main" > ancestry.json
+          jq -e '.status == "ahead" or .status == "identical"' ancestry.json >/dev/null
+
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RELEASE_RUN_ID" > upload-run.json
+          jq -e --arg sha "$release_sha" '
+            .head_sha == $sha and .conclusion == "success"
+            and .path == ".github/workflows/release.yml"
+          ' upload-run.json >/dev/null
+          gh run view "$RELEASE_RUN_ID" --repo "$GITHUB_REPOSITORY" --log > upload-run.log
+          grep -Fq "$DEPLOYMENT_ID" upload-run.log
+
+          gh run list --repo "$GITHUB_REPOSITORY" --workflow core-operations.yml \
+            --commit "$release_sha" --status success --json databaseId,headSha > soak-runs.json
+          jq -e --arg sha "$release_sha" 'any(.[]; .headSha == $sha)' soak-runs.json >/dev/null
+          echo "sha=$release_sha" >> "$GITHUB_OUTPUT"
+          echo "Verified v$VERSION at $release_sha, upload run $RELEASE_RUN_ID, deployment $DEPLOYMENT_ID." >> "$GITHUB_STEP_SUMMARY"
+
+  publish:
+    name: publish the existing candidate
+    needs: [provenance]
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    environment:
+      name: central-validation
+      url: https://central.sonatype.com/publishing/deployments
+    steps:
+      - name: Validate coordinates and publish without rebuilding or re-uploading
+        env:
+          VERSION: ${{ inputs.version }}
+          DEPLOYMENT_ID: ${{ inputs.deployment_id }}
+          CENTRAL_USERNAME: ${{ secrets.CENTRAL_USERNAME }}
+          CENTRAL_TOKEN: ${{ secrets.CENTRAL_TOKEN }}
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import base64
+          import json
+          import os
+          import time
+          import urllib.error
+          import urllib.request
+          import xml.etree.ElementTree as ET
+
+          version = os.environ['VERSION']
+          deployment = os.environ['DEPLOYMENT_ID']
+          credentials = os.environ['CENTRAL_USERNAME'] + ':' + os.environ['CENTRAL_TOKEN']
+          authorization = 'Bearer ' + base64.b64encode(credentials.encode()).decode()
+          origin = 'https://central.sonatype.com/api/v1/publisher'
+
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self, req, fp, code, msg, headers, newurl):
+                  return None
+
+          client = urllib.request.build_opener(NoRedirect())
+
+          def post(path):
+              request = urllib.request.Request(origin + path, data=b'', method='POST',
+                  headers={'Authorization': authorization})
+              try:
+                  with client.open(request, timeout=30) as response:
+                      data = response.read()
+                      return json.loads(data) if data else None
+              except urllib.error.HTTPError as error:
+                  raise SystemExit('Central API returned HTTP ' + str(error.code)) from None
+
+          status = post('/status?id=' + deployment)
+          assert status['deploymentId'] == deployment, 'Unexpected deployment ID'
+          assert status['deploymentName'] == 'io.github.chomingi:langfuse-otel-java:' + version, 'Unexpected deployment name'
+          expected = {'pkg:maven/io.github.chomingi/' + artifact + '@' + version for artifact in
+              ('langfuse-otel-java', 'langfuse-otel-core', 'langfuse-otel-spring-boot-starter')}
+          state = status['deploymentState']
+          print('Central state:', state, 'coordinates:', status.get('purls', []), flush=True)
+          if state == 'VALIDATED':
+              coordinates = {purl.split('?', 1)[0].split('#', 1)[0] for purl in status.get('purls', [])}
+              assert expected.issubset(coordinates), 'Missing expected Maven coordinates'
+              post('/deployment/' + deployment)
+          elif state not in ('PUBLISHING', 'PUBLISHED'):
+              raise SystemExit('Refusing to publish state ' + state)
+
+          deadline = time.monotonic() + 1800
+          while state != 'PUBLISHED':
+              if time.monotonic() >= deadline:
+                  raise SystemExit('Publication is still pending; inspect this deployment before retrying.')
+              time.sleep(15)
+              status = post('/status?id=' + deployment)
+              state = status['deploymentState']
+              print('Central state:', state, flush=True)
+              if state not in ('VALIDATED', 'PUBLISHING', 'PUBLISHED'):
+                  raise SystemExit('Unexpected publication state ' + state)
+
+          # Verify already-published coordinates from the public POMs. Keep the PURL check before
+          # publication, and never send Central credentials to the public repository.
+          ns = {'m': 'http://maven.apache.org/POM/4.0.0'}
+          for artifact in ('langfuse-otel-java', 'langfuse-otel-core', 'langfuse-otel-spring-boot-starter'):
+              url = ('https://repo.maven.apache.org/maven2/io/github/chomingi/' + artifact + '/' +
+                  version + '/' + artifact + '-' + version + '.pom')
+              with client.open(urllib.request.Request(url), timeout=30) as response:
+                  pom = ET.fromstring(response.read())
+              group = pom.findtext('m:groupId', namespaces=ns) or pom.findtext('m:parent/m:groupId', namespaces=ns)
+              pom_version = pom.findtext('m:version', namespaces=ns) or pom.findtext('m:parent/m:version', namespaces=ns)
+              assert group == 'io.github.chomingi' and pom_version == version, 'Unexpected public POM identity'
+              assert pom.findtext('m:artifactId', namespaces=ns) == artifact, 'Unexpected public artifact'
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as summary:
+              summary.write('Maven Central deployment `' + deployment + '` is **PUBLISHED**.\n')
+              summary.write('Verify public consumer resolution before publishing the GitHub draft.\n')
+          PY

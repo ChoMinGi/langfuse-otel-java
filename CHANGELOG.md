@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Verify published Central coordinates through public POMs when resuming publication; retain
+  validation-time coordinate checks before publishing and allow up to 30 minutes for synchronization.
+
 ## [0.2.2] - 2026-09-25
 
 ### Added

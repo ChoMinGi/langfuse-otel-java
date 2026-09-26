@@ -226,6 +226,26 @@ The `central-validation` environment is entered only after every gate succeeds. 
 
 `VALIDATED` is not a public release. Do not publish the GitHub draft while Central still reports `VALIDATED` or `PUBLISHING`.
 
+Alternatively, a maintainer can dispatch **Publish validated Central candidate** from `main` with
+`version`, `deployment_id`, `release_run_id` and `confirm_publish=true`. This uses the existing
+`central-validation` environment approval and Central secrets; it does not require a browser login,
+rebuild artifacts or upload another bundle. Before credentials are exposed it verifies the signed
+tag, main ancestry, successful release run containing that deployment ID, and a successful sustained-load
+run for the exact release commit. It then checks the Central deployment name and Maven coordinates,
+publishes only a validated candidate, and waits up to 30 minutes for `PUBLISHED`. A retry can resume polling an
+already-publishing/published candidate. Published coordinates are checked independently through public POMs;
+Central authentication headers are never sent to the public repository. Public consumer resolution and GitHub draft publication remain
+separate final steps.
+
+```bash
+gh workflow run publish-central.yml --ref main \
+  -f version=0.2.2 -f deployment_id="$central_deployment_id" \
+  -f release_run_id="$release_run_id" -F confirm_publish=true
+```
+
+The workflow uses the official [Central Publisher API](https://central.sonatype.org/publish/publish-portal-api/#publish-or-drop-the-deployment).
+
+
 ## Verify public resolution
 
 Avoid a warm local Maven cache. Resolve both public artifacts into a new temporary repository, then

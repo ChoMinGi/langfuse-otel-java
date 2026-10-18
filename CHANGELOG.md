@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.2.3] - 2026-10-18
+
 ### Fixed
 
 - Update Jackson to 2.21.8 in the library, examples, consumers and operational fixtures.
@@ -11,6 +13,13 @@
 - Print blocking dependency findings in quality CI and reject malformed scanner output.
 - Verify published Central coordinates through public POMs when resuming publication; retain
   validation-time coordinate checks before publishing and allow up to 30 minutes for synchronization.
+
+### Security scope
+
+- The published library dependency graph has no HIGH/CRITICAL findings in the 2026-10-18 scan.
+  Boot 3 web examples and the WebFlux compatibility-test dependency still use affected Spring 6.2.19
+  modules. See [SECURITY.md](SECURITY.md#spring-62-web-framework-limitations) for applicability and
+  supported upgrade paths. No suppression rules or severity downgrades were introduced.
 
 ## [0.2.2] - 2026-09-25
 

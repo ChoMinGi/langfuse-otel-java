@@ -23,7 +23,7 @@ or own a dedicated Langfuse exporter.
 ## Quick Start
 
 > **Release status:** `0.2.x` is the production-preview line for Spring Boot 3, Spring AI 1, and
-> LangChain4j. The dependency examples below use `0.2.2`.
+> LangChain4j. The dependency examples below use `0.2.3`.
 
 See the [observation API guide](OBSERVATION-API.md) and [validation evidence](OBSERVATION-VALIDATION.md).
 
@@ -33,7 +33,7 @@ See the [observation API guide](OBSERVATION-API.md) and [validation evidence](OB
 <dependency>
     <groupId>io.github.chomingi</groupId>
     <artifactId>langfuse-otel-spring-boot-starter</artifactId>
-    <version>0.2.2</version>
+    <version>0.2.3</version>
 </dependency>
 ```
 
@@ -41,7 +41,7 @@ Spring AI and LangChain4j are optional integrations. The starter does not choose
 or provider for the application, so keep the framework and provider dependency that supplies your
 model bean. The example projects use OpenAI, but no provider client is pulled in transitively.
 
-The application also owns its web framework and server dependencies. The upcoming 0.2.3 starter
+The application also owns its web framework and server dependencies. The 0.2.3 starter
 uses optional Spring Web, Servlet and Reactor APIs; MVC/WebFlux server modules are not published
 dependencies. This does not patch frameworks already selected by an application. Boot 3 web
 applications should review the [Spring 6.2 security limitations](SECURITY.md#spring-62-web-framework-limitations).
@@ -73,7 +73,7 @@ resolved.
 <dependency>
     <groupId>io.github.chomingi</groupId>
     <artifactId>langfuse-otel-core</artifactId>
-    <version>0.2.2</version>
+    <version>0.2.3</version>
 </dependency>
 ```
 

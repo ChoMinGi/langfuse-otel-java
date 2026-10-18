@@ -89,9 +89,9 @@ Until the Boot BOM includes these patches, Boot-parent consumers can set `netty.
 `tomcat.version` to these versions, as the examples do. BOM-import consumers must explicitly manage
 the Netty BOM and Tomcat embed artifacts. Verify the application dependency tree and security scan.
 
-### October 2026 dependency hardening (unreleased)
+### October 2026 dependency hardening (0.2.3)
 
-The 0.2.3 development line manages Jackson with BOM `2.21.8`. Independent consumers and examples
+Version 0.2.3 manages Jackson with BOM `2.21.8`. Independent consumers and examples
 also select that BOM because an application's dependency management takes precedence over a
 library's managed versions. The optional `langfuse-java` prompt client needs the same override;
 see `consumer-tests/core-prompt-consumer/pom.xml` for a BOM-import example.

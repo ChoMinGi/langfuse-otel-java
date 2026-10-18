@@ -41,6 +41,11 @@ Spring AI and LangChain4j are optional integrations. The starter does not choose
 or provider for the application, so keep the framework and provider dependency that supplies your
 model bean. The example projects use OpenAI, but no provider client is pulled in transitively.
 
+The application also owns its web framework and server dependencies. The upcoming 0.2.3 starter
+uses optional Spring Web, Servlet and Reactor APIs; MVC/WebFlux server modules are not published
+dependencies. This does not patch frameworks already selected by an application. Boot 3 web
+applications should review the [Spring 6.2 security limitations](SECURITY.md#spring-62-web-framework-limitations).
+
 ```yaml
 # application.yml
 langfuse:

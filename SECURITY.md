@@ -89,6 +89,49 @@ Until the Boot BOM includes these patches, Boot-parent consumers can set `netty.
 `tomcat.version` to these versions, as the examples do. BOM-import consumers must explicitly manage
 the Netty BOM and Tomcat embed artifacts. Verify the application dependency tree and security scan.
 
+### October 2026 dependency hardening (unreleased)
+
+The 0.2.3 development line manages Jackson with BOM `2.21.8`. Independent consumers and examples
+also select that BOM because an application's dependency management takes precedence over a
+library's managed versions. The optional `langfuse-java` prompt client needs the same override;
+see `consumer-tests/core-prompt-consumer/pom.xml` for a BOM-import example.
+
+The starter's optional web dependencies are limited to `spring-web`, `jakarta.servlet-api` and
+`reactor-core`, which provide the APIs its filters use. It no longer declares the MVC or WebFlux
+server starters. WebFlux remains a **test-scope** dependency for Boot 3 reactive auto-configuration
+compatibility checks. Test dependencies are not inherited by consumers. This reduces the
+library's published dependency graph; it does not fix an application's existing web dependencies.
+
+Local verification on 2026-10-18 used Trivy `0.72.0` and the database updated at
+`2026-10-18T00:43:37Z`. The aggregate release SBOM, including optional dependencies and excluding
+test scope, changed from **5 HIGH / 4 CRITICAL findings to 0 / 0**. One MEDIUM Log4j API finding
+remains. `./mvnw -B -ntp -Pquality,release -Dgpg.skip=true clean verify` passed with 362 tests
+reported (2 skipped), API compatibility checks, coverage gates, SpotBugs and license checks.
+Re-scan at release time; this is dated evidence for the library graph, not a whole-repository or
+downstream application security certification.
+
+### Spring 6.2 web framework limitations
+
+As checked on 2026-10-18, Spring lists these fixes in **7.0.9 (OSS)** or **6.2.20 (enterprise only)**:
+
+| Advisory | Affected behavior |
+|---|---|
+| [CVE-2026-47884](https://spring.io/security/cve-2026-47884/) | MVC `XsltView` with an implicit view name and a wildcard mapping |
+| [CVE-2026-47890](https://spring.io/security/cve-2026-47890/) | MVC/WebFlux SSE rendering of attacker-controlled view fragments |
+| [CVE-2026-47892](https://spring.io/security/cve-2026-47892/) | WebFlux functional endpoints deployed with `DispatcherServlet` |
+
+The scanner labels these findings CRITICAL; Spring labels them MEDIUM, LOW and MEDIUM,
+respectively. Keep the scanner's blocking threshold unchanged and assess the application-specific
+preconditions rather than treating the severity disagreement as a fix.
+
+The Boot 3 web examples and the starter's WebFlux test dependency still resolve affected Spring
+6.2.19 modules. They are not covered by a clean **published-library** SBOM result. The library's
+filters do not implement the affected view/rendering/router features. An application that adds
+MVC/WebFlux must independently review its configuration and use supported patched framework
+versions. A fully patched public web stack requires a coordinated Boot 4 migration; overriding
+only the Framework version under Boot 3 is not a supported migration. No vulnerability exclusions
+or severity downgrades are used by this project.
+
 When `0.3.0` moves the starter to Spring Boot 4 and Spring AI 2, `0.2.x` will remain in maintenance
 for six months. That window covers critical vulnerabilities and regressions owned by this library;
 it does not extend the support lifecycle of Spring Boot 3 or other upstream dependencies.

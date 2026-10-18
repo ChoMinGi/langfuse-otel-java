@@ -79,6 +79,14 @@ jobs:
 
       - name: Reject high and critical dependency vulnerabilities
         run: |
+          # Fail closed if the scanner did not produce a vulnerability result array.
+          jq -e '.Results | type == "array"' target/trivy-vulnerabilities.json > /dev/null
+          jq -r '
+            .Results[]?.Vulnerabilities[]?
+            | select(.Severity == "HIGH" or .Severity == "CRITICAL")
+            | [.Severity, .VulnerabilityID, .PkgName, .InstalledVersion, (.FixedVersion // "no fix listed")]
+            | @tsv
+          ' target/trivy-vulnerabilities.json
           jq -e '
             [
               .Results[]?.Vulnerabilities[]?

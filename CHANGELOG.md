@@ -4,6 +4,11 @@
 
 ### Fixed
 
+- Update Jackson to 2.21.8 in the library, examples, consumers and operational fixtures.
+- Replace optional web server starters with the `spring-web`, Servlet and Reactor APIs used by
+  the filters. The library no longer resolves unused Spring MVC/WebFlux server modules;
+  applications still own and must patch their web framework dependencies.
+- Print blocking dependency findings in quality CI and reject malformed scanner output.
 - Verify published Central coordinates through public POMs when resuming publication; retain
   validation-time coordinate checks before publishing and allow up to 30 minutes for synchronization.
 

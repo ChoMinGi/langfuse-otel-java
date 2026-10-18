@@ -1,5 +1,10 @@
 # Examples
 
+These Boot 3 web examples retain Spring Framework 6.2.19. Known web-framework findings require
+application-specific review and a supported patched framework; see the
+[Spring 6.2 security limitations](../SECURITY.md#spring-62-web-framework-limitations).
+A clean library SBOM does not certify these standalone web applications as vulnerability-free.
+
 These are standalone consumer projects rather than modules in the main Maven build. Install the
 current repository artifacts from the repository root, then provide test credentials:
 

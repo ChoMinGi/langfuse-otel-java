@@ -18,6 +18,10 @@ The core module provides explicit observations for synchronous and asynchronous 
 supported Spring AI and LangChain4j calls and can either reuse the application's OpenTelemetry SDK
 or own a dedicated Langfuse exporter.
 
+Use it to see how a Java AI request moves through a workflow, tool calls, and model calls in
+Langfuse. The explicit API handles parent context, Langfuse attributes, content-capture policy,
+and observation completion. You decide which inputs and outputs to collect.
+
 ---
 
 ## Quick Start
@@ -26,6 +30,44 @@ or own a dedicated Langfuse exporter.
 > LangChain4j. The dependency examples below use `0.2.3`.
 
 See the [observation API guide](OBSERVATION-API.md) and [validation evidence](OBSERVATION-VALIDATION.md).
+
+### Your first trace (Java 11+, no model API key)
+
+Start with a Langfuse project and its public/secret API keys from **Settings → API Keys**.
+This example downloads **0.2.3 from Maven Central** and sends three observations with fixed,
+synthetic content. No Spring setup, model provider, or local library build is needed.
+
+```bash
+git clone https://github.com/ChoMinGi/langfuse-otel-java.git
+cd langfuse-otel-java
+
+export LANGFUSE_HOST="https://cloud.langfuse.com" # EU; use your project's region
+export LANGFUSE_PUBLIC_KEY="pk-lf-..."
+export LANGFUSE_SECRET_KEY="sk-lf-..."
+
+./mvnw -B -ntp -f examples/first-trace/pom.xml compile exec:java
+```
+
+For US use `https://us.cloud.langfuse.com`; for Japan use `https://jp.cloud.langfuse.com`.
+Self-hosted projects need an HTTPS origin and Observations API v2. See the
+[example guide](examples/first-trace/README.md) for Windows commands and troubleshooting.
+
+The command waits for ingestion, verifies the hierarchy and content through Langfuse's API,
+and prints a link to open the trace in your project:
+
+```text
+Verified 3 observations: CHAIN -> TOOL + GENERATION
+Verified parent links, synthetic input/output, and shared metadata.
+Open: https://<your-host>/project/<your-project>/traces/<trace-id>
+```
+
+Read the [complete tracing code](examples/first-trace/src/main/java/com/example/FirstTrace.java),
+then replace the fixture steps with your application calls. The demo explicitly enables capture
+for its fixed strings; library defaults remain metadata-only. It reports no invented token usage
+or model cost.
+
+**Tried it?** [Report your first-install result](https://github.com/ChoMinGi/langfuse-otel-java/issues/new?template=first_trace_feedback.yml)
+— success or failure, in English or Korean. This helps us find the next onboarding problem to fix.
 
 ### Spring Boot (Dedicated Exporter Quick Start)
 
@@ -77,21 +119,9 @@ resolved.
 </dependency>
 ```
 
-```java
-try (LangfuseOtel langfuse = LangfuseOtel.builder()
-        .publicKey("pk-lf-...").secretKey("sk-lf-...")
-        .host("https://cloud.langfuse.com")
-        .serviceName("my-app").build()) {
-
-    langfuse.trace("my-flow", trace -> {
-        trace.userId("user-123").sessionId("session-456");
-        trace.generation("llm-call", gen -> {
-            gen.model("gpt-4o").input(prompt);
-            gen.output(callLLM(prompt)).inputTokens(52).outputTokens(85);
-        });
-    });
-}
-```
+The [first-trace example](examples/first-trace/) is a complete standalone application using
+this dependency. For synchronous and asynchronous application calls, follow the
+[observation API guide](OBSERVATION-API.md).
 
 ### Existing OpenTelemetry SDK (Production Recommended)
 

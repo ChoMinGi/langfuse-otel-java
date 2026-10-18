@@ -69,6 +69,9 @@ jobs:
       - name: Core Unit Test
         run: ./mvnw -B -ntp test -pl langfuse-otel-core -am
 
+      - name: Verify the published first-trace example (no credentials)
+        run: ./mvnw -B -ntp -f examples/first-trace/pom.xml verify
+
   starter:
     runs-on: ubuntu-latest
     strategy:

@@ -8,6 +8,11 @@ on:
         required: true
         type: string
   workflow_dispatch:
+    inputs:
+      capture_screenshot:
+        description: Capture the synthetic first-trace screen for documentation
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -32,7 +37,9 @@ jobs:
       - name: Install the exact core artifact
         run: ./mvnw -B -ntp -pl langfuse-otel-core -am -DskipTests -Djacoco.skip=true install
 
-      - name: Verify explicit observations and raw helpers in Langfuse 4.41.0
+      - name: Verify core observations and the public first-trace quick start
+        env:
+          FIRST_TRACE_CAPTURE_SCREENSHOT: ${{ github.event_name == 'workflow_dispatch' && inputs.capture_screenshot || 'false' }}
         run: bash experiments/core-preflight/docker/run.sh
 
       - name: Retain exact-commit read-back evidence
@@ -43,4 +50,7 @@ jobs:
           path: |
             experiments/core-preflight/target/live-*.json
             experiments/core-preflight/target/surefire-reports/
+            examples/first-trace/target/first-trace.json
+            examples/first-trace/target/first-trace.png
+            examples/first-trace/target/surefire-reports/
           retention-days: 30

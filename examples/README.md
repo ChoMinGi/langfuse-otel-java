@@ -1,5 +1,13 @@
 # Examples
 
+## Start here: first trace
+
+[first-trace](first-trace/) uses the published core artifact from Maven Central, Java 11+,
+and fixed synthetic content. It needs only a Langfuse project, checks ingestion through
+Observations API v2, and prints a link to the trace. No model API key or reactor install is needed.
+
+## Spring Boot integrations
+
 These Boot 3 web examples retain Spring Framework 6.2.19. Known web-framework findings require
 application-specific review and a supported patched framework; see the
 [Spring 6.2 security limitations](../SECURITY.md#spring-62-web-framework-limitations).

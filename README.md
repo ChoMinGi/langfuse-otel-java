@@ -37,6 +37,11 @@ Start with a Langfuse project and its public/secret API keys from **Settings →
 This example downloads **0.2.3 from Maven Central** and sends three observations with fixed,
 synthetic content. No Spring setup, model provider, or local library build is needed.
 
+![Actual Langfuse trace showing the Java workflow, tool and generation children, and synthetic input/output](docs/images/first-trace.png)
+
+*Actual Langfuse 4.41.0 screen from the example below; fixed synthetic data.
+[Capture and read-back evidence](docs/images/README.md).*
+
 ```bash
 git clone https://github.com/ChoMinGi/langfuse-otel-java.git
 cd langfuse-otel-java

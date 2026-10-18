@@ -80,7 +80,9 @@ with `lookup-docs` and `answer-question` as children. The demo labels every obse
 You do not need a read-back request for every production request.
 
 - Replace the tool and generation fixture bodies with your application calls. Record provider
-  model/usage values only when the provider supplies them.
+  model/usage values only when the provider supplies them. Inside each observation's block, catch
+  application failures, call that observation's `fail(failure)`, and rethrow; `close()` alone cannot
+  infer that a call failed. The observation guide shows the full error-handling pattern.
 - The demo explicitly enables `ContentCapturePolicy.captureAll()` for fixed public strings.
   Choose your own policy before recording application input or output. The default is metadata-only.
 - Each observation closes independently; `.parent(root.context())` links children without keeping

@@ -42,7 +42,9 @@ Phase-0 evidence: [CORE-PREFLIGHT.md](CORE-PREFLIGHT.md). API contract: [OBSERVA
 Implementation and operational evidence: [OBSERVATION-VALIDATION.md](OBSERVATION-VALIDATION.md).
 Published artifacts are available from Maven Central. See the [release audit](RELEASE-0.2.2.md).
 The `0.2.3` patch updates Jackson and narrows the starter's optional web dependencies,
-with API compatibility checked against `0.2.2`. The remaining Boot 3 web-framework
+with API compatibility checked against `0.2.2`; see the [0.2.3 release audit](RELEASE-0.2.3.md).
+Development now targets `0.2.4-SNAPSHOT` with API compatibility checked against `0.2.3`.
+The remaining Boot 3 web-framework
 limitations are documented in [SECURITY.md](SECURITY.md#spring-62-web-framework-limitations).
 
 ## Deferred — Spring Boot 4 adapter line

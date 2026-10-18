@@ -1,0 +1,41 @@
+name: First trace feedback
+description: Tell us where your first installation worked or got stuck. English or Korean is welcome.
+title: "[First trace]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Tried the [first-trace example](https://github.com/ChoMinGi/langfuse-otel-java/tree/main/examples/first-trace)?
+        Success reports are useful too. This is a public issue: never include API keys, private prompts, or customer data.
+        한국어로 작성하셔도 됩니다. 성공 여부와 막힌 단계만 알려주셔도 도움이 됩니다.
+  - type: dropdown
+    id: outcome
+    attributes:
+      label: How far did you get? / 어디까지 진행했나요?
+      options:
+        - Verified 3 observations and opened the trace in Langfuse
+        - Read-back succeeded, but I could not find/open the trace in the UI
+        - Application ran, but ingestion was not verified
+        - Dependency download or compilation failed
+        - Could not finish configuration
+        - Used a different integration path
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment / 실행 환경
+      description: Java, OS, library version (or commit), and Cloud region or self-hosted Langfuse version. No project keys or private URLs.
+      placeholder: "Java 17, macOS, library 0.2.3, Langfuse Cloud EU"
+    validations:
+      required: true
+  - type: textarea
+    id: experience
+    attributes:
+      label: What helped or blocked you? / 도움이 된 점 또는 막힌 단계
+      description: Include the command/step and a short redacted error if it failed. Optional for successful installs.
+  - type: textarea
+    id: next-use
+    attributes:
+      label: What would you connect next? / 다음에 연결하고 싶은 것
+      placeholder: "Plain Java, Spring AI, LangChain4j, an existing OTel SDK, async calls..."

@@ -215,3 +215,15 @@ export PREFLIGHT_COMMIT PREFLIGHT_RELEASE
 ./mvnw -B -ntp -f experiments/core-preflight/pom.xml \
     -Dtest=LiveV4Test \
     "-DargLine=-Djavax.net.ssl.trustStore=${truststore} -Djavax.net.ssl.trustStorePassword=changeit" test
+
+# Exercise the README command against the public release, with no locally installed reactor artifacts.
+# Its POM intentionally stays on the published version, independently of release-candidate testing above.
+MAVEN_OPTS="${MAVEN_OPTS:-} -Djavax.net.ssl.trustStore=${truststore} -Djavax.net.ssl.trustStorePassword=changeit" \
+    ./mvnw -B -ntp -Dmaven.repo.local="${work_dir}/first-trace-m2" \
+    -f examples/first-trace/pom.xml verify exec:java
+
+# Documentation screenshots are opt-in and use only this disposable project's synthetic data.
+if [[ "${FIRST_TRACE_CAPTURE_SCREENSHOT:-false}" == "true" ]]; then
+    npm ci --prefix examples/first-trace/screenshot --ignore-scripts --no-audit --no-fund
+    node examples/first-trace/screenshot/capture.mjs
+fi

@@ -1,39 +1,35 @@
 # Community introduction and first-install feedback
 
-Prepared 2026-10-18. These are drafts, not submitted messages. No external-user feedback has
-been collected yet. The public feedback entry point is the repository's
+Prepared 2026-10-18; submission status updated 2026-10-21 (KST).
+The community listing request has been submitted as
+[langfuse/langfuse-examples PR #40](https://github.com/langfuse/langfuse-examples/pull/40).
+It is open for maintainer review; submission does not mean the listing has been accepted.
+The `license/cla` check is pending: CLAassistant requested a
+[Contributor License Agreement signature](https://cla-assistant.io/langfuse/langfuse-examples?pullRequest=40).
+The contributor must review and sign separately; check the external PR for the latest status.
+The English and Korean feedback invitations below remain unpublished drafts.
+The public feedback entry point is the repository's
 [first-trace issue form](https://github.com/ChoMinGi/langfuse-otel-java/issues/new?template=first_trace_feedback.yml).
 
-## Proposed community listing
+## Submitted community listing
 
 Target: the **Community-maintained SDKs** table in
 [langfuse/langfuse-examples](https://github.com/langfuse/langfuse-examples#community-maintained-sdks),
-checked on 2026-10-18. The table already includes a JVM SDK. Propose this as another integration
-choice with an OpenTelemetry core; do not describe it as Langfuse's official Java SDK or the first JVM option.
+rechecked on 2026-10-21. The PR adds one Java row beside the existing JVM SDK entry and identifies
+the library as MIT-licensed and production preview. It links the public 0.2.3 artifact, first-trace
+example, actual Langfuse screenshot/read-back, passing CI, and installation-feedback form.
+The source change is in commit `09d829c1e4aa40deef5fc45ba264d4038ff483cf`; only README.md changes.
 
-Proposed PR title: `docs: add langfuse-otel-java to community SDKs`
+PR title: `docs: add langfuse-otel-java to community SDKs`
 
-Proposed table row:
+Submitted table row:
 
 ```markdown
-| Java | Community-maintained OpenTelemetry integration with a standalone Java core and Spring Boot, Spring AI, and LangChain4j integrations (MIT, production preview): [ChoMinGi/langfuse-otel-java](https://github.com/ChoMinGi/langfuse-otel-java) | [@ChoMinGi](https://github.com/ChoMinGi) |
+| Java     | OpenTelemetry-based Langfuse tracing with a standalone core and Spring Boot, Spring AI, and LangChain4j integrations (MIT, production preview): [ChoMinGi/langfuse-otel-java](https://github.com/ChoMinGi/langfuse-otel-java) | [@ChoMinGi](https://github.com/ChoMinGi) |
 ```
 
-Proposed PR body:
-
-> Adds langfuse-otel-java as a community-maintained Java integration. I maintain this project.
-> It provides explicit observations, parent context, content-capture policies, and owned/external
-> OpenTelemetry setup, with optional Spring Boot, Spring AI, and LangChain4j integrations.
->
-> The project is MIT-licensed and marked production preview. Version 0.2.3 is available on
-> [Maven Central](https://central.sonatype.com/artifact/io.github.chomingi/langfuse-otel-core/0.2.3).
-> Its [runnable first-trace example](https://github.com/ChoMinGi/langfuse-otel-java/tree/main/examples/first-trace)
-> uses synthetic content without a model API key and checks ingestion through Observations API v2.
-> [CI](https://github.com/ChoMinGi/langfuse-otel-java/actions/workflows/ci.yml) includes a pinned
-> Langfuse 4.41.0 read-back check. The README documents supported versions and limitations.
->
-> This is an additional OTel-based option alongside the existing JVM entry, not a request for
-> official support. Please let me know if another section is more appropriate.
+The [submitted PR body](https://github.com/langfuse/langfuse-examples/pull/40) contains the full
+introduction and verification links. No separate discussion, issue, or promotional comment was posted.
 
 ## Feedback invitation — English
 
@@ -70,4 +66,5 @@ Java 11 이상과 Langfuse 프로젝트가 있다면
 For each voluntary report, reproduce the reported failure with the disclosed environment and
 link a fix or documentation change back to that issue. Ask for redacted details only when needed.
 Count successful installations separately from intended or ongoing use: trying the demo does not
-establish production adoption. Keep outreach drafts here until a destination and submission are authorized.
+establish production adoption. Keep the remaining feedback invitation drafts here until a destination
+is selected; track any listing review in the submitted PR.

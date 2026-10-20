@@ -1,8 +1,7 @@
 # See your first Java trace in Langfuse
 
-This standalone example uses **langfuse-otel-core 0.2.3 from Maven Central**. It sends a fixed
-question and answer as a synthetic workflow, then reads the observations back from Langfuse.
-It makes no model calls and needs no provider API key. Langfuse receives three observations per run.
+Send a fixed question and answer to Langfuse using **langfuse-otel-core 0.2.3 from Maven Central**.
+The example makes no model calls. Each run creates three observations:
 
 ```text
 java-first-trace       CHAIN
@@ -14,7 +13,7 @@ java-first-trace       CHAIN
 
 You need a JDK **11 or newer**, Git, internet access to Maven Central, and a Langfuse project
 with **Observations API v2**. Langfuse Cloud supports this; the reproducible self-hosted check
-uses Langfuse **4.41.0**. Maven is downloaded by the wrapper; you do not need to install the library locally.
+uses Langfuse **4.41.0**. The wrapper downloads Maven and the published library.
 
 1. Create or open a Langfuse project. In **Settings → API Keys**, create a project key pair.
 2. Clone this repository and enter its root directory:
@@ -54,9 +53,9 @@ Choose the host where you created the project:
 The [official OTel integration guide](https://langfuse.com/integrations/native/opentelemetry)
 lists endpoints. The library adds the OTLP/HTTP path and v4 ingestion header.
 
-## Know when it worked
+## Check the result
 
-After dependency downloads, the application prints a trace ID and polls for about 90 seconds.
+After dependency downloads, the application prints a trace ID and polls for up to about 90 seconds.
 It exits successfully only after checking all three observations, their parent links, shared
 metadata, fixture model label, and input/output content. A successful `flush()` alone is not enough.
 
@@ -71,13 +70,13 @@ Read-back evidence: .../examples/first-trace/target/first-trace.json
 
 Open the printed URL while signed into the same Langfuse project. You should see `java-first-trace`
 with `lookup-docs` and `answer-question` as children. The demo labels every observation
-`synthetic-no-model-call`; it does not fabricate tokens, cost, or first-token timing.
+`synthetic-no-model-call`. Token counts, cost, and first-token timing are left empty.
 
 ## Use it in your application
 
 [FirstTrace.java](src/main/java/com/example/FirstTrace.java) contains the tracing example;
-[ReadBack.java](src/main/java/com/example/ReadBack.java) is only the demonstration's ingestion check.
-You do not need a read-back request for every production request.
+[ReadBack.java](src/main/java/com/example/ReadBack.java) checks that the demo reached Langfuse.
+Keep that check out of your application's request path.
 
 - Replace the tool and generation fixture bodies with your application calls. Record provider
   model/usage values only when the provider supplies them. Inside each observation's block, catch
@@ -90,11 +89,11 @@ You do not need a read-back request for every production request.
   [the observation guide](../../OBSERVATION-API.md).
 - Keep one `LangfuseOtel` instance for the application's lifetime. This short-lived CLI flushes
   and closes its owned SDK at the end. If your application already owns OTel, follow the
-  [external SDK setup](../../README.md#existing-opentelemetry-sdk-production-recommended).
+  [external SDK setup](../../docs/spring-boot.md#choose-the-opentelemetry-sdk).
 - When adding a manual generation around a model call, disable automatic model instrumentation
   for that call to avoid double-counting. See [migration guidance](../../MIGRATION-0.2.md).
 
-## If it gets stuck
+## Troubleshooting
 
 | Symptom | Next check |
 | --- | --- |
@@ -103,21 +102,21 @@ You do not need a read-back request for every production request.
 | Dependency resolution failed | Check network/proxy access to Maven Central. Retry the command with `-U` if a failed download was cached. |
 | Read-back HTTP 401/403 | Use project public/secret keys, and the matching Cloud region or self-hosted origin. |
 | Read-back HTTP 404 or redirect | Remove `/api` from the host and confirm the server exposes Observations API v2. |
-| Certificate or HTTP error | Use a trusted HTTPS endpoint. Direct plaintext Docker export has a known [JDK sender issue](https://github.com/ChoMinGi/langfuse-otel-java/issues/9); use a TLS proxy. |
+| Certificate or HTTP error | This example accepts HTTPS only. Use a trusted certificate; the [local Docker setup](../../docs/spring-boot.md#local-docker) uses a TLS proxy. |
 | Ingestion timeout / 0–2 observations | Search the printed trace ID in your project; inspect exporter errors and receiver/worker health. Do not treat the flush as proof of ingestion. |
 | Verification succeeds but the UI cannot open | Sign into the same project. Search its traces for the printed trace ID if your UI version uses a different URL. |
 
-Still blocked, or did it work? [Share your installation result](https://github.com/ChoMinGi/langfuse-otel-java/issues/new?template=first_trace_feedback.yml).
-English and Korean are welcome. The form asks for environment, outcome, and the confusing step;
-never paste API keys, private prompts, or customer data into an issue.
+[Let us know how it went](https://github.com/ChoMinGi/langfuse-otel-java/issues/new?template=first_trace_feedback.yml),
+in English or Korean. Include your Java/OS versions and any step that was confusing.
+Remove API keys, private prompts, and customer data before posting.
 
 ## Maintainer verification
 
 CI compiles and tests this published-artifact consumer on Java 11, 17, and 21. The
 [observation read-back workflow](../../.github/workflows/observation-e2e.yml) runs the same example
 against the digest-pinned, disposable Langfuse 4.41.0 stack, with a fresh Maven repository.
-The public version in this POM is intentional: update it after publication, independently of the
-reactor's development version. Ordinary installation requires neither Docker nor Node.
+Keep this example's POM on a published version, independently of the library's development version.
+Docker and Node are needed only for maintainer checks and screenshot capture.
 
 To regenerate the documentation screenshot, manually run **Observation v4 read-back** with
 `capture_screenshot=true`. It installs the locked browser helper, signs into only the disposable

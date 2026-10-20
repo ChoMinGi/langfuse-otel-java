@@ -1,46 +1,37 @@
-<div align="center">
-
 # langfuse-otel-java
 
 OpenTelemetry-based Langfuse tracing for Java, Spring AI, and LangChain4j.
 
-[![CI](https://github.com/ChoMinGi/langfuse-otel-java/actions/workflows/ci.yml/badge.svg)](https://github.com/ChoMinGi/langfuse-otel-java/actions)
+[![CI](https://github.com/ChoMinGi/langfuse-otel-java/actions/workflows/ci.yml/badge.svg)](https://github.com/ChoMinGi/langfuse-otel-java/actions/workflows/ci.yml)
 [![Java Core 11%2B / Starter 17%2B](https://img.shields.io/badge/Java-core%2011%2B%20%7C%20starter%2017%2B-blue)](https://openjdk.org/)
-[![Spring Boot 3.5.16 tested](https://img.shields.io/badge/Spring%20Boot-3.5.16%20tested-green)](https://spring.io/projects/spring-boot)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![OpenTelemetry](https://img.shields.io/badge/OpenTelemetry-enabled-blueviolet)](https://opentelemetry.io/)
+[![Maven Central](https://img.shields.io/maven-central/v/io.github.chomingi/langfuse-otel-core)](https://central.sonatype.com/artifact/io.github.chomingi/langfuse-otel-core)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-[Quick Start](#quick-start) · [What gets traced](#what-gets-traced) · [Features](#features) · [Compatibility](#compatibility) · [Migration](MIGRATION-0.2.md) · [Roadmap](ROADMAP.md)
+Record a Java AI workflow as a trace in Langfuse, with tool and model calls as child observations.
+The core handles Langfuse attributes, parent context, and observation completion. The Spring Boot
+starter adds tracing to supported model beans.
 
-</div>
+Use the **core** when you call a provider directly or manage your own async work. Use the
+**starter** for Spring AI or LangChain4j applications. Both can share an existing OpenTelemetry SDK.
+Input and output capture is off by default in the observation API and automatic instrumentation.
 
-The core module provides explicit observations for synchronous and asynchronous work, plus fluent tracing helpers. The Spring Boot starter instruments
-supported Spring AI and LangChain4j calls and can either reuse the application's OpenTelemetry SDK
-or own a dedicated Langfuse exporter.
+**Current release: 0.2.3.** The 0.2.x line is production preview, with Spring Boot 3 and Spring AI 1
+support. Check [compatibility](#compatibility) before adding the starter.
 
-Use it to see how a Java AI request moves through a workflow, tool calls, and model calls in
-Langfuse. The explicit API handles parent context, Langfuse attributes, content-capture policy,
-and observation completion. You decide which inputs and outputs to collect.
+[Quick start](#quick-start) · [Spring Boot guide](docs/spring-boot.md) · [Observation API](OBSERVATION-API.md) · [Migration](MIGRATION-0.2.md)
 
----
-
-## Quick Start
-
-> **Release status:** `0.2.x` is the production-preview line for Spring Boot 3, Spring AI 1, and
-> LangChain4j. The dependency examples below use `0.2.3`.
-
-See the [observation API guide](OBSERVATION-API.md) and [validation evidence](OBSERVATION-VALIDATION.md).
+## Quick start
 
 ### Your first trace (Java 11+, no model API key)
 
-Start with a Langfuse project and its public/secret API keys from **Settings → API Keys**.
-This example downloads **0.2.3 from Maven Central** and sends three observations with fixed,
-synthetic content. No Spring setup, model provider, or local library build is needed.
+You need Java 11+ and a Langfuse project. Get its public and secret keys from **Settings → API Keys**.
+This example downloads the published library from Maven Central and sends a fixed question and
+answer. It makes no model calls.
 
-![Actual Langfuse trace showing the Java workflow, tool and generation children, and synthetic input/output](docs/images/first-trace.png)
+![Java workflow with tool and generation children in Langfuse](docs/images/first-trace.png)
 
-*Actual Langfuse 4.41.0 screen from the example below; fixed synthetic data.
-[Capture and read-back evidence](docs/images/README.md).*
+*The example running against Langfuse 4.41.0.
+[Screenshot and recorded observations](docs/images/README.md).*
 
 ```bash
 git clone https://github.com/ChoMinGi/langfuse-otel-java.git
@@ -53,12 +44,11 @@ export LANGFUSE_SECRET_KEY="sk-lf-..."
 ./mvnw -B -ntp -f examples/first-trace/pom.xml compile exec:java
 ```
 
-For US use `https://us.cloud.langfuse.com`; for Japan use `https://jp.cloud.langfuse.com`.
-Self-hosted projects need an HTTPS origin and Observations API v2. See the
-[example guide](examples/first-trace/README.md) for Windows commands and troubleshooting.
+For US projects, use `https://us.cloud.langfuse.com`; for Japan, `https://jp.cloud.langfuse.com`.
+Self-hosted projects need HTTPS and Observations API v2. See the
+[example guide](examples/first-trace/) for Windows commands and troubleshooting.
 
-The command waits for ingestion, verifies the hierarchy and content through Langfuse's API,
-and prints a link to open the trace in your project:
+The command checks that Langfuse received all three observations, then prints a link:
 
 ```text
 Verified 3 observations: CHAIN -> TOOL + GENERATION
@@ -66,15 +56,18 @@ Verified parent links, synthetic input/output, and shared metadata.
 Open: https://<your-host>/project/<your-project>/traces/<trace-id>
 ```
 
-Read the [complete tracing code](examples/first-trace/src/main/java/com/example/FirstTrace.java),
-then replace the fixture steps with your application calls. The demo explicitly enables capture
-for its fixed strings; library defaults remain metadata-only. It reports no invented token usage
-or model cost.
+[FirstTrace.java](examples/first-trace/src/main/java/com/example/FirstTrace.java) contains the
+tracing code. It enables content capture for its fixed demo strings; choose a capture policy
+before replacing them with application data.
 
-**Tried it?** [Report your first-install result](https://github.com/ChoMinGi/langfuse-otel-java/issues/new?template=first_trace_feedback.yml)
-— success or failure, in English or Korean. This helps us find the next onboarding problem to fix.
+Tried it? [Tell us what worked or where you got stuck](https://github.com/ChoMinGi/langfuse-otel-java/issues/new?template=first_trace_feedback.yml).
+English and Korean are welcome.
+
+## Add it to your application
 
 ### Spring Boot (Dedicated Exporter Quick Start)
+
+Add the starter alongside your existing Spring AI or LangChain4j provider dependency:
 
 ```xml
 <dependency>
@@ -84,35 +77,23 @@ or model cost.
 </dependency>
 ```
 
-Spring AI and LangChain4j are optional integrations. The starter does not choose an LLM framework
-or provider for the application, so keep the framework and provider dependency that supplies your
-model bean. The example projects use OpenAI, but no provider client is pulled in transitively.
-
-The application also owns its web framework and server dependencies. The 0.2.3 starter
-uses optional Spring Web, Servlet and Reactor APIs; MVC/WebFlux server modules are not published
-dependencies. This does not patch frameworks already selected by an application. Boot 3 web
-applications should review the [Spring 6.2 security limitations](SECURITY.md#spring-62-web-framework-limitations).
-
 ```yaml
 # application.yml
 langfuse:
-  otel-mode: standalone              # create and own a dedicated Langfuse exporter
+  otel-mode: standalone
   public-key: ${LANGFUSE_PUBLIC_KEY}
   secret-key: ${LANGFUSE_SECRET_KEY}
-  host: https://cloud.langfuse.com   # or your self-hosted URL
-  content:
-    capture-input: false             # safe default
-    capture-output: false            # safe default
+  host: https://cloud.langfuse.com
 ```
 
-This quick start deliberately selects `standalone`, so the configured keys and host are used by a dedicated SDK/exporter. For production applications that already own OpenTelemetry, use the external setup below instead of creating a second SDK.
+Calls through supported Spring-managed model proxies now produce observations with model details
+and usage when available. To include prompts and responses, enable
+[content capture](docs/spring-boot.md#input-output-and-exceptions).
 
-Standalone endpoints must use HTTPS. For a loopback development receiver only, plaintext HTTP can be enabled explicitly with `langfuse.allow-insecure-http-for-development=true`; never use that option with production credentials.
-
-That option only relaxes endpoint validation. Direct HTTP export to Langfuse Docker can currently
-fail during cleartext HTTP negotiation with the JDK sender; use a local TLS reverse proxy or
-HTTPS-capable collector until [#9](https://github.com/ChoMinGi/langfuse-otel-java/issues/9) is
-resolved.
+This configuration creates a dedicated SDK and exporter. If your application already owns an
+OpenTelemetry SDK, use [external mode](docs/spring-boot.md#choose-the-opentelemetry-sdk).
+The starter leaves provider and web server dependencies to your application. Boot 3 web apps
+also need to review the [Spring 6.2 limitations](SECURITY.md#spring-62-web-framework-limitations).
 
 ### Standalone (No Spring)
 
@@ -124,243 +105,14 @@ resolved.
 </dependency>
 ```
 
-The [first-trace example](examples/first-trace/) is a complete standalone application using
-this dependency. For synchronous and asynchronous application calls, follow the
-[observation API guide](OBSERVATION-API.md).
-
-### Existing OpenTelemetry SDK (Production Recommended)
-
-With the default `langfuse.otel-mode=auto`, the starter reuses an application `OpenTelemetry` bean
-when Spring can select one unambiguously: either it is the only bean or one candidate is marked
-`@Primary`. With no application bean, `auto` creates the standalone pipeline. Multiple candidates
-without a primary bean fail at startup.
-
-When an application bean is selected, the starter does not create an exporter and never flushes or
-shuts down the application-owned SDK. Configure that SDK or an OpenTelemetry Collector to export
-traces to Langfuse. If Langfuse keys are also configured, the starter warns that they are ignored
-for the selected external pipeline.
-
-For an OTLP/HTTP exporter configured through standard environment variables:
-
-```bash
-export AUTH_STRING="$(printf '%s' "${LANGFUSE_PUBLIC_KEY}:${LANGFUSE_SECRET_KEY}" | base64 | tr -d '\n')"
-export OTEL_EXPORTER_OTLP_ENDPOINT="https://cloud.langfuse.com/api/public/otel"
-export OTEL_EXPORTER_OTLP_PROTOCOL="http/protobuf"
-export OTEL_EXPORTER_OTLP_HEADERS="Authorization=Basic ${AUTH_STRING},x-langfuse-ingestion-version=4"
-```
-
-Configure equivalent endpoint and headers when building the SDK or Collector directly. The
-ingestion-version header enables real-time v4 ingestion; without it, directly ingested traces can
-be delayed. See Langfuse's [OpenTelemetry guide](https://langfuse.com/integrations/native/opentelemetry)
-for other regions, self-hosting, and signal-specific settings.
-
-Version 0.2 emits observation-first attributes for Langfuse v4. Trace roots and generic steps are
-`span` observations, chat/image calls and `@ObserveGeneration` are `generation` observations, and
-embedding calls are `embedding` observations. Root `.input(...)` and `.output(...)` write the v4
-observation fields as well as the legacy trace fields for compatibility.
-
-Set `langfuse.otel-mode=external` to require one unambiguously selectable application bean, or
-`standalone` to force a dedicated Langfuse SDK/exporter. `external` fails when no bean can be
-selected; both `auto` and `external` reject ambiguous candidates instead of silently choosing a
-telemetry pipeline.
-
-Without Spring, select the same non-owning mode explicitly:
-
-```java
-try (LangfuseOtel langfuse = LangfuseOtel.externalBuilder(openTelemetry).build()) {
-    langfuse.trace("my-flow", trace -> { /* ... */ });
-}
-// openTelemetry remains owned by the application
-```
-
-The original `builder()` remains the standalone mode: it creates and owns a dedicated SDK and Langfuse OTLP exporter.
-
-The library applies Langfuse context directly to spans it creates. It cannot add a processor to an
-already-built external SDK, so raw application or third-party spans need their own baggage/span
-processor or explicit attributes if they must carry the same trace-wide fields.
-
----
-
-## What Gets Traced
-
-The Spring Boot starter instruments calls made through eligible Spring-managed proxies that
-implement the supported interfaces below. Objects constructed with `new`, direct provider-SDK
-calls, and calls that bypass the Spring proxy are outside this boundary.
-
-### Spring AI
-
-| Model | Methods | Operation |
-|-------|---------|-----------|
-| `ChatModel` | `call(Prompt)` | `chat` |
-| `ChatModel` | `stream(Prompt)` | `chat` (with TTFT) |
-| `EmbeddingModel` | `call(EmbeddingRequest)`, document and bulk `embed(...)` | `embeddings` |
-| `ImageModel` | `call(ImagePrompt)` | `image_generation` |
-
-Reactor scheduler transitions and downstream signals are bridged automatically. Provider adapters
-that own a raw, plain-thread source can place
-`ReactorContextPropagation.wrap(rawPublisher)` at that source boundary. See the
-[async lifecycle design](DESIGN.md#asynchronous-observation-and-context-lifecycle) for the exact
-boundary.
-
-### LangChain4j
-
-| Model | Methods | Operation |
-|-------|---------|-----------|
-| `ChatModel` | `chat(ChatRequest)` | `chat` |
-| `StreamingChatModel` | `chat(ChatRequest, Handler)` | `chat` (with TTFT) |
-| `EmbeddingModel` | `embedAll(...)`, `embed(...)` | `embeddings` |
-| `ImageModel` | `generate(...)`, `edit(...)` | `image_generation` |
-
-Streaming callbacks and model listeners restore the wrapper observation and immutable request
-metadata. Provider adapters that control task submission can use
-`LangChain4jStreamingContext.wrap(...)`, `taskWrapping(...)`, or a per-request `Snapshot`.
-Opaque provider executors remain outside the generic SPI; the
-[async lifecycle design](DESIGN.md#asynchronous-observation-and-context-lifecycle) describes that
-limit.
-
-### Auto-captured attributes
-
-| Attribute | Description |
-|-----------|-------------|
-| Model name | Request & response model |
-| Input | Disabled by default; messages, embedding text, or image prompt when opted in |
-| Output | Disabled by default; response or accumulated stream when opted in |
-| Token usage | Input, output, and total tokens |
-| Temperature, top_p, max_tokens | Model parameters |
-| TTFT | Time to first token (streaming only) |
-| Errors | Exception type by default; policy-processed message/stack trace only after explicit opt-in |
-
----
-
-## Features
-
-### @ObserveGeneration Annotation
-
-Trace a proxy-interceptable Spring method as an LLM generation:
-
-```java
-@Service
-public class LLMService {
-    @ObserveGeneration(name = "summarize", model = "gpt-4o", system = "openai")
-    public String summarize(String text) {
-        return callLLM(text);
-    }
-}
-```
-
-`@ObserveGeneration` covers synchronous methods, `CompletionStage`, and Reactor `Mono`/`Flux`.
-Stages retain their identity, and Reactor creates one observation per subscription. On a model
-bean, explicit annotations take precedence over automatic instrumentation so the same call is not
-traced twice. The method must be reached through its Spring proxy: self-invocation and private
-methods are not advised. Class-based (CGLIB) proxies cannot advise final methods or final classes.
-Starting with `0.2.1`, implementation-method annotations are resolved through JDK proxies, including
-final implementations and generic bridge methods. Use `spring.aop.proxy-target-class=false` with
-interface-based injection for this path. Ordering relative to other around advice, such as
-`@Transactional`, is not guaranteed.
-
-### Request Context Propagation
-
-```java
-LangfuseTraceContext metadata = LangfuseTraceContext.builder()
-        .userId("user-123")
-        .sessionId("session-456")
-        .tags("prod", "v2")
-        .build();
-
-try (Scope ignored = LangfuseContext.makeCurrent(metadata)) {
-    langfuse.trace("flow", trace -> { /* ... */ });
-}
-```
-
-Spring MVC and WebFlux filters can also extract Principal and HTTP session metadata after explicit
-opt-in. The legacy `LangfuseContext.set*()` methods remain available for synchronous code.
-
-Trace name, user/session IDs, tags, metadata, version, release, and environment are copied when a
-library-created descendant starts. Set fluent trace-wide values before creating children when all
-observations must agree; already-started spans are not backfilled. While a `LangfuseTrace` is
-active, its trace-local carrier is authoritative, so nested `storeIn(...)` or `makeCurrent(...)`
-metadata does not replace that trace. Use the trace fluent setters for intentional updates.
-
-### Content Capture and Redaction
-
-Automatic instrumentation is metadata-only by default. Enable input and output independently, and keep a finite post-redaction length limit:
-
-```yaml
-langfuse:
-  content:
-    capture-input: true
-    capture-output: true
-    max-length: 8192
-```
-
-To redact content before export, provide one thread-safe bean:
-
-```java
-@Bean
-ContentRedactor contentRedactor() {
-    return (type, content) -> content.replaceAll("(?i)api[-_ ]?key\\s*[:=]\\s*\\S+", "[REDACTED]");
-}
-```
-
-No redactor is installed automatically. If capture is enabled without one, values are exported
-unchanged except for the length limit. Use one reviewed, thread-safe redactor in production;
-ambiguous or failing redactors drop the affected automatic content.
-
-Exception details use a separate safe-by-default policy. Only the exception type is recorded unless message or stack capture is enabled:
-
-```yaml
-langfuse:
-  exception:
-    capture-message: false
-    capture-stack-trace: false
-    max-length: 8192
-```
-
-Exception detail capture follows the same rule with `ExceptionRedactor`. See
-[SECURITY.md](SECURITY.md) for the full data boundary and fail-closed behavior.
-
-### Prompt Management
-
-Integrates with [langfuse-java](https://github.com/langfuse/langfuse-java) for prompt versioning:
-
-```xml
-<dependency>
-    <groupId>com.langfuse</groupId>
-    <artifactId>langfuse-java</artifactId>
-    <version>0.2.0</version>
-</dependency>
-```
-
-The prompt client is optional and is not pulled in transitively. Create it with the same Langfuse
-credentials and host before using the helper:
-
-```java
-LangfuseClient langfuseClient = LangfuseClient.builder()
-        .credentials("pk-lf-...", "sk-lf-...")
-        .url("https://cloud.langfuse.com")
-        .build();
-
-trace.generation("llm", gen -> {
-    String compiled = gen.prompt(langfuseClient, "my-prompt")
-            .variable("domain", "HR")
-            .variable("question", "What is MBO?")
-            .compile();
-    // promptName & promptVersion auto-linked to the span
-    gen.output(callLLM(compiled));
-});
-```
-
-### Core tracing API
-
-Version `0.2.2` adds an explicit observation API.
-Use it when the application owns synchronous or asynchronous execution and needs to end an
-observation independently of a thread-local scope:
+Create a `LangfuseOtel` instance for the application's lifetime, as shown in the
+[first-trace example](examples/first-trace/). Wrap a call with an observation:
 
 ```java
 try (var observation = langfuse.observation("chat", ObservationType.GENERATION).start();
      var scope = observation.makeCurrent()) {
     try {
-        observation.input(prompt); // governed by the capture policy; disabled by default
+        observation.input(prompt);
         var response = model.call(prompt);
         observation.output(response);
     } catch (RuntimeException | Error failure) {
@@ -370,122 +122,90 @@ try (var observation = langfuse.observation("chat", ObservationType.GENERATION).
 }
 ```
 
-`model` is an application-provided client. Scope closes first; closing the observation only ends
-its span. For async completion, snapshot propagation, capture policies and mixing with the starter,
-see [Explicit observations](OBSERVATION-API.md) and the
-[runnable consumer example](consumer-tests/core-observation-consumer).
+Here, `model` and `prompt` are application code. `input()` and `output()` use the capture policy
+and collect nothing by default. Closing the scope restores the thread's context; closing the
+observation ends its span. Call `fail()` to record an error.
 
-The legacy trace/span/generation API supports callbacks, try-with-resources, and explicit `end()`. All three are
-synchronous scope APIs: close a handle on the thread that created it and do not pass it into an
-asynchronous callback.
+For async calls, explicit parents, and cancellation, see the [observation API](OBSERVATION-API.md).
+Use one instrumentation path per model call to avoid recording both a manual and an automatic
+generation.
 
-### Operational Signals
+<a id="existing-opentelemetry-sdk-production-recommended"></a>
 
-With the default fail-safe setting, missing API keys or an invalid standalone configuration fall
-back to no-op mode without crashing the application. `LangfuseOtel.getStatus()` returns an
-immutable snapshot of that fallback, ownership, export, queue-drop, and flush state. Reading it
-does not flush or make a network request.
+### Existing OpenTelemetry SDK
 
-When the application includes `spring-boot-starter-actuator`, the starter registers a `langfuse` health component and Micrometer meters. The Actuator dependency remains optional and is not added transitively by this library.
+Use `LangfuseOtel.externalBuilder(openTelemetry)` in plain Java. In Spring, set
+`langfuse.otel-mode=external` and supply an `OpenTelemetry` bean.
+Your SDK or Collector must export to Langfuse; the library leaves its flush and shutdown to you.
+The [SDK setup guide](docs/spring-boot.md#choose-the-opentelemetry-sdk) covers bean selection,
+the OTLP endpoint, and authentication headers.
 
-- `UP`: the standalone pipeline is owned and has no current failure. This can include the initial state before the first export.
-- `DOWN`: the latest export failed, a queue drop has not yet been followed by a successful export, or the latest flush failed or timed out.
-- `OUT_OF_SERVICE`: fail-safe construction produced the library's no-op fallback.
-- `UNKNOWN`: OpenTelemetry is application-owned, so its exporter, queue, and flush state are not observed here.
+## What gets traced
 
-Owned pipelines publish fallback, export-failure, queue-drop, and flush meters. External mode omits
-transport meters because this library does not own that pipeline. A successful flush confirms a
-local SDK drain, not remote ingestion.
+The starter supports these model calls through Spring-managed proxies:
 
-Keep this component out of liveness. Add it to readiness only when losing Langfuse delivery should intentionally stop the application from receiving traffic.
+| Framework | Model calls |
+| --- | --- |
+| Spring AI | Chat, streaming chat, embeddings, and images |
+| LangChain4j | Chat, streaming chat, embeddings, and image generation/editing |
 
----
+It records model names, available token usage, model parameters, and streaming first-token timing.
+Errors include the exception type by default. Input, output, exception messages, and stack traces
+require opt-in. See the [method list and proxy limits](docs/spring-boot.md#what-gets-traced).
 
-## Modules
+## Features
 
-| Module | Java | Description |
-|--------|------|-------------|
-| `langfuse-otel-core` | 11+ | Core tracing library — no framework dependency |
-| `langfuse-otel-spring-boot-starter` | 17+ | Auto-config for Spring AI & LangChain4j |
+- Add `@ObserveGeneration` to a Spring service method to record a generation.
+- Attach user/session IDs, tags, and request metadata to child observations.
+- Apply content and exception redactors before export.
+- Read local exporter status, or use the optional Actuator health component and meters.
+- Link prompts from the optional `langfuse-java` client to legacy generation spans.
 
-## Configuration (Spring Boot)
-
-| Property | Default | Description |
-|----------|---------|-------------|
-| `langfuse.public-key` | — | Standalone mode public key; not used with an external OTel bean |
-| `langfuse.secret-key` | — | Standalone mode secret key; not used with an external OTel bean |
-| `langfuse.host` | `https://cloud.langfuse.com` | Standalone mode Langfuse host URL |
-| `langfuse.allow-insecure-http-for-development` | `false` | Allow a plaintext standalone HTTP endpoint on `localhost` or a literal loopback address only |
-| `langfuse.service-name` | `langfuse-app` | Standalone mode service name |
-| `langfuse.environment` | — | Standalone resource environment (e.g., `production`) |
-| `langfuse.release` | — | Standalone resource release version |
-| `langfuse.enabled` | `true` | Enable/disable all tracing |
-| `langfuse.otel-mode` | `auto` | `auto`, `external`, or `standalone` OpenTelemetry ownership selection |
-| `langfuse.content.capture-input` | `false` | Capture automatic model input |
-| `langfuse.content.capture-output` | `false` | Capture automatic model output |
-| `langfuse.content.max-length` | `8192` | Maximum UTF-16 units retained after redaction |
-| `langfuse.exception.capture-message` | `false` | Capture policy-processed exception messages from automatic instrumentation |
-| `langfuse.exception.capture-stack-trace` | `false` | Capture policy-processed exception stack traces from automatic instrumentation |
-| `langfuse.exception.max-length` | `8192` | Maximum UTF-16 units retained per exception detail after redaction |
-| `langfuse.context.capture-user-id` | `false` | Export the authenticated Principal name as `user.id` |
-| `langfuse.context.capture-session-id` | `false` | Export the HTTP session identifier as `session.id`; avoid this for bearer-style session IDs |
-
-## Production-preview limitations
-
-- Generic instrumentation cannot enter opaque provider-owned executors. Integrations that own a
-  raw source or scheduling boundary must use the supplied context adapters.
-- During active instrumented Reactor subscriptions, a keyed `Schedulers.onScheduleHook` is
-  process-global. Every Reactor scheduled task in the JVM performs a small decorator lookup during
-  that window; unrelated tasks receive no Langfuse context, and the hook is removed after the last
-  lease ends.
-- Async observations are terminal-driven and have no library timeout. A publisher, stage, or
-  LangChain4j provider that never completes, errors, or is cancelled can leave its observation
-  open; configure provider/application timeouts and cancellation.
-- Final or otherwise non-proxyable model types are left unchanged and logged as uninstrumented.
-  Annotation-based tracing also cannot advise self-invocation, private methods, or final methods
-  through class-based proxies. Existing JDK proxies can advise public interface methods.
-- `0.2.x` is JVM-only; Spring AOT and GraalVM native-image support are not claimed.
-- Custom concrete publisher subtypes are returned unchanged when a compatible wrapper type cannot
-  be preserved.
-
-`0.2.x` remains a production-preview line. Work for later releases is tracked in
-[ROADMAP.md](ROADMAP.md).
+The [Spring Boot guide](docs/spring-boot.md) covers annotations, context, redaction, and health.
+The [observation guide](OBSERVATION-API.md#prompt-versioning-with-the-legacy-api) includes prompt linking.
 
 ## Compatibility
 
-| Dependency | Tested Version | Notes |
-|-----------|---------------|-------|
-| Java | 11+ | Core module |
-| Java | 17+ | Spring Boot starter |
-| OpenTelemetry SDK | 1.66.0 | Via BOM |
-| Spring Boot | 3.5.16 | Non-web external and standalone consumer startup |
-| Spring AI | 1.0.9 / 1.1.8 | Chat consumer smoke; adapter tests also cover streaming, embeddings, and images |
-| LangChain4j | 1.0.0 / 1.18.0 | Chat consumer smoke; adapter tests also cover streaming, embeddings, and images |
-| langfuse-java | 0.2.0 | Prompt management (optional) |
-| Langfuse Cloud | Managed service | Current OTLP v4 ingestion and Observations API v2 |
-| Langfuse Self-hosted | v3.22.0+ | OTLP endpoint minimum; v4 is required for observation-first API v2 read-back |
+| Dependency | Tested version / requirement |
+| --- | --- |
+| Java | Core: 11, 17, 21; starter: 17, 21 |
+| OpenTelemetry SDK | 1.66.0 |
+| Spring Boot | 3.5.16 |
+| Spring AI | 1.0.9 / 1.1.8 |
+| LangChain4j | 1.0.0 / 1.18.0 |
+| langfuse-java | 0.2.0, optional prompt client |
+| Langfuse Cloud | OTLP v4 ingestion and Observations API v2 |
+| Langfuse self-hosted | OTLP requires v3.22.0+; API v2 read-back requires v4 and is tested with 4.41.0 |
 
-The blocking consumer smoke tests start a non-web Spring Boot 3.5.16 application on Java 17 and
-invoke a framework `ChatModel` for both listed Spring AI and LangChain4j versions. External mode
-verifies the resulting span with an application-owned SDK; standalone mode verifies the OTLP path,
-authentication and ingestion headers, service resource, and model attributes against a loopback
-receiver. The broader adapter behavior is covered by the Java 17/21 starter test matrix. Provider
-clients and other Spring Boot 3 minor releases are not part of that runtime smoke.
+Framework consumer tests exercise chat calls in non-web Boot applications. Adapter tests also cover
+streaming, embeddings, and images. See [test coverage](docs/spring-boot.md#test-coverage) for the
+scope and [release verification](RELEASE-0.2.3.md) for the published artifacts.
 
-`0.2.x` is the Spring Boot 3 and Spring AI 1 line. `0.3.x` will move the same starter
-coordinates to Spring Boot 4 and Spring AI 2; the core module remains framework-neutral. See
-[SECURITY.md](SECURITY.md#supported-versions) for the maintenance window.
+## Production-preview limitations
 
-## Examples
+- Automatic tracing requires a call through a supported Spring proxy. Direct provider calls and
+  non-proxyable model types need explicit instrumentation.
+- Provider-owned executors may need explicit context propagation. Configure application timeouts:
+  observations remain open until completion, failure, or cancellation.
+- Instrumented Reactor subscriptions use a process-global scheduler hook while active.
+- Spring AOT and GraalVM native-image builds are not tested or supported.
 
-See the [examples](./examples) directory:
-- [Spring AI + OpenAI](./examples/spring-ai-example) — automatic Spring bean tracing
-- [LangChain4j + OpenAI](./examples/langchain4j-example) — automatic Spring bean tracing
+See the [adapter limits](docs/spring-boot.md#limitations) and [data collection policy](SECURITY.md).
+Boot 4 and Spring AI 2 are planned for a later starter line; see the [roadmap](ROADMAP.md) and
+[maintenance policy](SECURITY.md#supported-versions).
+
+## More documentation
+
+- [Examples](examples/): first trace, Spring AI, and LangChain4j applications.
+- [Migration from 0.1.x](MIGRATION-0.2.md).
+- [Design](DESIGN.md): lifecycle, context propagation, and SDK ownership.
+- [Changelog](CHANGELOG.md) and [release notes](https://github.com/ChoMinGi/langfuse-otel-java/releases).
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and guidelines.
+Bug reports and installation feedback are welcome. For development setup and checks, see
+[CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
-MIT
+[MIT](LICENSE).

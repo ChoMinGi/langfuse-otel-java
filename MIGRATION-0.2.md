@@ -1,7 +1,7 @@
 # Migrating from 0.1.x to 0.2
 
-Version 0.2 makes data capture and OpenTelemetry ownership explicit. Review the changes below
-before upgrading.
+When upgrading from 0.1.x, choose who owns the OpenTelemetry SDK and which data to collect.
+The examples below apply to the 0.2.x line; use the current published version, 0.2.3.
 
 ## Model content is opt-in
 
@@ -19,7 +19,9 @@ langfuse:
 Enabling capture without a `ContentRedactor` exports the selected values unchanged up to the
 configured limit. Production applications should install one reviewed, thread-safe redactor before
 capturing sensitive content. See [SECURITY.md](SECURITY.md) for fail-closed behavior and streaming
-limits. Explicit core `.input(...)` and `.output(...)` calls remain direct capture.
+limits. Legacy `LangfuseTrace`, `LangfuseSpan`, and `LangfuseGeneration` input/output calls still
+record content directly. The `LangfuseObservation` API added in 0.2.2 applies the capture policy
+even to explicit calls; its input/output capture is off by default.
 
 ## Exception details are opt-in
 
@@ -92,8 +94,10 @@ after construction, so raw application or third-party spans need application-own
 - Automatic model instrumentation preserves safely proxyable concrete types. Final or otherwise
   non-proxyable model types remain unchanged and log a warning.
 - A model-method `@ObserveGeneration` annotation takes precedence over automatic instrumentation
-  for that bean. Both paths require a call through the Spring proxy; direct construction,
-  self-invocation, and private/final methods are outside the interception boundary.
+  for that bean. Both paths require a call through the Spring proxy; direct construction
+  and self-invocation are not intercepted. Private methods are not advised; final methods and
+  classes cannot be advised with CGLIB. Since 0.2.1, JDK proxies can resolve annotations on
+  implementation methods, including final implementations, when called through their interfaces.
 - Generic instrumentation cannot enter opaque provider-owned executors. Use
   `ReactorContextPropagation` or `LangChain4jStreamingContext` at boundaries owned by the
   integration. See [DESIGN.md](DESIGN.md#asynchronous-observation-and-context-lifecycle).
@@ -111,7 +115,7 @@ contexts; update that trace through its fluent setters.
 
 ## Upgrade checklist
 
-- Run `./mvnw -B -ntp clean verify` and compile application consumers against `0.2.0`.
+- Build and test your application against `0.2.3`.
 - Choose `langfuse.otel-mode` and verify that the selected pipeline reaches Langfuse.
 - Review content, exception, principal, and session capture before enabling each field.
 - Exercise streaming completion, error, cancellation, and re-subscription.

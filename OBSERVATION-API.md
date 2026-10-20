@@ -1,8 +1,8 @@
-# Explicit observations (0.2.2)
+# Observation API
 
-Version 0.2.2 provides `LangfuseObservation` and `ObservationType` through
-`LangfuseOtel.observation(name, type)`. They are not part of the published `0.2.1` artifact.
-The existing two Maven modules, fluent wrappers and automatic starter instrumentation remain supported.
+Use `langfuse.observation(name, type)` to trace work that your application starts and finishes.
+Available since 0.2.2, it works with synchronous calls and async callbacks. For a complete setup,
+start with the [first-trace example](examples/first-trace/).
 
 ## Execution and context
 
@@ -33,23 +33,27 @@ try (var root = langfuse.observation("answer-question", ObservationType.CHAIN)
 }
 ```
 
-`model`, `prompt`, and `parentContext` belong to the application. `start()` never changes the
-current thread's context. `makeCurrent()` returns an ordinary OTel Scope; close it on the same
-thread in reverse nesting order. Opening only the root scope makes the generation a child of
-the root; open a generation scope too if the provider or subsequent work should create children
-under that generation. Closing an observation only ends its span, and does not infer failure.
+`model`, `prompt`, and `parentContext` belong to your application. `start()` creates an observation
+without changing the current context. `makeCurrent()` opens an OTel scope: close it on the same
+thread, in reverse nesting order.
 
-Builders resolve an omitted parent from `Context.current()` at **start time**, not builder creation.
-An explicit `Context.root()` starts without an upstream parent. Remote-parent trace relationships
-are preserved. Metadata selection is whole explicit snapshot, then parent snapshot, then empty
-snapshot with existing SDK resource defaults. Worker legacy ThreadLocal values are not merged.
-Set `traceName` on the snapshot to copy one workflow name to all descendants.
+In this example, the root scope makes the generation a child of the root. Open a generation scope
+as well if work inside the model should create children under it. `close()` ends an observation;
+it cannot tell whether the enclosed code failed, so call `fail()` in the catch block.
 
-Each observation installs a frozen carrier before SDK span processors run. Old trace setters
-cannot subsequently change this snapshot. Ordinary legacy children inherit it, but legacy fluent
-setters still write their own spans directly; unrestricted setter mixing is outside the contract.
-An application-owned SDK needs an application-installed processor if it also wants metadata on
-third-party spans. The library does not reconfigure an existing SDK.
+### Parent and request metadata
+
+An omitted parent comes from `Context.current()` when `start()` runs. Pass `.parent(context)` to
+use a captured or remote parent, or `.parent(Context.root())` to start without one.
+
+Metadata comes from the complete `.traceContext(...)` snapshot, then the parent snapshot, then an
+empty snapshot with SDK resource defaults. Fields are not merged with worker-thread legacy values.
+Set `traceName` on the snapshot if descendants should share one workflow name.
+
+The snapshot is frozen before SDK processors run. Later legacy trace setters cannot change it.
+Legacy child wrappers inherit the snapshot, but their fluent setters still write directly to their
+own spans. If third-party spans also need these fields, install a processor in your application's
+SDK when building it; the library cannot add one to an SDK that already exists.
 
 ## Asynchronous work
 
@@ -78,9 +82,9 @@ try {
 
 The [compiled consumer example](consumer-tests/core-observation-consumer/src/main/java/com/example/ObservationExample.java)
 also demonstrates a short submission scope and unwrapping standard completion/cancellation exceptions.
-It returns the original provider stage. A callback creating children must open and close its own
-scope, or supply `observation.context()` as the explicit parent. Provider-owned executors require
-the provider/application's own propagation. No task, retry or timeout engine is introduced here.
+It returns the original provider stage. To create children in a callback, open a scope inside that
+callback or pass `observation.context()` as the parent. Propagation into provider-owned executors
+must be handled at the provider or application boundary.
 
 `cancel()` ends only the observation, with status message `cancelled` and without setting OTel ERROR.
 It does not cancel the request or its future. An incomplete future may keep its callback and
@@ -101,12 +105,14 @@ exposes individual attempts. No first-token timestamp is inferred.
 | `cancel()` | Commit cancellation once; actual request cancellation is separate. |
 | `context()`, `makeCurrent()` | Remain usable after termination; a later child does not extend its ended parent's duration. |
 
-The first terminal operation to **commit** wins. Calling `fail()` first does not reserve the winner
-while its redactor is still working. Attribute commits and terminal selection share a short lock.
-Redactors run outside it, followed by an OPEN check; a concurrently ended observation discards the
-prepared value. SDK `span.end()` also runs outside it so external synchronous processors can run
-without holding the observation lock. Losing terminal calls need not wait for that processor.
-Ended observations ignore later mutation calls, including late callbacks and validation.
+The first end, failure, or cancellation to commit wins. If `fail()` is still preparing error details,
+another thread can end or cancel the observation first. Later writes and terminal calls are ignored,
+including argument validation on an ended observation.
+
+Attribute writes and terminal selection use a short lock. Redactors run outside it, and their
+results are discarded if the observation ended in the meantime. `span.end()` also runs outside the
+lock, so synchronous SDK processors do not hold it. Losing terminal calls need not wait for a
+processor to finish.
 
 Ordinary SDK/redactor recording failures do not change the application result. VirtualMachineError,
 ThreadDeath and LinkageError raised by instrumentation propagate; `fail()` attempts termination if
@@ -115,41 +121,75 @@ Explicit invalid arguments on an open observation raise the documented validatio
 Raw span access through `Span.fromContext(observation.context())` and other SDK components can bypass
 these guarantees; they remain application responsibilities.
 
-This API writes one completed span. It adds no re-export/update mechanism or network exactly-once
-guarantee. Owned SDK batching/queue/flush/shutdown and external SDK ownership are unchanged. An external
-synchronous processor can still delay the winning end call; core does not control its cost.
+Each observation ends its span once. Delivery still depends on your SDK and exporter; this does
+not guarantee exactly-once delivery over the network. A synchronous processor in an external SDK
+can delay the winning end call.
 
 ## Capture, SDK limits and migration
 
-Configure `ContentCapturePolicy` and `ExceptionCapturePolicy` on `LangfuseOtel`, or the existing
-starter properties/beans. New input/output calls apply these policies, unlike the old fluent
-`LangfuseTrace`/`LangfuseSpan`/`LangfuseGeneration` input/output calls. Redactor failure drops the value;
-no original value is logged. Fatal propagation is specific to the new path, preserving old helper behavior.
+Configure `ContentCapturePolicy` and `ExceptionCapturePolicy` on `LangfuseOtel`, or use the
+[starter properties and redactor beans](docs/spring-boot.md#input-output-and-exceptions).
+Observation input/output calls apply these policies. Legacy `LangfuseTrace`, `LangfuseSpan`, and
+`LangfuseGeneration` input/output calls record content directly. A failed redactor drops the value
+without logging the original. The fatal-error behavior described above applies to the observation
+API; legacy helpers keep their existing behavior.
 
-Token counts use scalar attributes. Existing extended usage, cost and prompt representations remain
-available through the legacy/raw OTel paths; this initial API adds no generalized JSON serializer.
-External SDK attribute count/value limits still apply. They can drop required fields or truncate
-structured JSON written through other paths. Configure adequate limits and verify actual exported data.
+Token counts use scalar attributes. For extended usage, cost, and prompt fields, use the legacy
+helpers or raw OTel attributes. SDK attribute count/value limits still apply; they can drop fields
+or truncate structured JSON written through those paths. Check your SDK limits and exported data.
 
 Use a manual CHAIN/AGENT root with automatic model generations for different hierarchy levels.
 For the **same** model call, choose manual generation or automatic generation. The core does not
 deduplicate arbitrary manual spans, because that could remove nested calls or retries.
-For a fully explicit path with the starter on the classpath, set `langfuse.enabled=false` and provide
+For manual instrumentation only, set `langfuse.enabled=false` and provide
 your own `LangfuseOtel` bean (including any policies and external SDK). This disables the starter's
 auto-configuration; merely supplying a core bean does not disable model instrumentation.
 
+## Prompt versioning with the legacy API
+
+Legacy `trace()`/span/generation handles own a scope. Close them on the thread that created them,
+in reverse nesting order; do not pass them to async callbacks. See the
+[synchronous lifecycle](DESIGN.md#synchronous-span-lifecycle).
+
+The legacy generation helper can fetch and link prompts through
+[langfuse-java](https://github.com/langfuse/langfuse-java). Add the optional client dependency:
+
+```xml
+<dependency>
+    <groupId>com.langfuse</groupId>
+    <artifactId>langfuse-java</artifactId>
+    <version>0.2.0</version>
+</dependency>
+```
+
+Create the client with the same Langfuse credentials and host:
+
+```java
+LangfuseClient langfuseClient = LangfuseClient.builder()
+        .credentials("pk-lf-...", "sk-lf-...")
+        .url("https://cloud.langfuse.com")
+        .build();
+
+trace.generation("llm", gen -> {
+    String compiled = gen.prompt(langfuseClient, "my-prompt")
+            .variable("domain", "HR")
+            .variable("question", "What is MBO?")
+            .compile();
+    // promptName & promptVersion auto-linked to the span
+    gen.output(callLLM(compiled));
+});
+```
+
+This example uses the legacy generation helper. Its `output(...)` records content directly;
+the observation capture policy does not apply to that call. See the
+[prompt consumer](consumer-tests/core-prompt-consumer) for a complete dependency setup.
+
 ## Verification scope
 
-Tests cover cross-thread termination, snapshot/legacy boundaries, terminal races, redaction races,
-fatal and nonfatal SDK failures, default privacy, usage validation and external SDK ownership.
-The independent Java 11 consumer is included in the existing CI consumer job. Core contract tests
-run in the existing Java 11/17/21 matrix; starter tests remain in its framework matrix.
+CI checks the core on Java 11/17/21, the independent consumer, starter integration, and Langfuse
+4.41.0 read-back. Tests cover parent context, concurrent termination, redaction, capture defaults,
+usage validation, and SDK ownership.
 
-The opt-in [4.41.0 Docker read-back](experiments/core-preflight/README.md) additionally exercises the
-new API alongside the original helper path. Detailed implementation results are recorded in
-[OBSERVATION-VALIDATION.md](OBSERVATION-VALIDATION.md).
-The [operational harness](experiments/core-operations/README.md) also passed fault/queue/retention
-contracts, a short 27-case matrix, and a ten-minute warmup plus two-hour run for the owned pipeline
-at concurrency 32. Its conditions, clock validation and limits are recorded in the validation document.
-These results do not establish universal performance or absence of leaks. Existing defaults and
-legacy API support remain unchanged.
+[OBSERVATION-VALIDATION.md](OBSERVATION-VALIDATION.md) records the contract, fault, and load results.
+The two-hour load run covers one owned-pipeline configuration; it is not a performance guarantee
+for other applications or external SDK processors.

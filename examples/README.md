@@ -2,19 +2,21 @@
 
 ## Start here: first trace
 
-[first-trace](first-trace/) uses the published core artifact from Maven Central, Java 11+,
-and fixed synthetic content. It needs only a Langfuse project, checks ingestion through
-Observations API v2, and prints a link to the trace. No model API key or reactor install is needed.
+Run [first-trace](first-trace/) with Java 11+ and a Langfuse project. It downloads the published
+library, sends a fixed question and answer, and prints a trace link after checking ingestion.
+You do not need a model API key or a local library build.
 
 ## Spring Boot integrations
 
-These Boot 3 web examples retain Spring Framework 6.2.19. Known web-framework findings require
-application-specific review and a supported patched framework; see the
-[Spring 6.2 security limitations](../SECURITY.md#spring-62-web-framework-limitations).
-A clean library SBOM does not certify these standalone web applications as vulnerability-free.
+The [Spring AI](spring-ai-example/) and [LangChain4j](langchain4j-example/) examples use OpenAI.
+They require Java 17+ and make live model calls.
 
-These are standalone consumer projects rather than modules in the main Maven build. Install the
-current repository artifacts from the repository root, then provide test credentials:
+These Boot 3 web applications still use Spring Framework 6.2.19, which has known vulnerabilities.
+Review the [Spring 6.2 limitations](../SECURITY.md#spring-62-web-framework-limitations) before
+deploying them; the library's dependency scan does not cover the full example applications.
+
+The examples build separately from the library. From the repository root, install the current
+development artifacts and set your credentials:
 
 ```bash
 ./mvnw -B -ntp -DskipTests -Djacoco.skip=true install
@@ -32,4 +34,5 @@ Run either example from the repository root:
 ./mvnw -f examples/langchain4j-example/pom.xml spring-boot:run
 ```
 
-Each process makes live OpenAI calls and sends traces to the configured Langfuse project.
+For SDK ownership, content capture, and supported model methods, see the
+[Spring Boot guide](../docs/spring-boot.md).

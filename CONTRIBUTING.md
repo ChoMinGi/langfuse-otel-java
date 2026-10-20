@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for contributing to langfuse-otel-java.
+Bug reports, installation feedback, documentation fixes, and code contributions are welcome.
 
 ## Development setup
 
@@ -20,25 +20,38 @@ Before opening a pull request:
 ```
 
 `clean verify` runs unit and packaged-JAR tests, coverage checks, warning-free Javadocs, and
-binary/source API compatibility against `0.2.0`. Coverage reports are written under each module's
+binary/source API compatibility against the `api.compatibility.baseline` in [pom.xml](pom.xml)
+(currently `0.2.3`). Coverage reports are written under each module's
 `target/site/jacoco` directory.
 
-The projects under `consumer-tests` are deliberately outside the Maven reactor. After changing
+The projects under `consumer-tests` build separately from the library. After changing
 framework adapters, auto-configuration, or dependency metadata, install the reactor artifacts and
-run both framework consumer smokes and the prompt classpath check:
+run the framework, prompt, and observation consumers:
 
 ```bash
 ./mvnw -B -ntp -DskipTests -Djacoco.skip=true install
 ./mvnw -B -ntp -f consumer-tests/spring-boot-consumer/pom.xml verify
 ./mvnw -B -ntp -f consumer-tests/langchain4j-spring-boot-consumer/pom.xml verify
 ./mvnw -B -ntp -f consumer-tests/core-prompt-consumer/pom.xml verify
+./mvnw -B -ntp -f consumer-tests/core-observation-consumer/pom.xml verify
 ```
 
 The full baseline/latest framework commands used for a release are listed in
 [RELEASING.md](RELEASING.md#prepare-the-release-commit).
 
-To exercise the complete local path from both framework model beans through OTLP ingestion and
-Observations API v2 read-back, run:
+## Langfuse integration checks
+
+For the observation API and published first-trace example, run the same Langfuse 4.41.0 check
+used by CI:
+
+```bash
+bash experiments/core-preflight/docker/run.sh
+```
+
+It uses a disposable Langfuse stack, project keys, and a TLS proxy. Prerequisites and cleanup
+details are in the [runner guide](experiments/core-preflight/README.md).
+
+The older framework check covers Spring AI and LangChain4j model beans:
 
 ```bash
 ./e2e/langfuse-docker/run.sh
@@ -49,8 +62,9 @@ TLS proxy, then runs the Spring AI and LangChain4j consumer tests. It needs Dock
 `curl`, `jq`, `openssl`, and `keytool`, but no Langfuse Cloud credentials. The stack uses an
 isolated Compose project and is removed with its volumes when the command exits.
 
-The slower quality profile adds static analysis and dependency-license checks while producing the
-CycloneDX SBOM used by CI:
+## Other checks
+
+The quality profile adds static analysis, dependency-license checks, and a CycloneDX SBOM:
 
 ```bash
 ./mvnw -B -ntp -Pquality -DskipTests -Djacoco.skip=true \
@@ -77,9 +91,11 @@ credentials fail the integration status job instead of silently skipping it.
 |------|---------|
 | `langfuse-otel-core` | Framework-neutral Java 11 tracing API and standalone exporter |
 | `langfuse-otel-spring-boot-starter` | Java 17 Spring AI and LangChain4j auto-configuration |
-| `examples` | Consumer builds for both supported adapters |
+| `examples` | First-trace application and Spring AI/LangChain4j examples |
 | `consumer-tests` | Independent user-flow builds outside the reactor |
-| `e2e/langfuse-docker` | Disposable self-hosted Langfuse user-flow validation |
+| `experiments/core-preflight` | Observation contract checks and Langfuse 4.41.0 read-back |
+| `experiments/core-operations` | Export failure, queue, retention, and load checks |
+| `e2e/langfuse-docker` | Framework model read-back against Langfuse 4.0.0-rc.2 |
 
 ## Guidelines
 

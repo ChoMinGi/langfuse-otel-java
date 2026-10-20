@@ -4,6 +4,9 @@ Prepared 2026-10-18; submission status updated 2026-10-21 (KST).
 The community listing request has been submitted as
 [langfuse/langfuse-examples PR #40](https://github.com/langfuse/langfuse-examples/pull/40).
 It is open for maintainer review; submission does not mean the listing has been accepted.
+The `license/cla` check is pending: CLAassistant requested a
+[Contributor License Agreement signature](https://cla-assistant.io/langfuse/langfuse-examples?pullRequest=40).
+The contributor must review and sign separately; check the external PR for the latest status.
 The English and Korean feedback invitations below remain unpublished drafts.
 The public feedback entry point is the repository's
 [first-trace issue form](https://github.com/ChoMinGi/langfuse-otel-java/issues/new?template=first_trace_feedback.yml).
